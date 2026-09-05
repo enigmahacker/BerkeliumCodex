@@ -115,11 +115,11 @@ describe('Slash Command Autocompletion & Options Palette', () => {
     await handler.handle('/');
     expect(logSpy).toHaveBeenCalled();
     const output = logSpy.mock.calls.map((c) => c.join(' ')).join('\n');
-    expect(output).toContain('BERKELIUM COMMAND OPTIONS');
-    expect(output).toContain('AI & MODELS');
-    expect(output).toContain('DEV & CODE');
-    expect(output).toContain('SYSTEM & SECURITY');
-    expect(output).toContain('CORE & THEME');
+    expect(output).toContain('BERKELIUM COMMAND PALETTE');
+    expect(output).toContain('MODEL');
+    expect(output).toContain('DEVELOPMENT');
+    expect(output).toContain('PROVIDERS');
+    expect(output).toContain('THEMES');
     expect(output).toContain('/auth');
     expect(output).toContain('/matrix');
 
