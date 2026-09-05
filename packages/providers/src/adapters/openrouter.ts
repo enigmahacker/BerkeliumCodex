@@ -70,28 +70,79 @@ export class OpenRouterProvider implements Provider {
     }
   }
 
-  private getDefaultModels(): ModelInfo[] {
+  public getDefaultModels(): ModelInfo[] {
     return [
       {
-        id: 'anthropic/claude-3.7-sonnet',
-        name: 'Claude 3.7 Sonnet',
+        id: 'anthropic/claude-sonnet-4-5',
+        name: 'Claude Sonnet 4.5',
         provider: 'openrouter',
         context_length: 200000,
         capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
+        description: 'Anthropic Claude Sonnet 4.5 — latest hybrid reasoning & coding powerhouse',
       },
       {
-        id: 'google/gemini-2.0-flash-001',
-        name: 'Gemini 2.0 Flash',
+        id: 'anthropic/claude-opus-4-5',
+        name: 'Claude Opus 4.5',
+        provider: 'openrouter',
+        context_length: 200000,
+        capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
+        description: 'Anthropic Claude Opus 4.5 — flagship intelligence for the hardest tasks',
+      },
+      {
+        id: 'google/gemini-3.8-flash',
+        name: 'Gemini 3.8 Flash',
         provider: 'openrouter',
         context_length: 1048576,
-        capabilities: { streaming: true, tool_calling: true, vision: true },
+        capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
+        description: '🆕 Google Gemini 3.8 Flash — newest stable, long-horizon agentic engineering',
       },
       {
-        id: 'deepseek/deepseek-r1',
-        name: 'DeepSeek R1',
+        id: 'google/gemini-3.1-pro-preview',
+        name: 'Gemini 3.1 Pro (Preview)',
+        provider: 'openrouter',
+        context_length: 2097152,
+        capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
+        description: 'Google Gemini 3.1 Pro — advanced intelligence, 2M context, vibe coding',
+      },
+      {
+        id: 'google/gemini-3.7-flash',
+        name: 'Gemini 3.7 Flash',
+        provider: 'openrouter',
+        context_length: 1048576,
+        capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
+        description: 'Google Gemini 3.7 Flash — complex coding and reliable agentic execution',
+      },
+      {
+        id: 'deepseek/deepseek-r1-0528',
+        name: 'DeepSeek R1 (0528)',
         provider: 'openrouter',
         context_length: 163840,
-        capabilities: { streaming: true, tool_calling: false, reasoning: true },
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'DeepSeek R1 0528 — latest frontier open reasoning model',
+      },
+      {
+        id: 'deepseek/deepseek-chat',
+        name: 'DeepSeek V3',
+        provider: 'openrouter',
+        context_length: 131072,
+        capabilities: { streaming: true, tool_calling: true, vision: false },
+        description: 'DeepSeek V3 flagship general & coding powerhouse',
+      },
+      {
+        id: 'openai/o3',
+        name: 'OpenAI o3',
+        provider: 'openrouter',
+        context_length: 200000,
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'OpenAI o3 — top-tier frontier reasoning for STEM and code',
+      },
+      {
+        id: 'openai/gpt-4o',
+        name: 'OpenAI GPT-4o',
+        provider: 'openrouter',
+        context_length: 128000,
+        capabilities: { streaming: true, tool_calling: true, vision: true },
+        description: 'OpenAI multimodal flagship — fast, vision-capable, strong tools',
       },
       {
         id: 'meta-llama/llama-3.3-70b-instruct',
@@ -99,9 +150,11 @@ export class OpenRouterProvider implements Provider {
         provider: 'openrouter',
         context_length: 131072,
         capabilities: { streaming: true, tool_calling: true },
+        description: 'Meta latest 70B open weights instruction model',
       },
     ];
   }
+
 
   public async *stream(
     messages: Message[],

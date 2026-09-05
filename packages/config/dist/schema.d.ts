@@ -219,6 +219,63 @@ export declare const BerkeliumConfigSchema: z.ZodObject<{
             models?: string[] | undefined;
             timeout_ms?: number | undefined;
         }>>;
+        gemini: z.ZodDefault<z.ZodObject<{
+            enabled: z.ZodDefault<z.ZodBoolean>;
+            base_url: z.ZodOptional<z.ZodString>;
+            api_key: z.ZodOptional<z.ZodString>;
+            models: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            timeout_ms: z.ZodDefault<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            enabled: boolean;
+            timeout_ms: number;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+        }, {
+            enabled?: boolean | undefined;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+            timeout_ms?: number | undefined;
+        }>>;
+        huggingface: z.ZodDefault<z.ZodObject<{
+            enabled: z.ZodDefault<z.ZodBoolean>;
+            base_url: z.ZodOptional<z.ZodString>;
+            api_key: z.ZodOptional<z.ZodString>;
+            models: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            timeout_ms: z.ZodDefault<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            enabled: boolean;
+            timeout_ms: number;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+        }, {
+            enabled?: boolean | undefined;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+            timeout_ms?: number | undefined;
+        }>>;
+        groq: z.ZodDefault<z.ZodObject<{
+            enabled: z.ZodDefault<z.ZodBoolean>;
+            base_url: z.ZodOptional<z.ZodString>;
+            api_key: z.ZodOptional<z.ZodString>;
+            models: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            timeout_ms: z.ZodDefault<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            enabled: boolean;
+            timeout_ms: number;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+        }, {
+            enabled?: boolean | undefined;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+            timeout_ms?: number | undefined;
+        }>>;
         ollama: z.ZodDefault<z.ZodObject<{
             enabled: z.ZodDefault<z.ZodBoolean>;
             base_url: z.ZodOptional<z.ZodString>;
@@ -286,6 +343,27 @@ export declare const BerkeliumConfigSchema: z.ZodObject<{
             api_key?: string | undefined;
             models?: string[] | undefined;
         };
+        groq: {
+            enabled: boolean;
+            timeout_ms: number;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+        };
+        gemini: {
+            enabled: boolean;
+            timeout_ms: number;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+        };
+        huggingface: {
+            enabled: boolean;
+            timeout_ms: number;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+        };
     }, {
         openrouter?: {
             enabled?: boolean | undefined;
@@ -309,6 +387,27 @@ export declare const BerkeliumConfigSchema: z.ZodObject<{
             timeout_ms?: number | undefined;
         } | undefined;
         nvidia?: {
+            enabled?: boolean | undefined;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+            timeout_ms?: number | undefined;
+        } | undefined;
+        groq?: {
+            enabled?: boolean | undefined;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+            timeout_ms?: number | undefined;
+        } | undefined;
+        gemini?: {
+            enabled?: boolean | undefined;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+            timeout_ms?: number | undefined;
+        } | undefined;
+        huggingface?: {
             enabled?: boolean | undefined;
             base_url?: string | undefined;
             api_key?: string | undefined;
@@ -555,6 +654,27 @@ export declare const BerkeliumConfigSchema: z.ZodObject<{
             api_key?: string | undefined;
             models?: string[] | undefined;
         };
+        groq: {
+            enabled: boolean;
+            timeout_ms: number;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+        };
+        gemini: {
+            enabled: boolean;
+            timeout_ms: number;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+        };
+        huggingface: {
+            enabled: boolean;
+            timeout_ms: number;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+        };
     };
     agent: {
         max_iterations: number;
@@ -647,6 +767,27 @@ export declare const BerkeliumConfigSchema: z.ZodObject<{
             timeout_ms?: number | undefined;
         } | undefined;
         nvidia?: {
+            enabled?: boolean | undefined;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+            timeout_ms?: number | undefined;
+        } | undefined;
+        groq?: {
+            enabled?: boolean | undefined;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+            timeout_ms?: number | undefined;
+        } | undefined;
+        gemini?: {
+            enabled?: boolean | undefined;
+            base_url?: string | undefined;
+            api_key?: string | undefined;
+            models?: string[] | undefined;
+            timeout_ms?: number | undefined;
+        } | undefined;
+        huggingface?: {
             enabled?: boolean | undefined;
             base_url?: string | undefined;
             api_key?: string | undefined;

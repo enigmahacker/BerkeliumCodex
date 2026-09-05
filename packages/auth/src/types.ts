@@ -1,4 +1,7 @@
-export type AuthProviderId = 'nvidia' | 'openrouter' | 'ollama' | 'lmstudio' | 'openai' | 'anthropic' | string;
+export type AuthProviderId = 'nvidia' | 'openrouter' | 'gemini' | 'google' | 'huggingface' | 'groq' | 'ollama' | 'lmstudio' | 'openai' | 'anthropic' | string;
+
+
+
 
 export interface AuthStatus {
   provider: AuthProviderId;

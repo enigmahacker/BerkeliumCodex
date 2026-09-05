@@ -153,6 +153,9 @@ export class AgentRuntime {
         const compaction = this.contextEngine.compactIfNeeded(this.conversationMessages);
         if (compaction.compacted) {
           this.conversationMessages = compaction.messages;
+          const tokensSaved = compaction.tokensSaved ?? (compaction.tokensBefore - compaction.tokensAfter);
+          this.telemetry.recordTokensSaved(tokensSaved);
+
           this.eventBus.emit({
             id: crypto.randomUUID(),
             type: 'context_compacted',
@@ -161,16 +164,17 @@ export class AgentRuntime {
             tokensBefore: compaction.tokensBefore,
             tokensAfter: compaction.tokensAfter,
             reductionPercentage: Math.round(
-              ((compaction.tokensBefore - compaction.tokensAfter) / compaction.tokensBefore) * 100
+              (tokensSaved / Math.max(1, compaction.tokensBefore)) * 100
             ),
           });
         }
 
         // 2. Build Layered System Prompt with Workspace Context
         const promptLayers = PromptEngine.loadCustomPrompts(this.workspaceRoot);
-        const repoMap = await this.contextEngine.getRepoMap(1500);
+        const repoMap = await this.contextEngine.getRepoMap(800);
         promptLayers.workspace = `Active Workspace: ${this.workspaceRoot}\n\n${repoMap}`;
         const systemPrompt = PromptEngine.compose(promptLayers, this.workspaceRoot);
+
 
         // 3. Resolve Active Model Target
         const target = this.router.resolveTarget(this.activeModelTarget);

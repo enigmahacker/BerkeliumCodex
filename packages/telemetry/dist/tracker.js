@@ -39,10 +39,25 @@ export class TelemetryTracker {
             this.stats.tokenUsage.completionTokens += usage.completionTokens;
         if (usage.reasoningTokens)
             this.stats.tokenUsage.reasoningTokens = (this.stats.tokenUsage.reasoningTokens || 0) + usage.reasoningTokens;
-        if (usage.cachedTokens)
+        if (usage.cachedTokens) {
             this.stats.tokenUsage.cachedTokens = (this.stats.tokenUsage.cachedTokens || 0) + usage.cachedTokens;
+            this.stats.latencies.promptCacheHits = (this.stats.latencies.promptCacheHits || 0) + 1;
+        }
+        if (usage.compactedTokensSaved) {
+            this.stats.tokenUsage.compactedTokensSaved = (this.stats.tokenUsage.compactedTokensSaved || 0) + usage.compactedTokensSaved;
+        }
         this.stats.tokenUsage.totalTokens =
             this.stats.tokenUsage.promptTokens + this.stats.tokenUsage.completionTokens;
+    }
+    recordTokensSaved(tokensSaved) {
+        if (tokensSaved <= 0)
+            return;
+        this.stats.tokenUsage.compactedTokensSaved = (this.stats.tokenUsage.compactedTokensSaved || 0) + tokensSaved;
+        this.stats.latencies.tokensSaved = this.stats.tokenUsage.compactedTokensSaved;
+        const totalPotential = this.stats.tokenUsage.totalTokens + this.stats.tokenUsage.compactedTokensSaved;
+        if (totalPotential > 0) {
+            this.stats.latencies.compactionRatio = Math.round((this.stats.tokenUsage.compactedTokensSaved / totalPotential) * 100);
+        }
     }
     recordFirstTokenLatency(latencyMs) {
         this.stats.latencies.firstTokenMs = Math.round(latencyMs);

@@ -65,38 +65,51 @@ export class NVIDIAProvider implements Provider {
     }
   }
 
-  private getDefaultModels(): ModelInfo[] {
+  public getDefaultModels(): ModelInfo[] {
     return [
+      {
+        id: 'deepseek-ai/deepseek-r1',
+        name: 'DeepSeek R1',
+        provider: 'nvidia',
+        context_length: 131072,
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'DeepSeek R1 frontier reasoning model accelerated on NVIDIA NIM',
+      },
       {
         id: 'meta/llama-3.3-70b-instruct',
         name: 'Llama 3.3 70B Instruct',
         provider: 'nvidia',
         context_length: 131072,
         capabilities: { streaming: true, tool_calling: true },
+        description: 'Meta latest 70B instruction model on NVIDIA NIM',
       },
       {
-        id: 'deepseek-ai/deepseek-r1',
-        name: 'DeepSeek R1',
+        id: 'nvidia/llama-3.1-nemotron-70b-instruct',
+        name: 'Llama 3.1 Nemotron 70B',
         provider: 'nvidia',
         context_length: 131072,
-        capabilities: { streaming: true, tool_calling: false, reasoning: true },
+        capabilities: { streaming: true, tool_calling: true },
+        description: 'NVIDIA custom aligned high-accuracy enterprise model',
       },
       {
-        id: 'mistralai/mixtral-8x22b-instruct-v0.1',
-        name: 'Mixtral 8x22B Instruct',
+        id: 'qwen/qwen2.5-coder-32b-instruct',
+        name: 'Qwen 2.5 Coder 32B',
         provider: 'nvidia',
-        context_length: 65536,
+        context_length: 131072,
         capabilities: { streaming: true, tool_calling: true },
+        description: 'Qwen coding powerhouse on NVIDIA NIM',
       },
       {
-        id: 'nvidia/nemotron-4-340b-instruct',
-        name: 'Nemotron 4 340B Instruct',
+        id: 'mistralai/mistral-large-2-instruct',
+        name: 'Mistral Large 2',
         provider: 'nvidia',
-        context_length: 4096,
+        context_length: 128000,
         capabilities: { streaming: true, tool_calling: true },
+        description: 'Mistral flagship frontier model on NVIDIA NIM',
       },
     ];
   }
+
 
   public async *stream(
     messages: Message[],

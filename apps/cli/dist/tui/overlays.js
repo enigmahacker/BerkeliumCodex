@@ -102,6 +102,38 @@ export class TUIOverlays {
         console.log(`Remaining       ${fmt.success((bd.remaining / 1000).toFixed(1) + 'k').padStart(18, ' ')}`);
         console.log();
     }
+    static renderTokens(themeManager, stats, bd) {
+        const fmt = themeManager.getFormatted();
+        const u = stats.tokenUsage;
+        const l = stats.latencies;
+        const saved = u.compactedTokensSaved || l.tokensSaved || 0;
+        const totalPotential = u.totalTokens + saved;
+        const savePercent = totalPotential > 0 ? Math.round((saved / totalPotential) * 100) : 0;
+        const cacheHits = l.promptCacheHits || 0;
+        const cachedTokens = u.cachedTokens || 0;
+        console.log();
+        console.log(fmt.bold(fmt.primary('⚡ TOKEN ECONOMY & EFFICIENCY METRICS')));
+        console.log(fmt.dimmed('Lossless micro-compaction, prefix caching & context budget'));
+        console.log();
+        console.log(fmt.accent('SESSION CONSUMPTION'));
+        console.log(`  • Prompt Tokens:      ${fmt.bold(u.promptTokens.toLocaleString())}`);
+        console.log(`  • Completion Tokens:  ${fmt.bold(u.completionTokens.toLocaleString())}`);
+        if (u.reasoningTokens) {
+            console.log(`  • Reasoning Tokens:   ${fmt.dimmed(u.reasoningTokens.toLocaleString())}`);
+        }
+        console.log(`  • Total Billed:       ${fmt.primary(u.totalTokens.toLocaleString())}`);
+        console.log();
+        console.log(fmt.accent('TOKEN SAVINGS & EFFICIENCY'));
+        console.log(`  • Tokens Saved:       ${fmt.success(saved.toLocaleString() + ' tokens')} ${fmt.dimmed(`(-${savePercent}% reduction)`)}`);
+        console.log(`  • Prompt Cache Hits:  ${fmt.accent(String(cacheHits))} ${fmt.dimmed(`(${cachedTokens.toLocaleString()} tokens cached)`)}`);
+        const multiplier = saved > 0 ? (totalPotential / Math.max(1, u.totalTokens)).toFixed(1) : '1.0';
+        console.log(`  • Efficiency Factor:  ${fmt.success(`${multiplier}x more economical than standard harnesses`)}`);
+        console.log();
+        console.log(fmt.accent('ACTIVE CONTEXT BUDGET'));
+        console.log(`  • Live Context:       ${fmt.bold((bd.totalTokens / 1000).toFixed(1) + 'k')} / ${fmt.dimmed((bd.limit / 1000).toFixed(1) + 'k')} ${fmt.dimmed(`(${(bd.remaining / 1000).toFixed(1)}k remaining)`)}`);
+        console.log(`  • Repo Map Density:   ${fmt.dimmed((bd.projectTokens).toLocaleString() + ' tokens (AST-grouped)')}`);
+        console.log();
+    }
     static renderModels(themeManager, aliases, discovered) {
         const fmt = themeManager.getFormatted();
         console.log();

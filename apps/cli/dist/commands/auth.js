@@ -19,15 +19,16 @@ export class AuthCommand {
             console.log();
             return;
         }
+        const targetProvider = (provider?.toLowerCase() === 'hf' ? 'huggingface' : provider?.toLowerCase());
         if (action === 'login') {
-            if (!provider) {
-                console.log(fmt.error('Please specify provider to login: berkelium auth login <nvidia|openrouter>'));
+            if (!targetProvider) {
+                console.log(fmt.error('Please specify provider to login: berkelium auth login <nvidia|openrouter|huggingface|groq>'));
                 return;
             }
             let apiKey = keyArg;
             if (!apiKey) {
                 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-                apiKey = await rl.question(fmt.accent(`Enter API Key for ${provider.toUpperCase()}: `));
+                apiKey = await rl.question(fmt.accent(`Enter API Key for ${targetProvider.toUpperCase()}: `));
                 rl.close();
             }
             const trimmedKey = apiKey.trim();
@@ -35,17 +36,17 @@ export class AuthCommand {
                 console.log(fmt.error('Empty API key provided. Aborted.'));
                 return;
             }
-            await authStore.setApiKey(provider, trimmedKey);
-            console.log(fmt.success(`✓ Successfully authenticated ${provider.toUpperCase()} (saved in secure storage).`));
+            await authStore.setApiKey(targetProvider, trimmedKey);
+            console.log(fmt.success(`✓ Successfully authenticated ${targetProvider.toUpperCase()} (saved in secure storage).`));
             return;
         }
         if (action === 'logout') {
-            if (!provider) {
+            if (!targetProvider) {
                 console.log(fmt.error('Please specify provider to logout: berkelium auth logout <provider>'));
                 return;
             }
-            await authStore.removeApiKey(provider);
-            console.log(fmt.success(`✓ Logged out ${provider.toUpperCase()}.`));
+            await authStore.removeApiKey(targetProvider);
+            console.log(fmt.success(`✓ Logged out ${targetProvider.toUpperCase()}.`));
             return;
         }
         console.log(fmt.error(`Unknown auth action "${action}". Available: list, login, logout`));

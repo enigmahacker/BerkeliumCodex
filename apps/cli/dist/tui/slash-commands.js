@@ -242,7 +242,11 @@ export class SlashCommandHandler {
             }
             case 'auth': {
                 const subAction = subArgs[0]?.toLowerCase();
-                const providerName = subArgs[1]?.toLowerCase();
+                let providerName = subArgs[1]?.toLowerCase();
+                if (providerName === 'hf')
+                    providerName = 'huggingface';
+                if (providerName === 'google' || providerName === 'googleapi')
+                    providerName = 'gemini';
                 const inlineKey = subArgs.slice(2).join(' ');
                 if (!subAction || subAction === 'status' || subAction === 'list') {
                     const statuses = await this.authStore.getAllStatuses();
@@ -251,7 +255,7 @@ export class SlashCommandHandler {
                 }
                 if (subAction === 'login' || subAction === 'set') {
                     if (!providerName) {
-                        console.log(fmt.error('Please specify the provider: /auth login <nvidia|openrouter|openai|anthropic> [key]'));
+                        console.log(fmt.error('Please specify the provider: /auth login <gemini|nvidia|openrouter|groq|huggingface> [key]'));
                         return true;
                     }
                     let keyToSave = inlineKey;
@@ -278,7 +282,7 @@ export class SlashCommandHandler {
                 }
                 if (subAction === 'logout' || subAction === 'remove' || subAction === 'clear') {
                     if (!providerName) {
-                        console.log(fmt.error('Please specify the provider: /auth logout <nvidia|openrouter|openai|anthropic>'));
+                        console.log(fmt.error('Please specify the provider: /auth logout <gemini|nvidia|openrouter|groq|huggingface>'));
                         return true;
                     }
                     await this.authStore.removeApiKey(providerName);
@@ -289,8 +293,11 @@ export class SlashCommandHandler {
                     console.log();
                     console.log(fmt.bold(fmt.primary('SUPPORTED PROVIDERS')));
                     console.log();
+                    console.log(`  ${fmt.accent('gemini'.padEnd(16, ' '))} Google Gemini API (GEMINI_API_KEY / GOOGLE_API_KEY)`);
                     console.log(`  ${fmt.accent('nvidia'.padEnd(16, ' '))} NVIDIA NIM cloud endpoint`);
                     console.log(`  ${fmt.accent('openrouter'.padEnd(16, ' '))} OpenRouter universal model gateway`);
+                    console.log(`  ${fmt.accent('huggingface'.padEnd(16, ' '))} Hugging Face Serverless & Router API (HF_TOKEN)`);
+                    console.log(`  ${fmt.accent('groq'.padEnd(16, ' '))} Groq LPU Ultra-Fast Inference Engine (GROQ_API_KEY)`);
                     console.log(`  ${fmt.accent('ollama'.padEnd(16, ' '))} Local Ollama runtime (no API key required)`);
                     console.log(`  ${fmt.accent('lmstudio'.padEnd(16, ' '))} Local LM Studio server (no API key required)`);
                     console.log(`  ${fmt.accent('openai'.padEnd(16, ' '))} OpenAI direct API`);
@@ -347,18 +354,32 @@ export class SlashCommandHandler {
                 return true;
             case 'context':
             case 'ctx': {
-                const breakdown = await this.contextEngine.getBreakdown('System Prompt', [], JSON.stringify(this.orchestrator.getRegistry().getDefinitions()));
+                const history = this.runtime.getSessionHistory();
+                const breakdown = await this.contextEngine.getBreakdown('System Prompt', history, JSON.stringify(this.orchestrator.getRegistry().getDefinitions()));
                 TUIOverlays.renderContext(this.themeManager, breakdown);
                 return true;
             }
+            case 'tokens':
+            case 'cost':
+            case 'token':
+            case 'economy': {
+                const stats = this.runtime.getTelemetry().getStats();
+                const history = this.runtime.getSessionHistory();
+                const breakdown = await this.contextEngine.getBreakdown('System Prompt', history, JSON.stringify(this.orchestrator.getRegistry().getDefinitions()));
+                TUIOverlays.renderTokens(this.themeManager, stats, breakdown);
+                return true;
+            }
             case 'compact': {
-                console.log(fmt.dimmed('Compacting active conversation history and context...'));
-                const result = this.contextEngine.compactIfNeeded([
+                console.log(fmt.dimmed('Compacting conversation history and historical tool outputs...'));
+                const history = this.runtime.getSessionHistory();
+                const result = this.contextEngine.compactIfNeeded(history.length > 0 ? history : [
                     { role: 'user', content: 'Sample user input for compaction' },
                     { role: 'assistant', content: 'Sample assistant response for compaction' },
                 ], 0);
-                const percent = Math.round(((result.tokensBefore - result.tokensAfter) / Math.max(1, result.tokensBefore)) * 100);
-                console.log(fmt.success(`✓ Context compacted from ${result.tokensBefore} to ${result.tokensAfter} tokens (-${percent}%).`));
+                const tokensSaved = result.tokensSaved ?? (result.tokensBefore - result.tokensAfter);
+                const percent = Math.round((tokensSaved / Math.max(1, result.tokensBefore)) * 100);
+                const microStr = result.microCompactedCount ? ` (${result.microCompactedCount} tool outputs micro-compacted)` : '';
+                console.log(fmt.success(`✓ Context compacted: ${result.tokensBefore} → ${result.tokensAfter} tokens (-${percent}%, saved ${tokensSaved.toLocaleString()} tokens)${microStr}.`));
                 return true;
             }
             case 'model':
@@ -410,7 +431,7 @@ export class SlashCommandHandler {
                     }
                 }
                 else {
-                    console.log(fmt.dimmed('Usage: /provider <openrouter|nvidia|ollama|lmstudio>'));
+                    console.log(fmt.dimmed('Usage: /provider <gemini|openrouter|nvidia|groq|huggingface|ollama|lmstudio>'));
                 }
                 return true;
             case 'providers': {

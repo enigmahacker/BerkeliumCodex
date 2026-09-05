@@ -43,13 +43,13 @@ export class PromptEngine {
         if (layers.tools) {
             sections.push('## Available Tools\n' + layers.tools);
         }
-        // 6. Workspace context (if any)
-        if (layers.workspace) {
-            sections.push('## Workspace Context\n' + layers.workspace);
-        }
-        // 7. Custom project instructions
+        // 6. Custom project instructions / AGENTS.md (Project Invariants)
         if (layers.custom) {
             sections.push('## Project Specific Guidelines\n' + layers.custom);
+        }
+        // 7. Workspace Context & Active Map (Dynamic context placed at trailing position for Prompt Caching)
+        if (layers.workspace) {
+            sections.push('## Workspace Context\n' + layers.workspace);
         }
         return sections.join('\n\n');
     }

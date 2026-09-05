@@ -7,6 +7,7 @@ export declare class OllamaProvider implements Provider {
     capabilities(): ProviderCapabilities;
     isAvailable(): Promise<boolean>;
     listModels(): Promise<ModelInfo[]>;
+    getDefaultModels(): ModelInfo[];
     stream(messages: Message[], options: ProviderRequestOptions): AsyncIterable<NormalizedChunk>;
     generate(messages: Message[], options: ProviderRequestOptions): Promise<NormalizedResponse>;
     private formatMessages;

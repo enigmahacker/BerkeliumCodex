@@ -12,20 +12,46 @@ export class RepoMapper {
         await this.walk(this.workspaceRoot, results, maxFiles);
         return results;
     }
-    async generateRepoMap(maxTokens = 2000) {
+    async generateRepoMap(maxTokens = 800) {
         const files = await this.scan();
-        const lines = ['# Repository Map'];
+        if (files.length === 0) {
+            return '# Repository Map\n(No code files found)';
+        }
+        // Group files by directory
+        const dirMap = new Map();
         for (const f of files) {
-            const symbolsStr = f.symbols.length > 0
-                ? ` (${f.symbols.slice(0, 5).map((s) => s.name).join(', ')})`
-                : '';
-            lines.push(`- ${f.path}${symbolsStr}`);
+            const dir = path.dirname(f.path);
+            const filename = path.basename(f.path);
+            const keySymbols = f.symbols.slice(0, 4).map((s) => s.name);
+            if (!dirMap.has(dir)) {
+                dirMap.set(dir, []);
+            }
+            dirMap.get(dir).push({ filename, symbols: keySymbols });
+        }
+        const lines = ['# Repository Map (Key Symbols)'];
+        for (const [dir, dirFiles] of dirMap.entries()) {
+            const fileSummaries = dirFiles.map((df) => {
+                if (df.symbols.length > 0) {
+                    return `${df.filename} (${df.symbols.join(', ')})`;
+                }
+                return df.filename;
+            });
+            const dirHeader = dir === '.' ? '.' : dir;
+            lines.push(`• ${dirHeader}: ${fileSummaries.join(', ')}`);
         }
         let result = lines.join('\n');
-        if (Tokenizer.countTokens(result) > maxTokens) {
-            // Condense if exceeds budget
-            const condensed = lines.slice(0, Math.floor(lines.length / 2)).join('\n');
-            result = `${condensed}\n... [${lines.length - Math.floor(lines.length / 2)} more files mapped]`;
+        let tokens = Tokenizer.countTokens(result);
+        if (tokens > maxTokens) {
+            // Tree-shake directory entries to fit within maxTokens
+            const condensed = ['# Repository Map (Key Symbols)'];
+            for (const line of lines.slice(1)) {
+                if (Tokenizer.countTokens(condensed.join('\n') + '\n' + line) > maxTokens - 30) {
+                    condensed.push(`... [${lines.length - condensed.length} more directories indexed]`);
+                    break;
+                }
+                condensed.push(line);
+            }
+            result = condensed.join('\n');
         }
         return result;
     }
@@ -99,9 +125,13 @@ export class RepoMapper {
                 if (interfaceMatch) {
                     symbols.push({ name: interfaceMatch[1], kind: 'interface', line: i + 1 });
                 }
-                const typeMatch = line.match(/(?:export\s+)?type\s+([A-Za-z0-9_$]+)/);
-                if (typeMatch) {
-                    symbols.push({ name: typeMatch[1], kind: 'type', line: i + 1 });
+                const enumMatch = line.match(/(?:export\s+)?enum\s+([A-Za-z0-9_$]+)/);
+                if (enumMatch) {
+                    symbols.push({ name: enumMatch[1], kind: 'type', line: i + 1 });
+                }
+                const constMatch = line.match(/export\s+(?:const|let)\s+([A-Z0-9_]{3,}|[A-Za-z0-9_$]+)\s*[:=]/);
+                if (constMatch && !['default', 'from', 'as'].includes(constMatch[1])) {
+                    symbols.push({ name: constMatch[1], kind: 'variable', line: i + 1 });
                 }
                 // Imports
                 const importMatch = line.match(/import\s+.*?from\s+['"](.*?)['"]/);

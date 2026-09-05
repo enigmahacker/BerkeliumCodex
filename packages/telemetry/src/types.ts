@@ -4,6 +4,7 @@ export interface TokenUsage {
   totalTokens: number;
   reasoningTokens?: number;
   cachedTokens?: number;
+  compactedTokensSaved?: number;
 }
 
 export interface PerformanceMetrics {
@@ -17,7 +18,11 @@ export interface PerformanceMetrics {
   memoryMb: number;
   cpuPercent?: number;
   renderLatencyMs: number[];
+  tokensSaved?: number;
+  compactionRatio?: number;
+  promptCacheHits?: number;
 }
+
 
 export interface SessionStats {
   sessionId: string;

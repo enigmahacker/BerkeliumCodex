@@ -27,7 +27,7 @@ const SAFE_ENV_KEYS = new Set([
     'npm_config_user_agent',
     'PNPM_HOME',
 ]);
-const SENSITIVE_ENV_PATTERN = /(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|AUTH|CREDENTIAL|OPENAI|ANTHROPIC|NVIDIA|OPENROUTER|AWS_|GITHUB_|GH_|DATABASE_URL|OAUTH|PRIVATE|SIGNING)/i;
+const SENSITIVE_ENV_PATTERN = /(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|AUTH|CREDENTIAL|OPENAI|ANTHROPIC|NVIDIA|OPENROUTER|GEMINI|GOOGLE_|HUGGINGFACE|HF_|GROQ_|AWS_|GITHUB_|GH_|DATABASE_URL|OAUTH|PRIVATE|SIGNING)/i;
 /**
  * Sanitizes environment variables passed to spawned child processes and shell executions,
  * preventing accidental leakage of API keys, cloud tokens, database credentials, and session secrets.

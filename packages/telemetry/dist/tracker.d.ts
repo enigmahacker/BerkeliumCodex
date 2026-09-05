@@ -5,6 +5,7 @@ export declare class TelemetryTracker {
     constructor(sessionId: string);
     markStartupComplete(): void;
     recordTokenUsage(usage: Partial<TokenUsage>): void;
+    recordTokensSaved(tokensSaved: number): void;
     recordFirstTokenLatency(latencyMs: number): void;
     recordToolCall(toolName: string, latencyMs: number, success: boolean): void;
     recordRenderLatency(latencyMs: number): void;

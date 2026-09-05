@@ -34,8 +34,9 @@ export class ProviderRouter {
 
   public resolveTarget(input: string): ResolvedModelTarget {
     const trimmed = input.trim();
+    const lower = trimmed.toLowerCase();
 
-    // 1. Check if it matches a configured model alias (e.g. 'coding', 'local', 'workstation', 'cloud', 'fast', 'reasoning')
+    // 1. Check if it matches a configured model alias (e.g. 'coding', 'local', 'workstation', 'cloud', 'fast', 'reasoning', 'lmstudio', etc.)
     if (this.config.models[trimmed]) {
       const aliasConfig = this.config.models[trimmed];
       const provider = this.providers.get(aliasConfig.provider);
@@ -53,11 +54,47 @@ export class ProviderRouter {
       };
     }
 
-    // 2. Check if it matches 'provider/model' notation (e.g. 'openrouter/anthropic/claude-3.7-sonnet', 'ollama/qwen2.5-coder:7b')
+    // 2. Direct provider identifier lookup (e.g. user selected "/model lmstudio" or "/model ollama" or "/model groq")
+    const providerAliases: Record<string, string> = {
+      'lm-studio': 'lmstudio',
+      'lm_studio': 'lmstudio',
+      'hf': 'huggingface',
+      'google': 'gemini',
+      'googleapi': 'gemini',
+      'google-ai': 'gemini',
+      'google-genai': 'gemini',
+      'gemini-api': 'gemini',
+    };
+
+    const normalizedProvId = providerAliases[lower] || lower;
+    const directProvider = this.providers.get(normalizedProvId);
+    if (directProvider) {
+      // Find matching alias in config or first default model
+      const matchingAlias = Object.entries(this.config.models).find(
+        ([_, conf]) => conf.provider.toLowerCase() === normalizedProvId
+      );
+      let modelId = matchingAlias ? matchingAlias[1].model : '';
+      if (!modelId && typeof (directProvider as any).getDefaultModels === 'function') {
+        const defaults = (directProvider as any).getDefaultModels() as ModelInfo[];
+        if (defaults && defaults.length > 0) {
+          modelId = defaults[0].id;
+        }
+      }
+      return {
+        provider: directProvider,
+        providerId: directProvider.id,
+        modelId: modelId || 'default',
+      };
+    }
+
+    // 3. Check if it matches 'provider/model' notation (e.g. 'lmstudio/deepseek-coder-v2', 'ollama/qwen2.5-coder:7b', 'hf/meta-llama/...')
     const slashIdx = trimmed.indexOf('/');
     if (slashIdx !== -1) {
-      const providerId = trimmed.slice(0, slashIdx);
+      let providerId = trimmed.slice(0, slashIdx).toLowerCase();
       const modelId = trimmed.slice(slashIdx + 1);
+      if (providerAliases[providerId]) {
+        providerId = providerAliases[providerId];
+      }
       const provider = this.providers.get(providerId);
       if (provider) {
         return {
@@ -68,7 +105,23 @@ export class ProviderRouter {
       }
     }
 
-    // 3. Fallback: try default provider or openrouter
+    // 4. Model ID lookup across all registered providers:
+    // If the user entered an unqualified model name like 'deepseek-coder-v2', 'qwen2.5-coder:7b', or 'llama-3.3-70b-versatile',
+    // check if it matches any provider's known default models
+    for (const [provId, prov] of this.providers.entries()) {
+      if (typeof (prov as any).getDefaultModels === 'function') {
+        const defaults = (prov as any).getDefaultModels() as ModelInfo[];
+        if (defaults.some((m) => m.id.toLowerCase() === lower || m.id.toLowerCase().endsWith('/' + lower))) {
+          return {
+            provider: prov,
+            providerId: provId,
+            modelId: trimmed,
+          };
+        }
+      }
+    }
+
+    // 5. Fallback: try default provider or openrouter
     const defaultAlias = this.config.default_model;
     if (this.config.models[defaultAlias]) {
       const def = this.config.models[defaultAlias];

@@ -44,10 +44,13 @@ export class OllamaProvider implements Provider {
 
   public async listModels(): Promise<ModelInfo[]> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/tags`);
-      if (!res.ok) return [];
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1500);
+      const res = await fetch(`${this.baseUrl}/api/tags`, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!res.ok) return this.getDefaultModels();
       const data = (await res.json()) as any;
-      if (!data.models || !Array.isArray(data.models)) return [];
+      if (!data.models || !Array.isArray(data.models) || data.models.length === 0) return this.getDefaultModels();
 
       return data.models.map((m: any) => ({
         id: m.name,
@@ -61,9 +64,47 @@ export class OllamaProvider implements Provider {
         },
       }));
     } catch {
-      return [];
+      return this.getDefaultModels();
     }
   }
+
+  public getDefaultModels(): ModelInfo[] {
+    return [
+      {
+        id: 'qwen2.5-coder:14b',
+        name: 'Qwen 2.5 Coder 14B (Ollama)',
+        provider: 'ollama',
+        context_length: 65536,
+        capabilities: { streaming: true, tool_calling: true },
+        description: 'Qwen 2.5 Coder 14B instruction tuned model running locally on Ollama',
+      },
+      {
+        id: 'qwen2.5-coder:32b',
+        name: 'Qwen 2.5 Coder 32B (Ollama)',
+        provider: 'ollama',
+        context_length: 65536,
+        capabilities: { streaming: true, tool_calling: true },
+        description: 'Qwen 2.5 Coder 32B powerhouse local coding model',
+      },
+      {
+        id: 'deepseek-r1:14b',
+        name: 'DeepSeek R1 14B (Ollama)',
+        provider: 'ollama',
+        context_length: 65536,
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'DeepSeek R1 reasoning model running locally on Ollama',
+      },
+      {
+        id: 'llama3.3:70b',
+        name: 'Llama 3.3 70B (Ollama)',
+        provider: 'ollama',
+        context_length: 128000,
+        capabilities: { streaming: true, tool_calling: true },
+        description: 'Meta Llama 3.3 70B running locally on Ollama',
+      },
+    ];
+  }
+
 
   public async *stream(
     messages: Message[],

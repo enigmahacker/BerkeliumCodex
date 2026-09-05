@@ -70,6 +70,22 @@ export class DoctorCommand {
             passed: nvidiaOk,
             message: nvidiaOk ? 'Authenticated / API key present' : 'No API key configured',
         });
+        const hfProv = router.getProvider('huggingface');
+        const hfOk = hfProv ? await hfProv.isAvailable() : false;
+        checks.push({
+            category: 'Providers',
+            name: 'Hugging Face Inference API',
+            passed: hfOk,
+            message: hfOk ? 'Authenticated / API token present' : 'No API token configured',
+        });
+        const groqProv = router.getProvider('groq');
+        const groqOk = groqProv ? await groqProv.isAvailable() : false;
+        checks.push({
+            category: 'Providers',
+            name: 'Groq LPU Inference Engine',
+            passed: groqOk,
+            message: groqOk ? 'Authenticated / API key present' : 'No API key configured',
+        });
         const ollamaProv = router.getProvider('ollama');
         const ollamaOk = ollamaProv ? await ollamaProv.isAvailable() : false;
         checks.push({

@@ -8,6 +8,9 @@ import {
   ProviderRouter,
   NVIDIAProvider,
   OpenRouterProvider,
+  GeminiProvider,
+  HuggingFaceProvider,
+  GroqProvider,
   OllamaProvider,
   LMStudioProvider,
 } from '@berkelium/providers';
@@ -37,8 +40,12 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   const router = new ProviderRouter(configManager.getConfig(), logger);
   router.registerProvider(new OpenRouterProvider(authStore, configManager.getConfig().providers.openrouter.base_url));
   router.registerProvider(new NVIDIAProvider(authStore, configManager.getConfig().providers.nvidia.base_url));
+  router.registerProvider(new GeminiProvider(authStore, configManager.getConfig().providers.gemini?.base_url));
+  router.registerProvider(new HuggingFaceProvider(authStore, configManager.getConfig().providers.huggingface?.base_url));
+  router.registerProvider(new GroqProvider(authStore, configManager.getConfig().providers.groq?.base_url));
   router.registerProvider(new OllamaProvider(configManager.getConfig().providers.ollama.base_url));
   router.registerProvider(new LMStudioProvider(configManager.getConfig().providers.lmstudio.base_url));
+
 
   // Initialize Permission Engine & Redactor
   const permissionEngine = new PermissionEngine(

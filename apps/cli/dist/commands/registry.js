@@ -239,6 +239,14 @@ export class CommandRegistry {
             usage: '/compact',
             examples: ['/compact'],
         });
+        this.register({
+            name: 'tokens',
+            aliases: ['cost', 'token', 'economy'],
+            description: 'Inspect real-time token savings, prompt cache hits & economy metrics',
+            category: 'CONTEXT',
+            usage: '/tokens',
+            examples: ['/tokens', '/cost'],
+        });
         // 5. TOOLS
         this.register({
             name: 'tools',

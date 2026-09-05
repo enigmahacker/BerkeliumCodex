@@ -24,6 +24,18 @@ export class SecretRedactor {
       regex: /sk-or-v1-[a-f0-9]{64}/g,
       replace: () => 'sk-or-v1-[REDACTED]',
     },
+    // Hugging Face API Token
+    {
+      name: 'Hugging Face Token',
+      regex: /hf_[A-Za-z0-9]{30,}/g,
+      replace: () => 'hf_[REDACTED]',
+    },
+    // Groq API Key
+    {
+      name: 'Groq API Key',
+      regex: /gsk_[A-Za-z0-9]{48,64}/g,
+      replace: () => 'gsk_[REDACTED]',
+    },
     // Anthropic API Key (must be before generic OpenAI)
     {
       name: 'Anthropic API Key',

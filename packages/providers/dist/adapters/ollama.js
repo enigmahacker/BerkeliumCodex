@@ -31,12 +31,15 @@ export class OllamaProvider {
     }
     async listModels() {
         try {
-            const res = await fetch(`${this.baseUrl}/api/tags`);
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 1500);
+            const res = await fetch(`${this.baseUrl}/api/tags`, { signal: controller.signal });
+            clearTimeout(timeout);
             if (!res.ok)
-                return [];
+                return this.getDefaultModels();
             const data = (await res.json());
-            if (!data.models || !Array.isArray(data.models))
-                return [];
+            if (!data.models || !Array.isArray(data.models) || data.models.length === 0)
+                return this.getDefaultModels();
             return data.models.map((m) => ({
                 id: m.name,
                 name: m.name,
@@ -50,8 +53,36 @@ export class OllamaProvider {
             }));
         }
         catch {
-            return [];
+            return this.getDefaultModels();
         }
+    }
+    getDefaultModels() {
+        return [
+            {
+                id: 'qwen2.5:14b-instruct-q4_K_M',
+                name: 'Qwen 2.5 14B Instruct (Ollama)',
+                provider: 'ollama',
+                context_length: 32768,
+                capabilities: { streaming: true, tool_calling: true },
+                description: 'Qwen 2.5 14B running locally on Ollama',
+            },
+            {
+                id: 'qwen2.5-coder:7b',
+                name: 'Qwen 2.5 Coder 7B (Ollama)',
+                provider: 'ollama',
+                context_length: 32768,
+                capabilities: { streaming: true, tool_calling: true },
+                description: 'Qwen 2.5 Coder 7B running locally on Ollama',
+            },
+            {
+                id: 'llama3.2:latest',
+                name: 'Llama 3.2 (Ollama)',
+                provider: 'ollama',
+                context_length: 128000,
+                capabilities: { streaming: true, tool_calling: true },
+                description: 'Meta Llama 3.2 running locally on Ollama',
+            },
+        ];
     }
     async *stream(messages, options) {
         const isUp = await this.isAvailable();

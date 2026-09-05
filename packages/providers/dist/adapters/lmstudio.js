@@ -31,12 +31,15 @@ export class LMStudioProvider {
     }
     async listModels() {
         try {
-            const res = await fetch(`${this.baseUrl}/models`);
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 1500);
+            const res = await fetch(`${this.baseUrl}/models`, { signal: controller.signal });
+            clearTimeout(timeout);
             if (!res.ok)
-                return [];
+                return this.getDefaultModels();
             const data = (await res.json());
-            if (!data.data || !Array.isArray(data.data))
-                return [];
+            if (!data.data || !Array.isArray(data.data) || data.data.length === 0)
+                return this.getDefaultModels();
             return data.data.map((m) => ({
                 id: m.id,
                 name: m.id,
@@ -49,8 +52,36 @@ export class LMStudioProvider {
             }));
         }
         catch {
-            return [];
+            return this.getDefaultModels();
         }
+    }
+    getDefaultModels() {
+        return [
+            {
+                id: 'deepseek-coder-v2',
+                name: 'DeepSeek Coder V2 (LM Studio)',
+                provider: 'lmstudio',
+                context_length: 65536,
+                capabilities: { streaming: true, tool_calling: true },
+                description: 'DeepSeek Coder V2 running on local LM Studio inference server',
+            },
+            {
+                id: 'qwen2.5-coder-7b-instruct',
+                name: 'Qwen 2.5 Coder 7B (LM Studio)',
+                provider: 'lmstudio',
+                context_length: 32768,
+                capabilities: { streaming: true, tool_calling: true },
+                description: 'Qwen 2.5 Coder instruction model running on local LM Studio server',
+            },
+            {
+                id: 'meta-llama-3.1-8b-instruct',
+                name: 'Llama 3.1 8B (LM Studio)',
+                provider: 'lmstudio',
+                context_length: 128000,
+                capabilities: { streaming: true, tool_calling: true },
+                description: 'Meta Llama 3.1 8B running on local LM Studio server',
+            },
+        ];
     }
     async *stream(messages, options) {
         const isUp = await this.isAvailable();

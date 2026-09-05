@@ -93,6 +93,61 @@ export const BerkeliumConfigSchema = z.object({
             model: 'deepseek/deepseek-r1',
             context_length: 163840,
         },
+        lmstudio: {
+            provider: 'lmstudio',
+            model: 'deepseek-coder-v2',
+            context_length: 65536,
+        },
+        ollama: {
+            provider: 'ollama',
+            model: 'qwen2.5:14b-instruct-q4_K_M',
+            context_length: 32768,
+        },
+        groq: {
+            provider: 'groq',
+            model: 'llama-3.3-70b-versatile',
+            context_length: 128000,
+        },
+        gemini: {
+            provider: 'gemini',
+            model: 'gemini-2.0-flash',
+            context_length: 1048576,
+        },
+        google: {
+            provider: 'gemini',
+            model: 'gemini-2.0-flash',
+            context_length: 1048576,
+        },
+        'gemini-flash': {
+            provider: 'gemini',
+            model: 'gemini-2.0-flash',
+            context_length: 1048576,
+        },
+        'gemini-pro': {
+            provider: 'gemini',
+            model: 'gemini-2.5-pro',
+            context_length: 2097152,
+        },
+        'gemini-flash-thinking': {
+            provider: 'gemini',
+            model: 'gemini-2.0-flash-thinking-exp-01-21',
+            context_length: 1048576,
+        },
+        huggingface: {
+            provider: 'huggingface',
+            model: 'meta-llama/Llama-3.3-70B-Instruct',
+            context_length: 131072,
+        },
+        hf: {
+            provider: 'huggingface',
+            model: 'meta-llama/Llama-3.3-70B-Instruct',
+            context_length: 131072,
+        },
+        nvidia: {
+            provider: 'nvidia',
+            model: 'meta/llama-3.3-70b-instruct',
+            context_length: 131072,
+        },
     }),
     providers: z.object({
         openrouter: ProviderConfigSchema.default({
@@ -102,6 +157,18 @@ export const BerkeliumConfigSchema = z.object({
         nvidia: ProviderConfigSchema.default({
             enabled: true,
             base_url: 'https://integrate.api.nvidia.com/v1',
+        }),
+        gemini: ProviderConfigSchema.default({
+            enabled: true,
+            base_url: 'https://generativelanguage.googleapis.com/v1beta/openai',
+        }),
+        huggingface: ProviderConfigSchema.default({
+            enabled: true,
+            base_url: 'https://router.huggingface.co/hf-inference/v1',
+        }),
+        groq: ProviderConfigSchema.default({
+            enabled: true,
+            base_url: 'https://api.groq.com/openai/v1',
         }),
         ollama: ProviderConfigSchema.default({
             enabled: true,
@@ -114,6 +181,9 @@ export const BerkeliumConfigSchema = z.object({
     }).default({
         openrouter: { enabled: true, base_url: 'https://openrouter.ai/api/v1', timeout_ms: 60000 },
         nvidia: { enabled: true, base_url: 'https://integrate.api.nvidia.com/v1', timeout_ms: 60000 },
+        gemini: { enabled: true, base_url: 'https://generativelanguage.googleapis.com/v1beta/openai', timeout_ms: 60000 },
+        huggingface: { enabled: true, base_url: 'https://router.huggingface.co/hf-inference/v1', timeout_ms: 60000 },
+        groq: { enabled: true, base_url: 'https://api.groq.com/openai/v1', timeout_ms: 60000 },
         ollama: { enabled: true, base_url: 'http://127.0.0.1:11434', timeout_ms: 60000 },
         lmstudio: { enabled: true, base_url: 'http://127.0.0.1:1234/v1', timeout_ms: 60000 },
     }),

@@ -290,6 +290,12 @@ export class InteractiveSession {
             return 'openrouter';
         if (input.startsWith('nvapi-'))
             return 'nvidia';
+        if (input.startsWith('AIzaSy') || (input.startsWith('AIza') && input.length >= 35))
+            return 'gemini';
+        if (input.startsWith('gsk_'))
+            return 'groq';
+        if (input.startsWith('hf_'))
+            return 'huggingface';
         if (input.startsWith('sk-ant-'))
             return 'anthropic';
         if (input.startsWith('sk-proj-') || (input.startsWith('sk-') && input.length >= 40 && !input.includes(' '))) {

@@ -99,7 +99,7 @@ export class AuthStore {
   }
 
   public async getAllStatuses(): Promise<AuthStatus[]> {
-    const providers: AuthProviderId[] = ['nvidia', 'openrouter', 'ollama', 'lmstudio'];
+    const providers: AuthProviderId[] = ['nvidia', 'openrouter', 'gemini', 'huggingface', 'groq', 'ollama', 'lmstudio'];
     return Promise.all(providers.map((p) => this.getStatus(p)));
   }
 
@@ -115,6 +115,10 @@ export class AuthStore {
     const varNames: Record<string, string[]> = {
       nvidia: ['NVIDIA_API_KEY', 'NGC_API_KEY'],
       openrouter: ['OPENROUTER_API_KEY'],
+      gemini: ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GOOGLE_GENAI_API_KEY'],
+      google: ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GOOGLE_GENAI_API_KEY'],
+      huggingface: ['HF_TOKEN', 'HUGGINGFACE_API_KEY', 'HUGGING_FACE_HUB_TOKEN'],
+      groq: ['GROQ_API_KEY'],
       openai: ['OPENAI_API_KEY'],
       anthropic: ['ANTHROPIC_API_KEY'],
     };
@@ -134,6 +138,13 @@ export class AuthStore {
         return 'NVIDIA';
       case 'openrouter':
         return 'OpenRouter';
+      case 'gemini':
+      case 'google':
+        return 'Google Gemini';
+      case 'huggingface':
+        return 'Hugging Face';
+      case 'groq':
+        return 'Groq';
       case 'ollama':
         return 'Ollama';
       case 'lmstudio':
@@ -142,6 +153,7 @@ export class AuthStore {
         return provider.toUpperCase();
     }
   }
+
 
   private getFromVault(provider: string): string | null {
     try {
