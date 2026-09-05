@@ -1,7 +1,8 @@
 import { exec } from 'node:child_process';
-import * as path from 'node:path';
 import { z } from 'zod';
 import { Tool, ToolContext, ToolExecutionResult } from '../types.js';
+import { resolveSafeWorkspacePath } from '../filesystem/path-utils.js';
+import { sanitizeEnvironment } from './env-sanitizer.js';
 
 export const RunShellInputSchema = z.object({
   command: z.string().describe('Shell command to execute'),
@@ -14,7 +15,7 @@ export type RunShellInput = z.infer<typeof RunShellInputSchema>;
 export class RunShellTool implements Tool<RunShellInput> {
   public readonly metadata = {
     name: 'run_shell',
-    description: 'Execute a shell command with timeout and working directory controls',
+    description: 'Execute a shell command with timeout, sanitized environment, and working directory controls',
     category: 'shell' as const,
     risk: 'medium' as const,
     requiresConfirmation: false,
@@ -24,9 +25,19 @@ export class RunShellTool implements Tool<RunShellInput> {
 
   public execute(args: RunShellInput, context: ToolContext): Promise<ToolExecutionResult> {
     return new Promise((resolve) => {
-      const workingDir = args.cwd
-        ? path.resolve(context.workspaceRoot, args.cwd)
-        : context.workspaceRoot;
+      let workingDir = context.workspaceRoot;
+      if (args.cwd) {
+        try {
+          workingDir = resolveSafeWorkspacePath(context.workspaceRoot, args.cwd);
+        } catch (err: any) {
+          resolve({
+            success: false,
+            output: `Security violation in shell working directory: ${err.message}`,
+            error: 'INVALID_WORKING_DIRECTORY',
+          });
+          return;
+        }
+      }
 
       const timeout = args.timeout_ms || 30000;
       let outputBuffer = '';
@@ -37,7 +48,7 @@ export class RunShellTool implements Tool<RunShellInput> {
           cwd: workingDir,
           timeout,
           maxBuffer: 10 * 1024 * 1024,
-          env: { ...process.env, PAGER: 'cat', CI: '1' },
+          env: sanitizeEnvironment(),
         },
         (error, stdout, stderr) => {
           const combined = stdout + (stderr ? `\n[STDERR]:\n${stderr}` : '');

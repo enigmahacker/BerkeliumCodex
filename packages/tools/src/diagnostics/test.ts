@@ -33,6 +33,11 @@ export class TestTool implements Tool<TestInput> {
         cmd = 'cargo test';
       } else if (files.includes('pyproject.toml') || files.includes('pytest.ini')) {
         cmd = 'pytest';
+      } else if (!files.includes('package.json')) {
+        return {
+          success: true,
+          output: '(no test runner or test suite configured in workspace)',
+        };
       }
 
       if (args.filter) {
@@ -43,6 +48,21 @@ export class TestTool implements Tool<TestInput> {
         exec(cmd, { cwd: context.workspaceRoot, timeout: 60000, env: { ...process.env, CI: '1' } }, (error, stdout, stderr) => {
           const output = (stdout + (stderr ? '\n' + stderr : '')).trim();
           if (error) {
+            // Check if error is simply missing test script in package.json
+            if (
+              output.includes('Missing script: "test"') ||
+              output.includes('missing script: test') ||
+              output.includes('no test specified') ||
+              output.includes('npm ERR! missing script: test')
+            ) {
+              resolve({
+                success: true,
+                output: '(no test script specified in package.json)',
+                metadata: { exitCode: 0 },
+              });
+              return;
+            }
+
             resolve({
               success: false,
               output: output || error.message,

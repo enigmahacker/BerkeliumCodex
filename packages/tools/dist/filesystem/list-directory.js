@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { z } from 'zod';
+import { resolveSafeWorkspacePath } from './path-utils.js';
 export const ListDirectoryInputSchema = z.object({
     path: z.string().default('.').describe('Directory path relative to workspace root'),
     recursive: z.boolean().default(false).describe('Whether to list recursively'),
@@ -17,7 +18,7 @@ export class ListDirectoryTool {
     schema = ListDirectoryInputSchema;
     async execute(args, context) {
         try {
-            const targetDir = path.resolve(context.workspaceRoot, args.path || '.');
+            const targetDir = resolveSafeWorkspacePath(context.workspaceRoot, args.path || '.');
             const entries = [];
             await this.scanDir(targetDir, context.workspaceRoot, entries, args.recursive, 0, args.max_depth || 2);
             const lines = entries.map((e) => {

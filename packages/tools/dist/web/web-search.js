@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { validateSafeUrl } from './ssrf-guard.js';
 export const WebSearchInputSchema = z.object({
     query: z.string().describe('Search query terms'),
 });
@@ -13,8 +14,15 @@ export class WebSearchTool {
     schema = WebSearchInputSchema;
     async execute(args, _context) {
         try {
-            // Use standard DuckDuckGo HTML API endpoint for lightweight fast text search
             const endpoint = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(args.query)}`;
+            const urlValidation = validateSafeUrl(endpoint);
+            if (!urlValidation.safe) {
+                return {
+                    success: false,
+                    output: `Security violation: ${urlValidation.error}`,
+                    error: 'SSRF_BLOCKED',
+                };
+            }
             const res = await fetch(endpoint, {
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)',

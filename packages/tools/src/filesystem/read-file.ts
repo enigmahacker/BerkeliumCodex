@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import { z } from 'zod';
 import { Tool, ToolContext, ToolExecutionResult } from '../types.js';
+import { resolveSafeWorkspacePath } from './path-utils.js';
 
 export const ReadFileInputSchema = z.object({
   path: z.string().describe('Relative or absolute file path to read'),
@@ -24,7 +24,7 @@ export class ReadFileTool implements Tool<ReadFileInput> {
 
   public async execute(args: ReadFileInput, context: ToolContext): Promise<ToolExecutionResult> {
     try {
-      const fullPath = path.resolve(context.workspaceRoot, args.path);
+      const fullPath = resolveSafeWorkspacePath(context.workspaceRoot, args.path);
       const content = await fs.readFile(fullPath, 'utf-8');
       const lines = content.split('\n');
 

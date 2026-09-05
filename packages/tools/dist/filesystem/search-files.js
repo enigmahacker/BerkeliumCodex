@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { z } from 'zod';
+import { resolveSafeWorkspacePath } from './path-utils.js';
 export const SearchFilesInputSchema = z.object({
     pattern: z.string().describe('Filename or glob pattern to search for (e.g. *.ts, auth, session)'),
     path: z.string().default('.').describe('Directory path to start searching from'),
@@ -16,7 +17,7 @@ export class SearchFilesTool {
     schema = SearchFilesInputSchema;
     async execute(args, context) {
         try {
-            const startDir = path.resolve(context.workspaceRoot, args.path || '.');
+            const startDir = resolveSafeWorkspacePath(context.workspaceRoot, args.path || '.');
             const matches = [];
             const regex = new RegExp(args.pattern.replace(/\*/g, '.*'), 'i');
             await this.find(startDir, context.workspaceRoot, regex, matches);

@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { z } from 'zod';
 import { Tool, ToolContext, ToolExecutionResult } from '../types.js';
+import { resolveSafeWorkspacePath } from './path-utils.js';
 
 export const SearchFilesInputSchema = z.object({
   pattern: z.string().describe('Filename or glob pattern to search for (e.g. *.ts, auth, session)'),
@@ -23,7 +24,7 @@ export class SearchFilesTool implements Tool<SearchFilesInput> {
 
   public async execute(args: SearchFilesInput, context: ToolContext): Promise<ToolExecutionResult> {
     try {
-      const startDir = path.resolve(context.workspaceRoot, args.path || '.');
+      const startDir = resolveSafeWorkspacePath(context.workspaceRoot, args.path || '.');
       const matches: string[] = [];
       const regex = new RegExp(args.pattern.replace(/\*/g, '.*'), 'i');
 

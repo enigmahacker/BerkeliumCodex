@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { z } from 'zod';
+import { resolveSafeWorkspacePath } from './path-utils.js';
 export const SearchTextInputSchema = z.object({
     query: z.string().describe('Exact text query or regex pattern to search for across files'),
     path: z.string().default('.').describe('Directory path to search in'),
@@ -18,7 +19,7 @@ export class SearchTextTool {
     schema = SearchTextInputSchema;
     async execute(args, context) {
         try {
-            const startDir = path.resolve(context.workspaceRoot, args.path || '.');
+            const startDir = resolveSafeWorkspacePath(context.workspaceRoot, args.path || '.');
             const matches = [];
             const regex = args.is_regex ? new RegExp(args.query, 'g') : null;
             const maxResults = args.max_results || 50;

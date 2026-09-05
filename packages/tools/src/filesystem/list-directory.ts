@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { z } from 'zod';
 import { Tool, ToolContext, ToolExecutionResult } from '../types.js';
+import { resolveSafeWorkspacePath } from './path-utils.js';
 
 export const ListDirectoryInputSchema = z.object({
   path: z.string().default('.').describe('Directory path relative to workspace root'),
@@ -24,7 +25,7 @@ export class ListDirectoryTool implements Tool<ListDirectoryInput> {
 
   public async execute(args: ListDirectoryInput, context: ToolContext): Promise<ToolExecutionResult> {
     try {
-      const targetDir = path.resolve(context.workspaceRoot, args.path || '.');
+      const targetDir = resolveSafeWorkspacePath(context.workspaceRoot, args.path || '.');
       const entries: Array<{ name: string; path: string; isDirectory: boolean; size?: number }> = [];
 
       await this.scanDir(targetDir, context.workspaceRoot, entries, args.recursive, 0, args.max_depth || 2);

@@ -11,5 +11,7 @@ export declare class TUIOverlays {
     static renderModels(themeManager: ThemeManager, aliases: Record<string, any>, discovered: Record<string, ModelInfo[]>): void;
     static renderThemes(themeManager: ThemeManager): void;
     static renderConfig(themeManager: ThemeManager, config: BerkeliumConfig): void;
+    static renderSecurity(themeManager: ThemeManager, workspaceRoot: string, policy: PermissionPolicy): void;
+    static renderSecurityAudit(themeManager: ThemeManager, workspaceRoot: string): void;
 }
 //# sourceMappingURL=overlays.d.ts.map

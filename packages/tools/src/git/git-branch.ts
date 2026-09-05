@@ -30,9 +30,17 @@ export class GitBranchTool implements Tool<GitBranchInput> {
         data: { branches: stdout },
       };
     } catch (err: any) {
+      const msg = err.stderr || err.message || '';
+      if (msg.includes('Not a git repository') || msg.includes('not a git repository')) {
+        return {
+          success: true,
+          output: '(not a git repository — no branches)',
+          data: { isGitRepo: false },
+        };
+      }
       return {
         success: false,
-        output: `Git branch error: ${err.message}`,
+        output: `Git branch error: ${msg.split('\n')[0]}`,
         error: err.message,
       };
     }

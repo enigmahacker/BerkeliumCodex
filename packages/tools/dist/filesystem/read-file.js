@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import { z } from 'zod';
+import { resolveSafeWorkspacePath } from './path-utils.js';
 export const ReadFileInputSchema = z.object({
     path: z.string().describe('Relative or absolute file path to read'),
     start_line: z.number().optional().describe('1-indexed starting line number'),
@@ -17,7 +17,7 @@ export class ReadFileTool {
     schema = ReadFileInputSchema;
     async execute(args, context) {
         try {
-            const fullPath = path.resolve(context.workspaceRoot, args.path);
+            const fullPath = resolveSafeWorkspacePath(context.workspaceRoot, args.path);
             const content = await fs.readFile(fullPath, 'utf-8');
             const lines = content.split('\n');
             let selectedLines = lines;

@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import { z } from 'zod';
+import { resolveSafeWorkspacePath, canonicalizePath, SecurityPathError } from './path-utils.js';
 export const DeleteFileInputSchema = z.object({
     path: z.string().describe('Relative or absolute file path to delete'),
 });
@@ -16,7 +16,12 @@ export class DeleteFileTool {
     schema = DeleteFileInputSchema;
     async execute(args, context) {
         try {
-            const fullPath = path.resolve(context.workspaceRoot, args.path);
+            const fullPath = resolveSafeWorkspacePath(context.workspaceRoot, args.path);
+            const canonicalRoot = canonicalizePath(context.workspaceRoot);
+            // Block attempt to delete workspace root itself or filesystem root
+            if (fullPath === canonicalRoot || fullPath === '/' || args.path === '.' || args.path === './') {
+                throw new SecurityPathError('Refusing to delete workspace root or filesystem root.', args.path);
+            }
             await fs.unlink(fullPath);
             return {
                 success: true,

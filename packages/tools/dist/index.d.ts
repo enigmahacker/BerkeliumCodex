@@ -22,5 +22,8 @@ export * from './diagnostics/lint.js';
 export * from './diagnostics/build.js';
 export * from './web/fetch-url.js';
 export * from './web/web-search.js';
+export * from './filesystem/path-utils.js';
+export * from './shell/env-sanitizer.js';
+export * from './web/ssrf-guard.js';
 export * from './mcp/mcp-bridge.js';
 //# sourceMappingURL=index.d.ts.map

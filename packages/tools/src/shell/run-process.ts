@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
-import * as path from 'node:path';
 import { z } from 'zod';
 import { Tool, ToolContext, ToolExecutionResult } from '../types.js';
+import { resolveSafeWorkspacePath } from '../filesystem/path-utils.js';
+import { sanitizeEnvironment } from './env-sanitizer.js';
 
 export const RunProcessInputSchema = z.object({
   executable: z.string().describe('Binary or executable path to launch'),
@@ -15,7 +16,7 @@ export type RunProcessInput = z.infer<typeof RunProcessInputSchema>;
 export class RunProcessTool implements Tool<RunProcessInput> {
   public readonly metadata = {
     name: 'run_process',
-    description: 'Spawn a direct system process with arguments array',
+    description: 'Spawn a direct system process with arguments array and sanitized environment',
     category: 'shell' as const,
     risk: 'medium' as const,
   };
@@ -24,13 +25,23 @@ export class RunProcessTool implements Tool<RunProcessInput> {
 
   public execute(args: RunProcessInput, context: ToolContext): Promise<ToolExecutionResult> {
     return new Promise((resolve) => {
-      const workingDir = args.cwd
-        ? path.resolve(context.workspaceRoot, args.cwd)
-        : context.workspaceRoot;
+      let workingDir = context.workspaceRoot;
+      if (args.cwd) {
+        try {
+          workingDir = resolveSafeWorkspacePath(context.workspaceRoot, args.cwd);
+        } catch (err: any) {
+          resolve({
+            success: false,
+            output: `Security violation in process working directory: ${err.message}`,
+            error: 'INVALID_WORKING_DIRECTORY',
+          });
+          return;
+        }
+      }
 
       const child = spawn(args.executable, args.args, {
         cwd: workingDir,
-        env: { ...process.env, CI: '1' },
+        env: sanitizeEnvironment(),
       });
 
       let stdout = '';

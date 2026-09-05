@@ -13,6 +13,12 @@ export type AgentEventType =
   | 'permission_requested'
   | 'permission_granted'
   | 'permission_denied'
+  | 'security_warning'
+  | 'security_blocked'
+  | 'secret_detected'
+  | 'path_escape_blocked'
+  | 'network_request_blocked'
+  | 'unsafe_command_blocked'
   | 'model_changed'
   | 'provider_changed'
   | 'context_compacted'
@@ -125,6 +131,45 @@ export interface PermissionDeniedEvent extends BaseAgentEvent {
   reason?: string;
 }
 
+export interface SecurityWarningEvent extends BaseAgentEvent {
+  type: 'security_warning';
+  warning: string;
+  category: string;
+  target?: string;
+}
+
+export interface SecurityBlockedEvent extends BaseAgentEvent {
+  type: 'security_blocked';
+  reason: string;
+  action: string;
+  target?: string;
+}
+
+export interface SecretDetectedEvent extends BaseAgentEvent {
+  type: 'secret_detected';
+  secretTypes: string[];
+  source: string;
+}
+
+export interface PathEscapeBlockedEvent extends BaseAgentEvent {
+  type: 'path_escape_blocked';
+  attemptedPath: string;
+  workspaceRoot: string;
+  reason: string;
+}
+
+export interface NetworkRequestBlockedEvent extends BaseAgentEvent {
+  type: 'network_request_blocked';
+  url: string;
+  reason: string;
+}
+
+export interface UnsafeCommandBlockedEvent extends BaseAgentEvent {
+  type: 'unsafe_command_blocked';
+  command: string;
+  reason: string;
+}
+
 export interface ModelChangedEvent extends BaseAgentEvent {
   type: 'model_changed';
   previousModel: string;
@@ -217,6 +262,12 @@ export type AgentEvent =
   | PermissionRequestedEvent
   | PermissionGrantedEvent
   | PermissionDeniedEvent
+  | SecurityWarningEvent
+  | SecurityBlockedEvent
+  | SecretDetectedEvent
+  | PathEscapeBlockedEvent
+  | NetworkRequestBlockedEvent
+  | UnsafeCommandBlockedEvent
   | ModelChangedEvent
   | ProviderChangedEvent
   | ContextCompactedEvent

@@ -29,9 +29,17 @@ export class GitCommitTool {
             };
         }
         catch (err) {
+            const msg = err.stderr || err.message || '';
+            if (msg.includes('Not a git repository') || msg.includes('not a git repository')) {
+                return {
+                    success: false,
+                    output: 'Cannot commit: workspace is not a git repository (run git init first)',
+                    error: 'NOT_A_GIT_REPOSITORY',
+                };
+            }
             return {
                 success: false,
-                output: `Git commit error: ${err.message}`,
+                output: `Git commit error: ${msg.split('\n')[0]}`,
                 error: err.message,
             };
         }

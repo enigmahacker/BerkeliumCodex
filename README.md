@@ -18,7 +18,7 @@
 > **Ultra-Customizable, Local-First Terminal AI Coding Agent & Autonomous Workstation**  
 > *Engineered for Apple Silicon & modern development environments.*
 
-[![Tests](https://img.shields.io/badge/tests-52%2F52%20passing-brightgreen.svg)](#-verification--benchmarks)
+[![Tests](https://img.shields.io/badge/tests-58%2F58%20passing-brightgreen.svg)](#-verification--benchmarks)
 [![Startup Latency](https://img.shields.io/badge/startup%20latency-21ms%20%28budget%20%3C150ms%29-blue.svg)](#-performance-benchmarks)
 [![Memory Footprint](https://img.shields.io/badge/memory-74MB%20%28budget%20%3C100MB%29-blueviolet.svg)](#-performance-benchmarks)
 [![Token Speed](https://img.shields.io/badge/tokenizer-49.9M%20tok%2Fs-orange.svg)](#-performance-benchmarks)
@@ -531,6 +531,9 @@ The system prompt sent to models is dynamically composed from isolated layers:
 Inspect and modify layers live from the terminal:
 ```bash
 /system view
+/system file                         # Opens macOS Finder pop-up selector to choose text file
+/system file coding                  # Opens Finder selector and imports into 'coding' layer
+/system file custom ./prompt.txt     # Loads directly from text/markdown file
 /system set coding "Enforce strict TypeScript with zero any types and FP patterns"
 /system reset coding
 /system export ./composed-system-prompt.md
@@ -647,7 +650,7 @@ bk codex                   # Display the Berkelium Codex Emblem
 | **`/tools`** | `/t` | `/tools [tool_name]` | `TOOLS` | List all registered native tools & MCP server schemas |
 | **`/agents`**| `/subagents`| `/agents [name]` | `AGENTS` | Inspect and manage specialized subagents |
 | **`/config`**| `/cfg` | `/config` | `CONFIGURATION` | Inspect active 7-tier hierarchical configuration |
-| **`/system`**| `/prompt`| `/system [view\|set\|reset]` | `CONFIGURATION` | Inspect & customize layered system prompt composer |
+| **`/system`**| `/prompt`| `/system [view\|file\|set\|load\|reset]` | `CONFIGURATION` | Inspect, edit, or import layered system prompts from text files / Finder selector |
 | **`/permissions`**| `/perms`| `/permissions` | `PERMISSIONS` | Inspect security, filesystem jail & shell policies |
 | **`/theme`** | *(none)* | `/theme [theme_name]` | `THEMES` | Live-switch terminal color theme (8 built-in themes) |
 | **`/matrix`**| *(none)* | `/matrix [theme]` | `THEMES` | Trigger live Matrix neural digital rain stream animation |

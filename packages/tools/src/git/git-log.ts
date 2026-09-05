@@ -35,9 +35,17 @@ export class GitLogTool implements Tool<GitLogInput> {
         data: { log: stdout },
       };
     } catch (err: any) {
+      const msg = err.stderr || err.message || '';
+      if (msg.includes('Not a git repository') || msg.includes('not a git repository')) {
+        return {
+          success: true,
+          output: '(not a git repository — no commit history)',
+          data: { isGitRepo: false },
+        };
+      }
       return {
         success: false,
-        output: `Git log error: ${err.message}`,
+        output: `Git log error: ${msg.split('\n')[0]}`,
         error: err.message,
       };
     }

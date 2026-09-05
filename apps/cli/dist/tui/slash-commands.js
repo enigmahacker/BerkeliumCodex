@@ -1,7 +1,7 @@
 import * as readline from 'node:readline/promises';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { PromptEngine } from '@berkelium/config';
+import { PromptEngine, pickFileWithFinder } from '@berkelium/config';
 import { TUIOverlays } from './overlays.js';
 import { BkMatrix } from './bk-matrix.js';
 import { CommandRegistry } from '../commands/registry.js';
@@ -141,6 +141,77 @@ export class SlashCommandHandler {
                     TUIOverlays.renderSystemPrompt(this.themeManager, layers, wsRoot);
                     return true;
                 }
+                if (subAction === 'file' ||
+                    subAction === 'load' ||
+                    subAction === 'import' ||
+                    subAction === 'picker' ||
+                    subAction === 'choose' ||
+                    subAction === 'browse') {
+                    const knownLayers = ['identity', 'behavior', 'coding', 'safety', 'tools', 'custom', 'system'];
+                    let targetLayer = 'custom';
+                    let inputPath = '';
+                    if (subArgs[1]) {
+                        const maybeLayer = subArgs[1].toLowerCase();
+                        if (knownLayers.includes(maybeLayer)) {
+                            targetLayer = maybeLayer === 'system' ? 'custom' : maybeLayer;
+                            inputPath = subArgs.slice(2).join(' ');
+                        }
+                        else {
+                            // subArgs[1] is the file path directly
+                            inputPath = subArgs.slice(1).join(' ');
+                        }
+                    }
+                    let resolvedFilePath = inputPath.trim() || null;
+                    if (!resolvedFilePath) {
+                        console.log(fmt.dimmed('  Opening Finder file selector pop-up...'));
+                        resolvedFilePath = await pickFileWithFinder({
+                            prompt: `Select System Prompt Text File for "${targetLayer}" layer`,
+                        });
+                        if (!resolvedFilePath) {
+                            console.log(fmt.dimmed('  File selection cancelled.'));
+                            return true;
+                        }
+                    }
+                    const absolutePath = path.isAbsolute(resolvedFilePath)
+                        ? resolvedFilePath
+                        : path.resolve(wsRoot, resolvedFilePath);
+                    if (!fs.existsSync(absolutePath)) {
+                        console.log(fmt.error(`✗ File not found: "${resolvedFilePath}"`));
+                        return true;
+                    }
+                    try {
+                        const fileContent = fs.readFileSync(absolutePath, 'utf-8');
+                        if (!fileContent.trim()) {
+                            console.log(fmt.warning(`⚠ File "${path.basename(absolutePath)}" is empty.`));
+                            return true;
+                        }
+                        const savedPath = PromptEngine.saveCustomPrompt(wsRoot, targetLayer, fileContent);
+                        const lines = fileContent.trim().split('\n');
+                        const lineCount = lines.length;
+                        const charCount = fileContent.length;
+                        console.log();
+                        console.log(fmt.success(`✓ Loaded system prompt into "${targetLayer}" layer from text file!`));
+                        console.log(`  Source File:  ${fmt.accent(absolutePath)} (${charCount.toLocaleString()} chars, ${lineCount} lines)`);
+                        console.log(`  Saved To:     ${fmt.dimmed(savedPath)}`);
+                        console.log();
+                        console.log(fmt.dimmed('PROMPT PREVIEW (First 10 lines):'));
+                        console.log(fmt.border('─'.repeat(60)));
+                        for (let i = 0; i < Math.min(10, lines.length); i++) {
+                            const lineNum = String(i + 1).padStart(2, '0');
+                            console.log(`${fmt.dimmed(lineNum + ' │')} ${lines[i]}`);
+                        }
+                        if (lines.length > 10) {
+                            console.log(fmt.dimmed(`.. │ ... and ${lines.length - 10} more lines`));
+                        }
+                        console.log(fmt.border('─'.repeat(60)));
+                        console.log();
+                        return true;
+                    }
+                    catch (err) {
+                        console.log(fmt.error(`✗ Failed to read file: ${err.message}`));
+                        return true;
+                    }
+                }
                 if (subAction === 'set') {
                     if (!layerName || !customContent) {
                         console.log(fmt.error('Usage: /system set <identity|behavior|coding|safety|custom> <instructions>'));
@@ -257,6 +328,19 @@ export class SlashCommandHandler {
                     TUIOverlays.renderThemes(this.themeManager);
                 }
                 return true;
+            case 'security':
+            case 'sec':
+            case 'guard': {
+                const subAction = subArgs[0]?.toLowerCase();
+                const wsRoot = this.configManager.getWorkspaceRoot();
+                if (subAction === 'audit' || subAction === 'check' || subAction === 'verify') {
+                    TUIOverlays.renderSecurityAudit(this.themeManager, wsRoot);
+                }
+                else {
+                    TUIOverlays.renderSecurity(this.themeManager, wsRoot, this.configManager.getConfig().permissions);
+                }
+                return true;
+            }
             case 'permissions':
             case 'perms':
                 TUIOverlays.renderPermissions(this.themeManager, this.configManager.getConfig().permissions);

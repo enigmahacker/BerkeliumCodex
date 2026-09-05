@@ -1,6 +1,8 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import * as crypto from 'node:crypto';
 import { z } from 'zod';
+import { resolveSafeWorkspacePath } from './path-utils.js';
 export const EditFileInputSchema = z.object({
     path: z.string().describe('Relative or absolute file path to edit'),
     target: z.string().describe('Exact target string or lines of code to replace'),
@@ -17,7 +19,7 @@ export class EditFileTool {
     schema = EditFileInputSchema;
     async execute(args, context) {
         try {
-            const fullPath = path.resolve(context.workspaceRoot, args.path);
+            const fullPath = resolveSafeWorkspacePath(context.workspaceRoot, args.path);
             const content = await fs.readFile(fullPath, 'utf-8');
             if (!content.includes(args.target)) {
                 return {
@@ -36,7 +38,11 @@ export class EditFileTool {
                 };
             }
             const updated = content.replace(args.target, args.replacement);
-            await fs.writeFile(fullPath, updated, 'utf-8');
+            // Atomic write
+            const parentDir = path.dirname(fullPath);
+            const tempPath = path.join(parentDir, `.bk_tmp_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`);
+            await fs.writeFile(tempPath, updated, 'utf-8');
+            await fs.rename(tempPath, fullPath);
             return {
                 success: true,
                 output: `Successfully applied edit to "${args.path}".`,

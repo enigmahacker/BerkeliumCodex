@@ -285,16 +285,23 @@ export class CommandRegistry {
         this.register({
             name: 'system',
             aliases: ['prompt'],
-            description: 'Inspect & customize layered system prompt',
+            description: 'Inspect & customize layered system prompt (text, file, Finder selector)',
             category: 'CONFIGURATION',
-            usage: '/system [view|set|reset|export]',
-            examples: ['/system view', '/system set coding "..."', '/system reset'],
+            usage: '/system [view|file|set|load|reset|export]',
+            examples: [
+                '/system view',
+                '/system file',
+                '/system file coding',
+                '/system file custom ./prompt.txt',
+                '/system set coding "..."',
+                '/system reset',
+            ],
             arguments: [
                 {
                     name: 'action',
                     description: 'System prompt action',
                     required: false,
-                    staticOptions: ['view', 'set', 'reset', 'export'],
+                    staticOptions: ['view', 'file', 'load', 'set', 'import', 'reset', 'export'],
                 },
                 {
                     name: 'layer',
@@ -302,9 +309,30 @@ export class CommandRegistry {
                     required: false,
                     dynamicProvider: 'system-layer',
                 },
+                {
+                    name: 'path',
+                    description: 'Optional file path (opens Finder selector if omitted)',
+                    required: false,
+                },
             ],
         });
-        // 8. PERMISSIONS
+        // 8. PERMISSIONS & SECURITY
+        this.register({
+            name: 'security',
+            aliases: ['sec', 'guard'],
+            description: 'Inspect security posture, sandbox protections, or run security audit',
+            category: 'PERMISSIONS',
+            usage: '/security [status|audit]',
+            examples: ['/security', '/security audit'],
+            arguments: [
+                {
+                    name: 'action',
+                    description: 'Security operation',
+                    required: false,
+                    staticOptions: ['status', 'audit'],
+                },
+            ],
+        });
         this.register({
             name: 'permissions',
             aliases: ['perms'],

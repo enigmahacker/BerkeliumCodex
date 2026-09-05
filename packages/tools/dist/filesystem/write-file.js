@@ -1,6 +1,8 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import * as crypto from 'node:crypto';
 import { z } from 'zod';
+import { resolveSafeWorkspacePath } from './path-utils.js';
 export const WriteFileInputSchema = z.object({
     path: z.string().describe('Relative or absolute file path to create/overwrite'),
     content: z.string().describe('The content to write into the file'),
@@ -8,7 +10,7 @@ export const WriteFileInputSchema = z.object({
 export class WriteFileTool {
     metadata = {
         name: 'write_file',
-        description: 'Write or create a complete file in the workspace',
+        description: 'Write or create a complete file safely in the workspace',
         category: 'filesystem',
         risk: 'medium',
         filesystem: { write: true },
@@ -16,10 +18,13 @@ export class WriteFileTool {
     schema = WriteFileInputSchema;
     async execute(args, context) {
         try {
-            const fullPath = path.resolve(context.workspaceRoot, args.path);
+            const fullPath = resolveSafeWorkspacePath(context.workspaceRoot, args.path);
             const parentDir = path.dirname(fullPath);
             await fs.mkdir(parentDir, { recursive: true });
-            await fs.writeFile(fullPath, args.content, 'utf-8');
+            // Atomic write: write to unique temporary file in same folder, then rename
+            const tempPath = path.join(parentDir, `.bk_tmp_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`);
+            await fs.writeFile(tempPath, args.content, 'utf-8');
+            await fs.rename(tempPath, fullPath);
             return {
                 success: true,
                 output: `Successfully wrote ${args.content.length} characters to "${args.path}".`,

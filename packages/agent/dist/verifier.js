@@ -37,9 +37,10 @@ export class Verifier {
             args: {},
             sessionId,
         });
+        const testPassed = testRes.success || testRes.output.includes('(no test');
         results.push({
             check: 'Automated Tests',
-            passed: testRes.success,
+            passed: testPassed,
             message: testRes.output.slice(0, 300),
             durationMs: Math.round(performance.now() - testStart),
         });

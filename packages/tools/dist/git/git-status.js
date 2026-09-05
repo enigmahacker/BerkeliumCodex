@@ -23,9 +23,17 @@ export class GitStatusTool {
             };
         }
         catch (err) {
+            const msg = err.stderr || err.message || '';
+            if (msg.includes('Not a git repository') || msg.includes('not a git repository')) {
+                return {
+                    success: true,
+                    output: '(not a git repository — workspace is untracked)',
+                    data: { isGitRepo: false },
+                };
+            }
             return {
                 success: false,
-                output: `Git status error: ${err.message}`,
+                output: `Git status error: ${msg.split('\n')[0]}`,
                 error: err.message,
             };
         }
