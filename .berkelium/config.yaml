@@ -1,0 +1,19 @@
+version: 1
+default_model: coding
+theme:
+  name: berkelium-dark
+ui:
+  launch_animation: true
+  hackathon_mode: false
+permissions:
+  filesystem:
+    read: allow
+    write:
+      workspace: allow
+      outside_workspace: ask
+    delete:
+      workspace: ask
+      outside_workspace: deny
+  shell:
+    safe: allow
+    destructive: ask

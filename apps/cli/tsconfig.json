@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "references": [
+    { "path": "../../packages/events" },
+    { "path": "../../packages/logging" },
+    { "path": "../../packages/telemetry" },
+    { "path": "../../packages/themes" },
+    { "path": "../../packages/auth" },
+    { "path": "../../packages/config" },
+    { "path": "../../packages/permissions" },
+    { "path": "../../packages/providers" },
+    { "path": "../../packages/tools" },
+    { "path": "../../packages/context" },
+    { "path": "../../packages/plugins" },
+    { "path": "../../packages/agent" }
+  ],
+  "include": ["src/**/*"]
+}

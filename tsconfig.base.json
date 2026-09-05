@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "composite": true,
+    "baseUrl": ".",
+    "paths": {
+      "@berkelium/events": ["./packages/events/src/index.ts"],
+      "@berkelium/logging": ["./packages/logging/src/index.ts"],
+      "@berkelium/telemetry": ["./packages/telemetry/src/index.ts"],
+      "@berkelium/themes": ["./packages/themes/src/index.ts"],
+      "@berkelium/auth": ["./packages/auth/src/index.ts"],
+      "@berkelium/config": ["./packages/config/src/index.ts"],
+      "@berkelium/permissions": ["./packages/permissions/src/index.ts"],
+      "@berkelium/providers": ["./packages/providers/src/index.ts"],
+      "@berkelium/tools": ["./packages/tools/src/index.ts"],
+      "@berkelium/context": ["./packages/context/src/index.ts"],
+      "@berkelium/plugins": ["./packages/plugins/src/index.ts"],
+      "@berkelium/agent": ["./packages/agent/src/index.ts"],
+      "@berkelium/cli": ["./apps/cli/src/index.ts"]
+    }
+  }
+}

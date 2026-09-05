@@ -1,0 +1,18 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/events" },
+    { "path": "packages/config" },
+    { "path": "packages/themes" },
+    { "path": "packages/auth" },
+    { "path": "packages/telemetry" },
+    { "path": "packages/logging" },
+    { "path": "packages/providers" },
+    { "path": "packages/permissions" },
+    { "path": "packages/tools" },
+    { "path": "packages/context" },
+    { "path": "packages/agent" },
+    { "path": "packages/plugins" },
+    { "path": "apps/cli" }
+  ]
+}

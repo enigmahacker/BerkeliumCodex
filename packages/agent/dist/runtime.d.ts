@@ -1,0 +1,53 @@
+import { EventBus } from '@berkelium/events';
+import { Logger } from '@berkelium/logging';
+import { ConfigManager } from '@berkelium/config';
+import { ContextEngine } from '@berkelium/context';
+import { ToolOrchestrator } from '@berkelium/tools';
+import { ProviderRouter, Message } from '@berkelium/providers';
+import { TelemetryTracker } from '@berkelium/telemetry';
+import { HookManager } from '@berkelium/plugins';
+import { AgentState } from './state-machine.js';
+import { SessionManager, SessionData } from './session.js';
+export interface RuntimeInitOptions {
+    workspaceRoot?: string;
+    configManager: ConfigManager;
+    router: ProviderRouter;
+    orchestrator: ToolOrchestrator;
+    contextEngine: ContextEngine;
+    logger: Logger;
+    eventBus: EventBus;
+    hookManager?: HookManager;
+    sessionManager?: SessionManager;
+}
+export declare class AgentRuntime {
+    readonly sessionId: string;
+    private workspaceRoot;
+    private configManager;
+    private router;
+    private orchestrator;
+    private contextEngine;
+    private logger;
+    private eventBus;
+    private hookManager;
+    private sessionManager;
+    private telemetry;
+    private stateMachine;
+    private verifier;
+    private subagents;
+    private conversationMessages;
+    private activeModelTarget;
+    private abortController;
+    private isRunning;
+    constructor(options: RuntimeInitOptions);
+    getSessionId(): string;
+    getState(): AgentState;
+    getActiveModel(): string;
+    setActiveModel(modelOrAlias: string): void;
+    getTelemetry(): TelemetryTracker;
+    getSessionHistory(): Message[];
+    cancel(): void;
+    executeTask(prompt: string): Promise<void>;
+    resumeFromSession(sessionData: SessionData): Promise<void>;
+    private saveSessionState;
+}
+//# sourceMappingURL=runtime.d.ts.map

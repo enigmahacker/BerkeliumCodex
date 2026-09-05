@@ -1,0 +1,1 @@
+{"version":3,"file":"ranking.d.ts","sourceRoot":"","sources":["../src/ranking.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,YAAY,EAAE,UAAU,EAAE,MAAM,YAAY,CAAC;AAEtD,qBAAa,UAAU;WACP,SAAS,CACrB,KAAK,EAAE,MAAM,EACb,KAAK,EAAE,YAAY,EAAE,EACrB,WAAW,GAAE,GAAG,CAAC,MAAM,CAAa,GACnC,UAAU,EAAE;CA2DhB"}

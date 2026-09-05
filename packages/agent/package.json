@@ -1,0 +1,29 @@
+{
+  "name": "@berkelium/agent",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@berkelium/config": "workspace:*",
+    "@berkelium/context": "workspace:*",
+    "@berkelium/events": "workspace:*",
+    "@berkelium/logging": "workspace:*",
+    "@berkelium/permissions": "workspace:*",
+    "@berkelium/plugins": "workspace:*",
+    "@berkelium/providers": "workspace:*",
+    "@berkelium/telemetry": "workspace:*",
+    "@berkelium/tools": "workspace:*"
+  }
+}

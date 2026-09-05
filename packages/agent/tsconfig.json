@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "references": [
+    { "path": "../events" },
+    { "path": "../config" },
+    { "path": "../logging" },
+    { "path": "../telemetry" },
+    { "path": "../permissions" },
+    { "path": "../providers" },
+    { "path": "../tools" },
+    { "path": "../context" },
+    { "path": "../plugins" }
+  ],
+  "include": ["src/**/*"]
+}
