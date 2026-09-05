@@ -31,11 +31,15 @@ export declare class InteractiveSession {
     private rl;
     private isProcessing;
     private ctrlCCount;
+    private lastPopupHeight;
     private inputStateMachine;
     private paletteRenderer;
     constructor(options: InteractiveSessionOptions);
     start(): Promise<void>;
-    private setupKeybindings;
+    private handleTTYKeypress;
+    private renderCurrentState;
+    private renderTTYPrompt;
+    private clearPopup;
     private processInputLine;
     private detectApiKeyProvider;
     private formatAsSlashCommand;

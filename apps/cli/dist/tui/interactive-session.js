@@ -1,4 +1,5 @@
 import * as readline from 'node:readline';
+import { stripAnsi } from '@berkelium/themes';
 import { TUIRenderer } from './renderer.js';
 import { SlashCommandHandler } from './slash-commands.js';
 import { InputStateMachine } from './input-state-machine.js';
@@ -17,6 +18,7 @@ export class InteractiveSession {
     rl = null;
     isProcessing = false;
     ctrlCCount = 0;
+    lastPopupHeight = 0;
     inputStateMachine;
     paletteRenderer;
     constructor(options) {
@@ -52,23 +54,6 @@ export class InteractiveSession {
     async start() {
         const target = this.router.resolveTarget(this.runtime.getActiveModel());
         this.renderer.renderHeader(this.runtime.getActiveModel(), target.provider.name, this.configManager.getWorkspaceRoot());
-        const isTTY = Boolean(process.stdin.isTTY);
-        this.rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout,
-            terminal: isTTY,
-            prompt: this.renderer.renderPromptSymbol(),
-            completer: (line) => {
-                const completions = this.slashHandler.getCompletions(line);
-                return [completions, line];
-            },
-        });
-        this.setupKeybindings();
-        this.promptUser();
-    }
-    setupKeybindings() {
-        if (!this.rl)
-            return;
         if (process.stdin.isTTY) {
             readline.emitKeypressEvents(process.stdin);
             if (process.stdin.setRawMode) {
@@ -76,98 +61,166 @@ export class InteractiveSession {
                     process.stdin.setRawMode(true);
                 }
                 catch {
-                    // Ignore raw mode errors in non-standard TTY
+                    // Ignore raw mode error if unavailable
                 }
             }
+            process.stdin.resume();
             process.stdin.on('keypress', async (char, key) => {
-                if (this.isProcessing)
+                await this.handleTTYKeypress(char, key);
+            });
+            this.promptUser();
+        }
+        else {
+            // Non-TTY / piped input fallback
+            this.rl = readline.createInterface({
+                input: process.stdin,
+                output: process.stdout,
+                terminal: false,
+            });
+            this.rl.on('line', async (line) => {
+                const trimmed = line.trim();
+                if (!trimmed)
                     return;
-                const res = await this.inputStateMachine.handleKeypress(char, key);
-                if (res.cancelled) {
-                    this.ctrlCCount = 0;
-                    this.promptUser();
-                    return;
-                }
-                if (res.submittedInput !== undefined) {
-                    // Handled via on('line') or direct submission
-                    if (res.submittedInput.trim()) {
-                        await this.processInputLine(res.submittedInput);
-                    }
-                    else {
-                        this.promptUser();
-                    }
-                    return;
-                }
-                if (res.shouldRenderPalette) {
-                    // Update readline buffer
-                    if (this.rl) {
-                        this.rl.line = res.buffer;
-                        this.rl.cursor = res.cursorPosition;
-                    }
-                    let paletteLines = [];
-                    if (res.mode === 'SlashCommand') {
-                        paletteLines = this.paletteRenderer.renderCommandSuggestions(res.commandMatches, res.selectedIndex, res.scrollOffset, res.buffer);
-                    }
-                    else if (res.mode === 'SlashArgument' && res.activeCommand) {
-                        const parts = res.buffer.trimStart().split(/\s+/);
-                        const argQuery = parts.slice(1).join(' ');
-                        const argName = res.activeCommand.arguments?.[0]?.name || 'option';
-                        paletteLines = this.paletteRenderer.renderArgumentSuggestions(res.activeCommand.name, argName, res.argumentMatches, res.selectedIndex, res.scrollOffset, argQuery);
-                    }
-                    if (paletteLines.length > 0) {
-                        console.log();
-                        for (const line of paletteLines) {
-                            console.log(line);
-                        }
-                        if (this.rl) {
-                            this.rl.prompt(true);
-                        }
-                    }
-                }
-                else {
-                    // Normal mode buffer synchronization
-                    if (this.rl && this.inputStateMachine.getMode() !== 'Normal') {
-                        this.rl.line = res.buffer;
-                        this.rl.cursor = res.cursorPosition;
-                    }
-                }
+                await this.processInputLine(trimmed);
             });
         }
-        // Handle Ctrl+C gracefully
-        this.rl.on('SIGINT', () => {
-            this.ctrlCCount++;
-            const fmt = this.themeManager.getFormatted();
-            if (this.isProcessing) {
+    }
+    async handleTTYKeypress(char, key) {
+        if (this.isProcessing) {
+            // Handle Ctrl+C to cancel running task
+            if (key?.ctrl && key?.name === 'c') {
+                const fmt = this.themeManager.getFormatted();
                 console.log(fmt.warning('\nCancelling current task...'));
                 this.runtime.cancel();
                 this.isProcessing = false;
                 this.ctrlCCount = 0;
                 this.promptUser();
             }
-            else {
-                if (this.ctrlCCount === 1) {
-                    console.log(fmt.dimmed('\nPress Ctrl+C again to exit Berkelium.'));
-                    setTimeout(() => {
-                        this.ctrlCCount = 0;
-                    }, 1500);
-                    this.promptUser();
-                }
-                else {
-                    console.log(fmt.primary('\nGoodbye from Berkelium 🌌'));
-                    process.exit(0);
-                }
-            }
-        });
-        this.rl.on('line', async (line) => {
-            if (this.isProcessing)
+            return;
+        }
+        // Handle Ctrl+C when idle
+        if (key?.ctrl && key?.name === 'c') {
+            this.ctrlCCount++;
+            const fmt = this.themeManager.getFormatted();
+            // If user has text in buffer, first Ctrl+C just clears the buffer
+            if (this.inputStateMachine.getBuffer().length > 0) {
+                this.inputStateMachine.reset();
+                this.ctrlCCount = 0;
+                this.clearPopup();
+                this.renderTTYPrompt([]);
                 return;
-            const trimmed = line.trim();
-            if (!trimmed) {
+            }
+            if (this.ctrlCCount === 1) {
+                this.clearPopup();
+                process.stdout.write(fmt.dimmed('\nPress Ctrl+C again to exit Berkelium.\n'));
+                setTimeout(() => {
+                    this.ctrlCCount = 0;
+                }, 1500);
                 this.promptUser();
-                return;
             }
-            await this.processInputLine(trimmed);
-        });
+            else {
+                this.clearPopup();
+                process.stdout.write(fmt.primary('\nGoodbye from Berkelium 🌌\n'));
+                process.exit(0);
+            }
+            return;
+        }
+        // Handle Ctrl+L (Clear screen)
+        if (key?.ctrl && key?.name === 'l') {
+            process.stdout.write('\x1b[2J\x1b[H');
+            const target = this.router.resolveTarget(this.runtime.getActiveModel());
+            this.renderer.renderHeader(this.runtime.getActiveModel(), target.provider.name, this.configManager.getWorkspaceRoot());
+            this.lastPopupHeight = 0;
+            this.renderCurrentState();
+            return;
+        }
+        // Delegate to InputStateMachine
+        const res = await this.inputStateMachine.handleKeypress(char, key);
+        if (res.submittedInput !== undefined) {
+            const submitted = res.submittedInput;
+            this.clearPopup();
+            const promptSymbol = this.renderer.renderPromptSymbol();
+            process.stdout.write('\r\x1b[2K' + promptSymbol + submitted + '\n');
+            if (submitted.trim()) {
+                await this.processInputLine(submitted.trim());
+            }
+            else {
+                this.promptUser();
+            }
+            return;
+        }
+        this.renderCurrentState(res);
+    }
+    renderCurrentState(res) {
+        if (this.isProcessing)
+            return;
+        let paletteLines = [];
+        const mode = res ? res.mode : this.inputStateMachine.getMode();
+        const shouldRender = res ? res.shouldRenderPalette : false;
+        if (shouldRender) {
+            if (mode === 'SlashCommand' && res?.commandMatches) {
+                paletteLines = this.paletteRenderer.renderCommandSuggestions(res.commandMatches, res.selectedIndex, res.scrollOffset, res.buffer);
+            }
+            else if (mode === 'SlashArgument' && res?.activeCommand) {
+                const parts = res.buffer.trimStart().split(/\s+/);
+                const argQuery = parts.slice(1).join(' ');
+                const argName = res.activeCommand.arguments?.[0]?.name || 'option';
+                paletteLines = this.paletteRenderer.renderArgumentSuggestions(res.activeCommand.name, argName, res.argumentMatches, res.selectedIndex, res.scrollOffset, argQuery);
+            }
+        }
+        this.renderTTYPrompt(paletteLines);
+    }
+    renderTTYPrompt(paletteLines = []) {
+        if (this.isProcessing)
+            return;
+        const promptSymbol = this.renderer.renderPromptSymbol();
+        const promptLen = stripAnsi(promptSymbol).length;
+        const buffer = this.inputStateMachine.getBuffer();
+        const cursorPos = this.inputStateMachine.getCursorPosition();
+        // 1. Move to column 0, clear prompt line, write prompt and input buffer
+        let out = '\r\x1b[2K' + promptSymbol + buffer;
+        // 2. Render popup box directly below prompt line
+        if (paletteLines.length > 0) {
+            for (const line of paletteLines) {
+                out += '\n\x1b[2K' + line;
+            }
+            // If previous popup had more lines, clear the remaining bottom lines
+            if (this.lastPopupHeight > paletteLines.length) {
+                const diff = this.lastPopupHeight - paletteLines.length;
+                for (let i = 0; i < diff; i++) {
+                    out += '\n\x1b[2K';
+                }
+                out += `\x1b[${diff}A`;
+            }
+            // Move cursor back UP to prompt line
+            out += `\x1b[${paletteLines.length}A`;
+            // Position cursor at exact column on prompt line
+            out += `\x1b[${promptLen + cursorPos + 1}G`;
+            this.lastPopupHeight = paletteLines.length;
+        }
+        else {
+            // Clear previous popup lines below if any
+            if (this.lastPopupHeight > 0) {
+                for (let i = 0; i < this.lastPopupHeight; i++) {
+                    out += '\n\x1b[2K';
+                }
+                out += `\x1b[${this.lastPopupHeight}A`;
+                this.lastPopupHeight = 0;
+            }
+            out += `\x1b[${promptLen + cursorPos + 1}G`;
+        }
+        process.stdout.write(out);
+    }
+    clearPopup() {
+        if (this.lastPopupHeight > 0) {
+            let clearOut = '';
+            for (let i = 0; i < this.lastPopupHeight; i++) {
+                clearOut += '\n\x1b[2K';
+            }
+            clearOut += `\x1b[${this.lastPopupHeight}A`;
+            this.lastPopupHeight = 0;
+            process.stdout.write(clearOut);
+        }
     }
     async processInputLine(input) {
         const trimmed = input.trim();
@@ -188,7 +241,7 @@ export class InteractiveSession {
             this.promptUser();
             return;
         }
-        // 2. Check for slash command or alias without leading slash
+        // 2. Check for explicit slash command or exact standalone utility command
         const slashFormatted = this.formatAsSlashCommand(trimmed);
         if (slashFormatted) {
             await this.slashHandler.handle(slashFormatted);
@@ -247,52 +300,35 @@ export class InteractiveSession {
     formatAsSlashCommand(input) {
         if (input.startsWith('/'))
             return input;
-        const lower = input.toLowerCase();
-        const slashKeywords = [
-            'auth',
-            'model',
-            'models',
-            'provider',
-            'providers',
-            'theme',
-            'permissions',
-            'context',
-            'compact',
-            'tools',
-            'agents',
-            'config',
-            'system',
-            'status',
-            'matrix',
+        // Only format standalone single-word utility commands without slash
+        const standaloneKeywords = [
             'help',
             'clear',
+            'cls',
             'reset',
-            'session',
-            'history',
             'doctor',
+            'models',
+            'providers',
+            'matrix',
             'version',
-            'git',
-            'diff',
-            'commit',
-            'test',
-            'build',
-            'review',
-            'fix',
-            'refactor',
-            'explain',
+            'status',
             'quit',
             'exit',
+            'q',
         ];
-        const clean = input.replace(/^berkelium\s+/, '');
-        const firstWord = clean.split(/\s+/)[0]?.toLowerCase();
-        if (firstWord && slashKeywords.includes(firstWord)) {
-            return '/' + clean;
+        const lower = input.toLowerCase();
+        if (standaloneKeywords.includes(lower)) {
+            return '/' + lower;
         }
         return null;
     }
     promptUser() {
-        if (this.rl) {
-            this.inputStateMachine.reset();
+        this.inputStateMachine.reset();
+        this.lastPopupHeight = 0;
+        if (process.stdin.isTTY) {
+            this.renderTTYPrompt([]);
+        }
+        else if (this.rl) {
             this.rl.setPrompt(this.renderer.renderPromptSymbol());
             this.rl.prompt();
         }

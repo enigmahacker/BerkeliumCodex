@@ -14,6 +14,10 @@ export class InputStateMachine {
     currentArgumentMatches = [];
     activeCommandDef;
     activeArgIndex = 0;
+    // History tracking for normal mode
+    history = [];
+    historyIndex = -1;
+    savedDraft = '';
     constructor(context) {
         this.executionContext = context;
         this.registry = CommandRegistry.getInstance();
@@ -24,6 +28,24 @@ export class InputStateMachine {
     }
     getBuffer() {
         return this.buffer;
+    }
+    getCursorPosition() {
+        return this.cursorPosition;
+    }
+    getSelectedIndex() {
+        return this.selectedIndex;
+    }
+    getScrollOffset() {
+        return this.scrollOffset;
+    }
+    getCommandMatches() {
+        return this.currentCommandMatches;
+    }
+    getArgumentMatches() {
+        return this.currentArgumentMatches;
+    }
+    getActiveCommand() {
+        return this.activeCommandDef;
     }
     setBuffer(buf) {
         this.buffer = buf;
@@ -39,6 +61,16 @@ export class InputStateMachine {
         this.currentCommandMatches = [];
         this.currentArgumentMatches = [];
         this.activeCommandDef = undefined;
+        this.historyIndex = -1;
+        this.savedDraft = '';
+    }
+    addToHistory(cmd) {
+        const trimmed = cmd.trim();
+        if (trimmed && (this.history.length === 0 || this.history[this.history.length - 1] !== trimmed)) {
+            this.history.push(trimmed);
+        }
+        this.historyIndex = -1;
+        this.savedDraft = '';
     }
     /**
      * Handle incoming raw keystroke from TTY interface.
@@ -60,7 +92,50 @@ export class InputStateMachine {
                 return this.buildResult();
             }
         }
-        // 3. Arrow Up / Down navigation
+        // 3. Arrow Left / Right & Cursor Movement
+        if (keyName === 'left') {
+            this.cursorPosition = Math.max(0, this.cursorPosition - 1);
+            return this.buildResult();
+        }
+        if (keyName === 'right') {
+            this.cursorPosition = Math.min(this.buffer.length, this.cursorPosition + 1);
+            return this.buildResult();
+        }
+        // 4. Ctrl shortcuts for cursor movement / editing
+        if (isCtrl && keyName === 'a') {
+            this.cursorPosition = 0;
+            return this.buildResult();
+        }
+        if (isCtrl && keyName === 'e') {
+            this.cursorPosition = this.buffer.length;
+            return this.buildResult();
+        }
+        if (isCtrl && keyName === 'u') {
+            // Clear before cursor
+            this.buffer = this.buffer.slice(this.cursorPosition);
+            this.cursorPosition = 0;
+            await this.recomputeState();
+            return this.buildResult();
+        }
+        if (isCtrl && keyName === 'k') {
+            // Clear after cursor
+            this.buffer = this.buffer.slice(0, this.cursorPosition);
+            await this.recomputeState();
+            return this.buildResult();
+        }
+        if (isCtrl && keyName === 'w') {
+            // Delete previous word
+            const left = this.buffer.slice(0, this.cursorPosition);
+            const right = this.buffer.slice(this.cursorPosition);
+            const match = left.match(/\s*\S+$/);
+            if (match) {
+                this.buffer = left.slice(0, left.length - match[0].length) + right;
+                this.cursorPosition = Math.max(0, this.cursorPosition - match[0].length);
+                await this.recomputeState();
+            }
+            return this.buildResult();
+        }
+        // 5. Arrow Up / Down navigation
         if (this.mode === 'SlashCommand' || this.mode === 'SlashArgument') {
             const totalItems = this.mode === 'SlashCommand'
                 ? this.currentCommandMatches.length
@@ -90,7 +165,37 @@ export class InputStateMachine {
                 return this.buildResult();
             }
         }
-        // 4. Tab: Complete without executing
+        else if (this.mode === 'Normal') {
+            // History navigation in normal mode
+            if (keyName === 'up' && this.history.length > 0) {
+                if (this.historyIndex === -1) {
+                    this.savedDraft = this.buffer;
+                }
+                if (this.historyIndex < this.history.length - 1) {
+                    this.historyIndex++;
+                    this.buffer = this.history[this.history.length - 1 - this.historyIndex];
+                    this.cursorPosition = this.buffer.length;
+                    await this.recomputeState();
+                }
+                return this.buildResult();
+            }
+            if (keyName === 'down' && this.history.length > 0) {
+                if (this.historyIndex > 0) {
+                    this.historyIndex--;
+                    this.buffer = this.history[this.history.length - 1 - this.historyIndex];
+                    this.cursorPosition = this.buffer.length;
+                    await this.recomputeState();
+                }
+                else if (this.historyIndex === 0) {
+                    this.historyIndex = -1;
+                    this.buffer = this.savedDraft;
+                    this.cursorPosition = this.buffer.length;
+                    await this.recomputeState();
+                }
+                return this.buildResult();
+            }
+        }
+        // 6. Tab: Complete without executing
         if (keyName === 'tab') {
             if (this.mode === 'SlashCommand' && this.currentCommandMatches.length > 0) {
                 const selected = this.currentCommandMatches[this.selectedIndex];
@@ -115,7 +220,7 @@ export class InputStateMachine {
                 }
             }
         }
-        // 5. Enter: Submit or Select
+        // 7. Enter: Submit or Select
         if (keyName === 'return' || keyName === 'enter') {
             // If in SlashCommand mode and selecting a command requiring arguments
             if (this.mode === 'SlashCommand' && this.currentCommandMatches.length > 0) {
@@ -135,8 +240,7 @@ export class InputStateMachine {
             // If in SlashArgument and an argument option is highlighted
             if (this.mode === 'SlashArgument' && this.currentArgumentMatches.length > 0) {
                 const parts = this.buffer.trimStart().split(/\s+/);
-                // If user hasn't typed a full argument yet, complete it on enter
-                if (parts.length <= 2 && parts[1] === '') {
+                if (parts.length <= 2 && (parts[1] === undefined || parts[1] === '')) {
                     const selected = this.currentArgumentMatches[this.selectedIndex];
                     if (selected) {
                         this.buffer = `${parts[0]} ${selected.value}`;
@@ -144,10 +248,13 @@ export class InputStateMachine {
                 }
             }
             const submitted = this.buffer;
+            if (submitted.trim()) {
+                this.addToHistory(submitted);
+            }
             this.reset();
             return this.buildResult({ submittedInput: submitted });
         }
-        // 6. Backspace
+        // 8. Backspace
         if (keyName === 'backspace') {
             if (this.cursorPosition > 0) {
                 this.buffer =
@@ -158,7 +265,17 @@ export class InputStateMachine {
             }
             return this.buildResult();
         }
-        // 7. Standard Character Input
+        // 9. Delete
+        if (keyName === 'delete') {
+            if (this.cursorPosition < this.buffer.length) {
+                this.buffer =
+                    this.buffer.slice(0, this.cursorPosition) +
+                        this.buffer.slice(this.cursorPosition + 1);
+                await this.recomputeState();
+            }
+            return this.buildResult();
+        }
+        // 10. Standard Character Input
         if (char && char.length === 1 && !isCtrl) {
             this.buffer =
                 this.buffer.slice(0, this.cursorPosition) +

@@ -33,11 +33,21 @@ export declare class InputStateMachine {
     private currentArgumentMatches;
     private activeCommandDef?;
     private activeArgIndex;
+    private history;
+    private historyIndex;
+    private savedDraft;
     constructor(context: CommandExecutionContext);
     getMode(): InputMode;
     getBuffer(): string;
+    getCursorPosition(): number;
+    getSelectedIndex(): number;
+    getScrollOffset(): number;
+    getCommandMatches(): CommandMatchResult[];
+    getArgumentMatches(): ArgumentMatchResult[];
+    getActiveCommand(): CommandDefinition | undefined;
     setBuffer(buf: string): void;
     reset(): void;
+    addToHistory(cmd: string): void;
     /**
      * Handle incoming raw keystroke from TTY interface.
      */

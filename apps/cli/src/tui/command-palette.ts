@@ -1,4 +1,4 @@
-import { ThemeManager } from '@berkelium/themes';
+import { ThemeManager, stripAnsi } from '@berkelium/themes';
 import { CommandMatchResult, ArgumentMatchResult, CommandCategory } from '../commands/types.js';
 
 export interface CommandPaletteOptions {
@@ -16,7 +16,16 @@ export class CommandPaletteRenderer {
   }
 
   /**
-   * Render the command suggestions panel.
+   * Helper to format a box row with exact padding and right border alignment.
+   */
+  private formatBoxRow(content: string, innerWidth: number): string {
+    const visibleLen = stripAnsi(content).length;
+    const pad = Math.max(0, innerWidth - visibleLen);
+    return `│ ${content}${' '.repeat(pad)} │`;
+  }
+
+  /**
+   * Render the command suggestions pop-up panel.
    */
   public renderCommandSuggestions(
     matches: CommandMatchResult[],
@@ -27,16 +36,20 @@ export class CommandPaletteRenderer {
     const fmt = this.themeManager.getFormatted();
     const lines: string[] = [];
 
-    const boxWidth = 72;
+    const termCols = process.stdout.columns || 80;
+    const boxWidth = Math.min(termCols, 76);
     const innerWidth = boxWidth - 4;
 
     // Header
-    const title = query ? `COMMANDS: "/${query.replace(/^\//, '')}"` : 'COMMANDS';
+    const cleanQuery = query.replace(/^\//, '');
+    const title = cleanQuery ? `COMMANDS: "/${cleanQuery}"` : 'COMMANDS';
     const headerBorder = `╭─ ${fmt.bold(fmt.primary(title))} ${'─'.repeat(Math.max(0, boxWidth - title.length - 5))}╮`;
     lines.push(headerBorder);
 
     if (matches.length === 0) {
-      lines.push(`│  ${fmt.dimmed('No matching commands found. Press Esc to close.')}${' '.repeat(Math.max(0, innerWidth - 44))}│`);
+      lines.push(
+        this.formatBoxRow(fmt.dimmed('No matching commands found. Press Esc to close.'), innerWidth)
+      );
       lines.push(`╰${'─'.repeat(boxWidth - 2)}╯`);
       return lines;
     }
@@ -46,25 +59,15 @@ export class CommandPaletteRenderer {
       scrollOffset + this.maxVisibleItems
     );
 
-    let lastCategory: CommandCategory | null = null;
-
     for (let i = 0; i < visibleMatches.length; i++) {
       const matchIndex = scrollOffset + i;
       const isSelected = matchIndex === selectedIndex;
       const item = visibleMatches[i];
       const cmd = item.command;
 
-      // Category divider if grouping
-      if (cmd.category !== lastCategory && matches.length > 5) {
-        lastCategory = cmd.category;
-        const catBadge = fmt.dimmed(`[${cmd.category}]`);
-        // lines.push(`│ ${catBadge} ${' '.repeat(Math.max(0, innerWidth - cmd.category.length - 3))}│`);
-      }
-
       const prefix = isSelected ? fmt.primary(fmt.bold(' › ')) : '   ';
-      const cmdName = '/' + cmd.name;
 
-      // Highlight matched characters
+      // Highlight matched characters in command name
       let highlightedCmd = '';
       const matchedSet = new Set(item.matchedIndices);
       for (let cIdx = 0; cIdx < cmd.name.length; cIdx++) {
@@ -76,34 +79,33 @@ export class CommandPaletteRenderer {
         }
       }
 
-      const displayCmd = isSelected
-        ? fmt.bold(`/${highlightedCmd}`)
-        : `/${highlightedCmd}`;
+      const displayCmd = isSelected ? fmt.bold(`/${highlightedCmd}`) : `/${highlightedCmd}`;
+      const cmdVisibleLen = stripAnsi(displayCmd).length;
+      const cmdPad = Math.max(1, 20 - cmdVisibleLen);
+      const spacedCmd = displayCmd + ' '.repeat(cmdPad);
 
-      const rawCmdStr = cmdName.padEnd(20, ' ');
       const desc = cmd.description;
-      const maxDescLen = innerWidth - 24;
+      const maxDescLen = Math.max(10, innerWidth - 3 - 20 - 1);
       const truncatedDesc =
         desc.length > maxDescLen ? desc.slice(0, maxDescLen - 3) + '...' : desc;
       const styledDesc = isSelected ? fmt.muted(truncatedDesc) : fmt.dimmed(truncatedDesc);
 
-      const content = `${prefix}${displayCmd.padEnd(isSelected ? 28 : 20, ' ')} ${styledDesc}`;
-      lines.push(`│ ${content}${' '.repeat(Math.max(0, innerWidth - rawCmdStr.length - truncatedDesc.length - 4))}│`);
+      const rowContent = `${prefix}${spacedCmd} ${styledDesc}`;
+      lines.push(this.formatBoxRow(rowContent, innerWidth));
     }
 
-    // Scroll indicator if needed
+    // Scroll indicator if matches exceed max visible items
     if (matches.length > this.maxVisibleItems) {
-      const scrollInfo = `(${selectedIndex + 1}/${matches.length})`;
-      const scrollPad = Math.max(0, innerWidth - scrollInfo.length);
-      lines.push(`│ ${fmt.dimmed(scrollInfo)}${' '.repeat(scrollPad)} │`);
+      const scrollInfo = fmt.dimmed(`(${selectedIndex + 1}/${matches.length})`);
+      lines.push(this.formatBoxRow(scrollInfo, innerWidth));
     }
 
     // Selected item usage preview
     const selectedItem = matches[selectedIndex];
     if (selectedItem && selectedItem.command.usage) {
       lines.push(`├${'─'.repeat(boxWidth - 2)}┤`);
-      const usageStr = fmt.dimmed(`Usage: ${selectedItem.command.usage}`);
-      lines.push(`│  ${usageStr}${' '.repeat(Math.max(0, innerWidth - selectedItem.command.usage.length - 8))}│`);
+      const usageStr = `${fmt.dimmed('Usage:')} ${fmt.accent(selectedItem.command.usage)}`;
+      lines.push(this.formatBoxRow(usageStr, innerWidth));
     }
 
     // Footer
@@ -116,7 +118,7 @@ export class CommandPaletteRenderer {
   }
 
   /**
-   * Render dynamic argument suggestions panel (e.g. models, providers, themes).
+   * Render dynamic argument suggestions pop-up panel (e.g. models, providers, themes).
    */
   public renderArgumentSuggestions(
     commandName: string,
@@ -129,14 +131,17 @@ export class CommandPaletteRenderer {
     const fmt = this.themeManager.getFormatted();
     const lines: string[] = [];
 
-    const boxWidth = 72;
+    const termCols = process.stdout.columns || 80;
+    const boxWidth = Math.min(termCols, 76);
     const innerWidth = boxWidth - 4;
 
     const title = `${argName.toUpperCase()}S: "/${commandName} ${query}"`;
     lines.push(`╭─ ${fmt.bold(fmt.primary(title))} ${'─'.repeat(Math.max(0, boxWidth - title.length - 5))}╮`);
 
     if (matches.length === 0) {
-      lines.push(`│  ${fmt.dimmed('No matching options found. Type custom value or Esc to close.')}${' '.repeat(Math.max(0, innerWidth - 59))}│`);
+      lines.push(
+        this.formatBoxRow(fmt.dimmed('No matching options. Type custom value or Esc to close.'), innerWidth)
+      );
       lines.push(`╰${'─'.repeat(boxWidth - 2)}╯`);
       return lines;
     }
@@ -166,21 +171,23 @@ export class CommandPaletteRenderer {
       }
 
       const displayVal = isSelected ? fmt.bold(highlightedVal) : highlightedVal;
-      const rawValStr = item.value.padEnd(28, ' ');
+      const valVisibleLen = stripAnsi(displayVal).length;
+      const valPad = Math.max(1, 24 - valVisibleLen);
+      const spacedVal = displayVal + ' '.repeat(valPad);
+
       const desc = item.description || '';
-      const maxDescLen = innerWidth - 32;
+      const maxDescLen = Math.max(10, innerWidth - 3 - 24 - 1);
       const truncatedDesc =
         desc.length > maxDescLen ? desc.slice(0, maxDescLen - 3) + '...' : desc;
       const styledDesc = isSelected ? fmt.muted(truncatedDesc) : fmt.dimmed(truncatedDesc);
 
-      const content = `${prefix}${displayVal.padEnd(isSelected ? 36 : 28, ' ')} ${styledDesc}`;
-      lines.push(`│ ${content}${' '.repeat(Math.max(0, innerWidth - item.value.length - truncatedDesc.length - 5))}│`);
+      const rowContent = `${prefix}${spacedVal} ${styledDesc}`;
+      lines.push(this.formatBoxRow(rowContent, innerWidth));
     }
 
     if (matches.length > this.maxVisibleItems) {
-      const scrollInfo = `(${selectedIndex + 1}/${matches.length})`;
-      const scrollPad = Math.max(0, innerWidth - scrollInfo.length);
-      lines.push(`│ ${fmt.dimmed(scrollInfo)}${' '.repeat(scrollPad)} │`);
+      const scrollInfo = fmt.dimmed(`(${selectedIndex + 1}/${matches.length})`);
+      lines.push(this.formatBoxRow(scrollInfo, innerWidth));
     }
 
     lines.push(`╰${'─'.repeat(boxWidth - 2)}╯`);

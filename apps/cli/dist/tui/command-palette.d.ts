@@ -9,11 +9,15 @@ export declare class CommandPaletteRenderer {
     private maxVisibleItems;
     constructor(options: CommandPaletteOptions);
     /**
-     * Render the command suggestions panel.
+     * Helper to format a box row with exact padding and right border alignment.
+     */
+    private formatBoxRow;
+    /**
+     * Render the command suggestions pop-up panel.
      */
     renderCommandSuggestions(matches: CommandMatchResult[], selectedIndex: number, scrollOffset: number, query: string): string[];
     /**
-     * Render dynamic argument suggestions panel (e.g. models, providers, themes).
+     * Render dynamic argument suggestions pop-up panel (e.g. models, providers, themes).
      */
     renderArgumentSuggestions(commandName: string, argName: string, matches: ArgumentMatchResult[], selectedIndex: number, scrollOffset: number, query: string): string[];
 }
