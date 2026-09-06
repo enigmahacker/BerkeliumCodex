@@ -4,5 +4,9 @@ export * from './verifier.js';
 export * from './subagents.js';
 export * from './session.js';
 export * from './memory.js';
+export * from './checkpoint-manager.js';
+export * from './background-task-manager.js';
+export * from './modes.js';
+export * from './mission.js';
 export * from './runtime.js';
 //# sourceMappingURL=index.js.map

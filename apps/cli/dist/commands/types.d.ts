@@ -5,7 +5,7 @@ import { ProviderRouter } from '@berkelium/providers';
 import { ToolOrchestrator } from '@berkelium/tools';
 import { ContextEngine } from '@berkelium/context';
 import { AuthStore } from '@berkelium/auth';
-export type CommandCategory = 'GENERAL' | 'MODEL' | 'PROVIDERS' | 'CONTEXT' | 'TOOLS' | 'AGENTS' | 'CONFIGURATION' | 'PERMISSIONS' | 'THEMES' | 'GIT' | 'SESSION' | 'DEVELOPMENT' | 'SYSTEM' | 'CUSTOM';
+export type CommandCategory = 'NAVIGATION' | 'GENERAL' | 'MODEL' | 'PROVIDERS' | 'CONTEXT' | 'TOOLS' | 'AGENTS' | 'CONFIGURATION' | 'PERMISSIONS' | 'THEMES' | 'GIT' | 'SESSION' | 'DEVELOPMENT' | 'SYSTEM' | 'CUSTOM';
 export interface CommandArgument {
     name: string;
     description: string;

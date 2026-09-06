@@ -388,6 +388,23 @@ export class InteractiveSession {
   private formatAsSlashCommand(input: string): string | null {
     if (input.startsWith('/')) return input;
 
+    const lower = input.toLowerCase();
+
+    // Working directory commands: pwd, ls, cd
+    if (lower === 'pwd') return '/pwd';
+    if (lower === 'ls' || lower.startsWith('ls ')) return '/' + input;
+    if (lower === 'cd' || lower.startsWith('cd ')) return '/' + input;
+
+    // Direct utilities and navigation without leading slash
+    if (lower === 'scan' || lower.startsWith('scan ')) return '/' + input;
+    if (lower === 'checkpoint' || lower.startsWith('checkpoint ')) return '/' + input;
+    if (lower === 'checkpoints') return '/checkpoints';
+    if (lower === 'undo') return '/undo';
+    if (lower === 'diff') return '/diff';
+    if (lower === 'permissions') return '/permissions';
+    if (lower === 'tasks') return '/tasks';
+    if (lower === 'stop' || lower === 'cancel') return '/' + lower;
+
     // Only format standalone single-word utility commands without slash
     const standaloneKeywords = [
       'help',
@@ -405,7 +422,6 @@ export class InteractiveSession {
       'q',
     ];
 
-    const lower = input.toLowerCase();
     if (standaloneKeywords.includes(lower)) {
       return '/' + lower;
     }

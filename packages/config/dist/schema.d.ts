@@ -165,6 +165,7 @@ export declare const ProviderConfigSchema: z.ZodObject<{
 }>;
 export declare const PermissionActionPolicySchema: z.ZodEnum<["allow", "ask", "deny"]>;
 export declare const PermissionPolicySchema: z.ZodObject<{
+    level: z.ZodDefault<z.ZodEnum<["ask", "auto", "full"]>>;
     filesystem: z.ZodDefault<z.ZodObject<{
         read: z.ZodDefault<z.ZodEnum<["allow", "ask", "deny"]>>;
         write: z.ZodDefault<z.ZodObject<{
@@ -232,6 +233,7 @@ export declare const PermissionPolicySchema: z.ZodObject<{
         allowed_domains?: string[] | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
+    level: "auto" | "ask" | "full";
     filesystem: {
         read: "allow" | "ask" | "deny";
         write: {
@@ -253,6 +255,7 @@ export declare const PermissionPolicySchema: z.ZodObject<{
         allowed_domains: string[];
     };
 }, {
+    level?: "auto" | "ask" | "full" | undefined;
     filesystem?: {
         read?: "allow" | "ask" | "deny" | undefined;
         write?: {
@@ -580,6 +583,7 @@ export declare const BerkeliumConfigSchema: z.ZodObject<{
         diagnostics?: boolean | undefined;
     }>>;
     permissions: z.ZodDefault<z.ZodObject<{
+        level: z.ZodDefault<z.ZodEnum<["ask", "auto", "full"]>>;
         filesystem: z.ZodDefault<z.ZodObject<{
             read: z.ZodDefault<z.ZodEnum<["allow", "ask", "deny"]>>;
             write: z.ZodDefault<z.ZodObject<{
@@ -647,6 +651,7 @@ export declare const BerkeliumConfigSchema: z.ZodObject<{
             allowed_domains?: string[] | undefined;
         }>>;
     }, "strip", z.ZodTypeAny, {
+        level: "auto" | "ask" | "full";
         filesystem: {
             read: "allow" | "ask" | "deny";
             write: {
@@ -668,6 +673,7 @@ export declare const BerkeliumConfigSchema: z.ZodObject<{
             allowed_domains: string[];
         };
     }, {
+        level?: "auto" | "ask" | "full" | undefined;
         filesystem?: {
             read?: "allow" | "ask" | "deny" | undefined;
             write?: {
@@ -947,6 +953,7 @@ export declare const BerkeliumConfigSchema: z.ZodObject<{
         diagnostics: boolean;
     };
     permissions: {
+        level: "auto" | "ask" | "full";
         filesystem: {
             read: "allow" | "ask" | "deny";
             write: {
@@ -1105,6 +1112,7 @@ export declare const BerkeliumConfigSchema: z.ZodObject<{
         diagnostics?: boolean | undefined;
     } | undefined;
     permissions?: {
+        level?: "auto" | "ask" | "full" | undefined;
         filesystem?: {
             read?: "allow" | "ask" | "deny" | undefined;
             write?: {

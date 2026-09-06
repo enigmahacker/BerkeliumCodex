@@ -19,6 +19,7 @@ import { LintTool } from './diagnostics/lint.js';
 import { BuildTool } from './diagnostics/build.js';
 import { FetchUrlTool } from './web/fetch-url.js';
 import { WebSearchTool } from './web/web-search.js';
+import { NetworkController } from './network-controller.js';
 export class ToolOrchestrator {
     registry;
     permissionEngine;
@@ -36,6 +37,9 @@ export class ToolOrchestrator {
     }
     getRegistry() {
         return this.registry;
+    }
+    getPermissionEngine() {
+        return this.permissionEngine;
     }
     async execute(req) {
         const startTime = performance.now();
@@ -84,6 +88,13 @@ export class ToolOrchestrator {
                 durationMs: Math.round(performance.now() - startTime),
             });
             return { success: false, output: msg, error: 'INVALID_ARGUMENTS' };
+        }
+        // 2b. Tool-Layer Network Enforcement
+        if ((tool.metadata.category === 'web' || tool.metadata.network) &&
+            !NetworkController.getInstance().isNetworkAllowed()) {
+            const blockedMsg = 'NETWORK: BLOCKED. Outbound network access is disabled by policy.';
+            this.logger.warn(blockedMsg);
+            return { success: false, output: blockedMsg, error: 'NETWORK_BLOCKED' };
         }
         // 3. Permission Check
         const targetDesc = String(parsedArgs.path || parsedArgs.command || parsedArgs.url || parsedArgs.message || req.toolName);

@@ -1,4 +1,4 @@
-export type AgentEventType = 'session_started' | 'message_started' | 'token_received' | 'reasoning_started' | 'reasoning_token_received' | 'reasoning_finished' | 'tool_requested' | 'tool_started' | 'tool_output' | 'tool_completed' | 'tool_failed' | 'permission_requested' | 'permission_granted' | 'permission_denied' | 'security_warning' | 'security_blocked' | 'secret_detected' | 'path_escape_blocked' | 'network_request_blocked' | 'unsafe_command_blocked' | 'model_changed' | 'provider_changed' | 'context_compacted' | 'subagent_started' | 'subagent_completed' | 'verification_started' | 'verification_completed' | 'state_changed' | 'status_updated' | 'error' | 'session_completed';
+export type AgentEventType = 'session_started' | 'message_started' | 'token_received' | 'reasoning_started' | 'reasoning_token_received' | 'reasoning_finished' | 'tool_requested' | 'tool_started' | 'tool_output' | 'tool_completed' | 'tool_failed' | 'permission_requested' | 'permission_granted' | 'permission_denied' | 'security_warning' | 'security_blocked' | 'secret_detected' | 'path_escape_blocked' | 'network_request_blocked' | 'unsafe_command_blocked' | 'model_changed' | 'mode_changed' | 'provider_changed' | 'context_compacted' | 'subagent_started' | 'subagent_completed' | 'verification_started' | 'verification_completed' | 'mission_started' | 'mission_task_started' | 'mission_task_completed' | 'mission_completed' | 'state_changed' | 'status_updated' | 'error' | 'session_completed';
 export interface BaseAgentEvent {
     id: string;
     type: AgentEventType;
@@ -180,6 +180,31 @@ export interface ErrorEvent extends BaseAgentEvent {
     recoverable: boolean;
     stack?: string;
 }
+export interface ModeChangedEvent extends BaseAgentEvent {
+    type: 'mode_changed';
+    previousMode: string;
+    newMode: string;
+}
+export interface MissionStartedEvent extends BaseAgentEvent {
+    type: 'mission_started';
+    goal: string;
+    taskCount: number;
+}
+export interface MissionTaskStartedEvent extends BaseAgentEvent {
+    type: 'mission_task_started';
+    taskId: string;
+    objective: string;
+}
+export interface MissionTaskCompletedEvent extends BaseAgentEvent {
+    type: 'mission_task_completed';
+    taskId: string;
+    status: string;
+    result?: string;
+}
+export interface MissionCompletedEvent extends BaseAgentEvent {
+    type: 'mission_completed';
+    report: unknown;
+}
 export interface SessionCompletedEvent extends BaseAgentEvent {
     type: 'session_completed';
     durationMs: number;
@@ -187,6 +212,6 @@ export interface SessionCompletedEvent extends BaseAgentEvent {
     totalCost?: number;
     toolsExecuted: number;
 }
-export type AgentEvent = SessionStartedEvent | MessageStartedEvent | TokenReceivedEvent | ReasoningStartedEvent | ReasoningTokenReceivedEvent | ReasoningFinishedEvent | ToolRequestedEvent | ToolStartedEvent | ToolOutputEvent | ToolCompletedEvent | ToolFailedEvent | PermissionRequestedEvent | PermissionGrantedEvent | PermissionDeniedEvent | SecurityWarningEvent | SecurityBlockedEvent | SecretDetectedEvent | PathEscapeBlockedEvent | NetworkRequestBlockedEvent | UnsafeCommandBlockedEvent | ModelChangedEvent | ProviderChangedEvent | ContextCompactedEvent | SubagentStartedEvent | SubagentCompletedEvent | VerificationStartedEvent | VerificationCompletedEvent | StateChangedEvent | StatusUpdatedEvent | ErrorEvent | SessionCompletedEvent;
+export type AgentEvent = SessionStartedEvent | MessageStartedEvent | TokenReceivedEvent | ReasoningStartedEvent | ReasoningTokenReceivedEvent | ReasoningFinishedEvent | ToolRequestedEvent | ToolStartedEvent | ToolOutputEvent | ToolCompletedEvent | ToolFailedEvent | PermissionRequestedEvent | PermissionGrantedEvent | PermissionDeniedEvent | SecurityWarningEvent | SecurityBlockedEvent | SecretDetectedEvent | PathEscapeBlockedEvent | NetworkRequestBlockedEvent | UnsafeCommandBlockedEvent | ModelChangedEvent | ModeChangedEvent | ProviderChangedEvent | ContextCompactedEvent | SubagentStartedEvent | SubagentCompletedEvent | VerificationStartedEvent | VerificationCompletedEvent | MissionStartedEvent | MissionTaskStartedEvent | MissionTaskCompletedEvent | MissionCompletedEvent | StateChangedEvent | StatusUpdatedEvent | ErrorEvent | SessionCompletedEvent;
 export type EventHandler<T extends AgentEvent = AgentEvent> = (event: T) => void | Promise<void>;
 //# sourceMappingURL=types.d.ts.map

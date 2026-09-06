@@ -11,6 +11,9 @@ import { SessionManager, SessionData } from './session.js';
 import { ProjectMemory } from './memory.js';
 import { Verifier } from './verifier.js';
 import { SubagentManager } from './subagents.js';
+import { AgentMode, AGENT_MODES, isValidAgentMode } from './modes.js';
+import { MissionRunner, MissionReport, MissionOptions } from './mission.js';
+import { BackgroundTaskManager } from './background-task-manager.js';
 
 export interface RuntimeInitOptions {
   workspaceRoot?: string;
@@ -42,6 +45,8 @@ export class AgentRuntime {
   private privacyEngine: PrivacyEngine;
   private costController: CostController;
   private memory: ProjectMemory;
+  private agentMode: AgentMode = 'build';
+  private missionRunner: MissionRunner;
 
   private conversationMessages: Message[] = [];
   private activeModelTarget: string;
@@ -66,6 +71,14 @@ export class AgentRuntime {
     this.privacyEngine = new PrivacyEngine(this.configManager.getConfig().privacy);
     this.costController = new CostController(this.configManager.getConfig().cost);
     this.memory = new ProjectMemory(this.workspaceRoot);
+    this.missionRunner = new MissionRunner(
+      this.orchestrator,
+      this.router,
+      this.verifier,
+      this.logger,
+      this.eventBus,
+      this.workspaceRoot
+    );
 
     this.activeModelTarget = this.configManager.getConfig().default_model;
 
@@ -121,11 +134,39 @@ export class AgentRuntime {
     return this.conversationMessages;
   }
 
+  public getMode(): AgentMode {
+    return this.agentMode;
+  }
+
+  public setMode(mode: AgentMode): void {
+    if (!isValidAgentMode(mode)) {
+      throw new Error(`Invalid agent mode: "${mode}". Valid modes: ${Object.keys(AGENT_MODES).join(', ')}`);
+    }
+    const prev = this.agentMode;
+    this.agentMode = mode;
+    this.eventBus.emit({
+      id: crypto.randomUUID(),
+      type: 'mode_changed' as any,
+      sessionId: this.sessionId,
+      timestamp: Date.now(),
+      previousMode: prev,
+      newMode: mode,
+    });
+  }
+
+  public async executeMission(goal: string, options?: MissionOptions): Promise<MissionReport> {
+    return this.missionRunner.executeMission(goal, this.activeModelTarget, {
+      ...options,
+      signal: this.abortController?.signal || options?.signal,
+    });
+  }
+
   public cancel(): void {
     if (this.abortController) {
       this.abortController.abort();
       this.abortController = null;
     }
+    BackgroundTaskManager.getInstance().stopAll();
     this.stateMachine.transition('CANCELLED', 'Operation cancelled by user');
     setTimeout(() => {
       this.stateMachine.transition('IDLE');
@@ -192,7 +233,8 @@ export class AgentRuntime {
         const promptLayers = PromptEngine.loadCustomPrompts(this.workspaceRoot);
         const repoMap = await this.contextEngine.getRepoMap(800);
         const memPrompt = this.memory.getContextPrompt(400);
-        promptLayers.workspace = `Active Workspace: ${this.workspaceRoot}\n\n${repoMap}${memPrompt ? '\n\n' + memPrompt : ''}`;
+        const modePrompt = AGENT_MODES[this.agentMode]?.promptInstructions || '';
+        promptLayers.workspace = `Active Workspace: ${this.workspaceRoot}\n\n${modePrompt}\n\n${repoMap}${memPrompt ? '\n\n' + memPrompt : ''}`;
         const systemPrompt = PromptEngine.compose(promptLayers, this.workspaceRoot);
 
         // 3. Resolve Active Model Target & Mode Execution
@@ -326,6 +368,21 @@ export class AgentRuntime {
         this.stateMachine.transition('EXECUTING_TOOL');
         for (const toolCall of normalizedResponse.toolCalls) {
           if (this.abortController?.signal.aborted) break;
+
+          // Non-destructive PLAN mode enforcement
+          if (this.agentMode === 'plan') {
+            const mutatingTools = ['write_file', 'edit_file', 'patch_file', 'delete_file'];
+            if (mutatingTools.includes(toolCall.name)) {
+              const blockedMsg = `PLAN mode is strictly non-destructive. Tool "${toolCall.name}" is blocked. Present the architectural plan to the user and switch to /mode build to execute changes.`;
+              this.conversationMessages.push({
+                role: 'tool',
+                content: blockedMsg,
+                tool_call_id: toolCall.id,
+                name: toolCall.name,
+              });
+              continue;
+            }
+          }
 
           await this.hookManager.trigger('before_tool', { toolCall });
           const toolStart = performance.now();

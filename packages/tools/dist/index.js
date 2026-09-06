@@ -26,4 +26,5 @@ export * from './filesystem/path-utils.js';
 export * from './shell/env-sanitizer.js';
 export * from './web/ssrf-guard.js';
 export * from './mcp/mcp-bridge.js';
+export * from './network-controller.js';
 //# sourceMappingURL=index.js.map

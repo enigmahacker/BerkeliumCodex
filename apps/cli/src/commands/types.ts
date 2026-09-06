@@ -7,6 +7,7 @@ import { ContextEngine } from '@berkelium/context';
 import { AuthStore } from '@berkelium/auth';
 
 export type CommandCategory =
+  | 'NAVIGATION'
   | 'GENERAL'
   | 'MODEL'
   | 'PROVIDERS'

@@ -129,7 +129,56 @@ export class CommandRegistry {
   }
 
   private registerBuiltIns(): void {
+    // 0. NAVIGATION
+    this.register({
+      name: 'pwd',
+      description: 'Print current working directory, repository name, branch, and project stack',
+      category: 'NAVIGATION',
+      usage: '/pwd',
+      examples: ['/pwd'],
+    });
+
+    this.register({
+      name: 'ls',
+      aliases: ['dir'],
+      description: 'List files and subdirectories with sizes, types, and counts',
+      category: 'NAVIGATION',
+      usage: '/ls [path]',
+      examples: ['/ls', '/ls src', '/ls packages'],
+      arguments: [
+        {
+          name: 'path',
+          description: 'Subdirectory path to inspect',
+          required: false,
+        },
+      ],
+    });
+
+    this.register({
+      name: 'cd',
+      description: 'Safely change working directory, refresh repository intelligence & detect Git root',
+      category: 'NAVIGATION',
+      usage: '/cd <path>',
+      examples: ['/cd ..', '/cd packages/agent', '/cd ~/Projects/app'],
+      arguments: [
+        {
+          name: 'path',
+          description: 'Target directory path',
+          required: true,
+        },
+      ],
+    });
+
     // 1. GENERAL
+    this.register({
+      name: 'stop',
+      aliases: ['cancel', 'abort'],
+      description: 'Stop active model generation, cancel queued work, and terminate running child processes',
+      category: 'GENERAL',
+      usage: '/stop',
+      examples: ['/stop'],
+    });
+
     this.register({
       name: 'help',
       aliases: ['?'],
@@ -324,6 +373,54 @@ export class CommandRegistry {
       ],
     });
 
+    this.register({
+      name: 'tasks',
+      aliases: ['jobs', 'bg'],
+      description: 'List or manage active background tasks and processes',
+      category: 'TOOLS',
+      usage: '/tasks [list|stop <id>]',
+      examples: ['/tasks', '/tasks stop #1'],
+      arguments: [
+        {
+          name: 'action',
+          description: 'Task operation (list, stop)',
+          required: false,
+          staticOptions: ['list', 'stop'],
+        },
+      ],
+    });
+
+    this.register({
+      name: 'background',
+      description: 'Run long-running operation in the background without blocking interactive session',
+      category: 'TOOLS',
+      usage: '/background <command>',
+      examples: ['/background npm test', '/background cargo build'],
+      arguments: [
+        {
+          name: 'command',
+          description: 'Shell command to run in background',
+          required: true,
+        },
+      ],
+    });
+
+    this.register({
+      name: 'network',
+      description: 'Inspect or control outbound network access at the tool layer',
+      category: 'TOOLS',
+      usage: '/network [status|allow|deny]',
+      examples: ['/network', '/network allow', '/network deny'],
+      arguments: [
+        {
+          name: 'action',
+          description: 'Network policy action (status, allow, deny)',
+          required: false,
+          staticOptions: ['status', 'allow', 'deny'],
+        },
+      ],
+    });
+
     // 6. AGENTS
     this.register({
       name: 'agents',
@@ -446,6 +543,22 @@ export class CommandRegistry {
       examples: ['/permissions'],
     });
 
+    this.register({
+      name: 'permission',
+      description: 'Set permission level (ask, auto, full) or grant capability',
+      category: 'PERMISSIONS',
+      usage: '/permission [ask|auto|full]',
+      examples: ['/permission ask', '/permission auto', '/permission full'],
+      arguments: [
+        {
+          name: 'level',
+          description: 'Permission level (ask, auto, full)',
+          required: false,
+          staticOptions: ['ask', 'auto', 'full'],
+        },
+      ],
+    });
+
     // 9. THEMES
     this.register({
       name: 'theme',
@@ -486,6 +599,53 @@ export class CommandRegistry {
       category: 'GIT',
       usage: '/diff',
       examples: ['/diff'],
+    });
+
+    this.register({
+      name: 'checkpoint',
+      aliases: ['cp'],
+      description: 'Create safe Git-aware snapshot of current working tree',
+      category: 'GIT',
+      usage: '/checkpoint [name]',
+      examples: ['/checkpoint', '/checkpoint "before refactor"'],
+      arguments: [
+        {
+          name: 'name',
+          description: 'Optional label for checkpoint',
+          required: false,
+        },
+      ],
+    });
+
+    this.register({
+      name: 'checkpoints',
+      description: 'List all saved Git checkpoints and snapshots',
+      category: 'GIT',
+      usage: '/checkpoints',
+      examples: ['/checkpoints'],
+    });
+
+    this.register({
+      name: 'restore',
+      description: 'Safely restore working tree from a previous checkpoint',
+      category: 'GIT',
+      usage: '/restore [checkpoint_id]',
+      examples: ['/restore', '/restore cp_1700000000_abc'],
+      arguments: [
+        {
+          name: 'checkpoint_id',
+          description: 'Checkpoint ID to restore',
+          required: false,
+        },
+      ],
+    });
+
+    this.register({
+      name: 'undo',
+      description: 'Undo recent modifications by restoring the most recent checkpoint',
+      category: 'GIT',
+      usage: '/undo',
+      examples: ['/undo'],
     });
 
     this.register({
@@ -530,6 +690,37 @@ export class CommandRegistry {
     });
 
     // 12. DEVELOPMENT
+    this.register({
+      name: 'mission',
+      aliases: ['task', 'goal'],
+      description: 'Autonomous goal execution decomposed into sequential verified subtasks with retry limits',
+      category: 'DEVELOPMENT',
+      usage: '/mission <goal>',
+      examples: ['/mission Fix all failing tests', '/mission Refactor auth layer'],
+      arguments: [
+        {
+          name: 'goal',
+          description: 'High-level objective or mission goal',
+          required: true,
+        },
+      ],
+    });
+
+    this.register({
+      name: 'ask',
+      description: 'Direct Q&A mode: ask questions, discuss architecture, without modifying files',
+      category: 'DEVELOPMENT',
+      usage: '/ask [question]',
+      examples: ['/ask How does the permission engine work?'],
+      arguments: [
+        {
+          name: 'question',
+          description: 'Question or design topic',
+          required: false,
+        },
+      ],
+    });
+
     this.register({
       name: 'test',
       description: 'Run workspace test suite',
@@ -637,6 +828,22 @@ export class CommandRegistry {
     });
 
     // 13. SYSTEM
+    this.register({
+      name: 'scan',
+      description: 'Deep project intelligence scan (files, AST, circular dependencies, Git, tests, security)',
+      category: 'SYSTEM',
+      usage: '/scan [project|deep|security|dependencies|git|tests]',
+      examples: ['/scan', '/scan deep', '/scan security', '/scan tests'],
+      arguments: [
+        {
+          name: 'type',
+          description: 'Scan scope and analysis depth',
+          required: false,
+          staticOptions: ['project', 'deep', 'security', 'dependencies', 'git', 'tests'],
+        },
+      ],
+    });
+
     this.register({
       name: 'status',
       description: 'View runtime state machine & telemetry stats',

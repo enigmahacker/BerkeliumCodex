@@ -3,12 +3,12 @@ import { Logger } from '@berkelium/logging';
 import { ConfigManager } from '@berkelium/config';
 import { ThemeManager } from '@berkelium/themes';
 import { AuthStore } from '@berkelium/auth';
-import { PermissionEngine, SecretRedactor } from '@berkelium/permissions';
+import { PermissionEngine, SecretRedactor, SecurityScanner } from '@berkelium/permissions';
 import { ProviderRouter, NVIDIAProvider, OpenRouterProvider, GeminiProvider, HuggingFaceProvider, GroqProvider, OllamaProvider, LMStudioProvider, } from '@berkelium/providers';
 import { ToolRegistry, ToolOrchestrator } from '@berkelium/tools';
-import { ContextEngine } from '@berkelium/context';
+import { ContextEngine, WorkingDirectoryManager, ProjectScanner, SystemScanner } from '@berkelium/context';
 import { PluginManager } from '@berkelium/plugins';
-import { AgentRuntime, SessionManager } from '@berkelium/agent';
+import { AgentRuntime, SessionManager, isValidAgentMode } from '@berkelium/agent';
 import { LaunchAnimation } from './tui/animation.js';
 import { TUIRenderer } from './tui/renderer.js';
 import { InteractiveSession } from './tui/interactive-session.js';
@@ -36,40 +36,18 @@ import { InspectCommand } from './commands/inspect-cmd.js';
 import { AccessibilityCommand } from './commands/accessibility-cmd.js';
 import { ConfigCommand } from './commands/config-cmd.js';
 export async function main(argv = process.argv.slice(2)) {
-    const logger = new Logger({ subsystem: 'berkelium' });
-    const eventBus = new EventBus();
-    const configManager = new ConfigManager();
-    const authStore = new AuthStore();
-    const themeManager = new ThemeManager(configManager.getConfig().theme.name);
-    const renderer = new TUIRenderer(themeManager);
-    // Initialize Provider Router & all standard adapters
-    const router = new ProviderRouter(configManager.getConfig(), logger);
-    router.registerProvider(new OpenRouterProvider(authStore, configManager.getConfig().providers.openrouter.base_url));
-    router.registerProvider(new NVIDIAProvider(authStore, configManager.getConfig().providers.nvidia.base_url));
-    router.registerProvider(new GeminiProvider(authStore, configManager.getConfig().providers.gemini?.base_url));
-    router.registerProvider(new HuggingFaceProvider(authStore, configManager.getConfig().providers.huggingface?.base_url));
-    router.registerProvider(new GroqProvider(authStore, configManager.getConfig().providers.groq?.base_url));
-    router.registerProvider(new OllamaProvider(configManager.getConfig().providers.ollama.base_url));
-    router.registerProvider(new LMStudioProvider(configManager.getConfig().providers.lmstudio.base_url));
-    // Initialize Permission Engine & Redactor
-    const permissionEngine = new PermissionEngine(configManager.getWorkspaceRoot(), configManager.getConfig().permissions, eventBus);
-    const secretRedactor = new SecretRedactor();
-    // Initialize Tool Registry & Orchestrator
-    const toolRegistry = new ToolRegistry();
-    const orchestrator = new ToolOrchestrator(toolRegistry, permissionEngine, secretRedactor, logger, configManager.getWorkspaceRoot(), eventBus);
-    // Initialize Context Engine
-    const contextEngine = new ContextEngine(configManager.getWorkspaceRoot(), logger);
-    // Initialize Plugin Manager
-    const pluginManager = new PluginManager(logger);
-    // Initialize Session Manager
-    const sessionManager = new SessionManager();
-    // Parse CLI flags
+    // Parse CLI flags early
     let noAnimation = false;
     let hackathonMode = false;
-    let matrixMode = configManager.getConfig().ui.launch_matrix ?? true;
+    let matrixMode;
     let customTheme;
     let customModel;
     let customProvider;
+    let customCwd;
+    let customPermission;
+    let customMode;
+    let isDebug = false;
+    let isVerbose = false;
     const positionalArgs = [];
     for (let i = 0; i < argv.length; i++) {
         const arg = argv[i];
@@ -77,7 +55,66 @@ export async function main(argv = process.argv.slice(2)) {
             console.log('Berkelium CLI v1.0.0 (darwin-arm64 native)');
             return;
         }
-        if (arg === '--plain') {
+        if (arg === '--help' || arg === '-h') {
+            console.log(`
+Berkelium CLI — Your terminal. Your codebase. Your AI.
+
+Usage:
+  berkelium [command] [options]
+
+Core Options:
+  --help, -h               Display this help guide
+  --version, -v            Display Berkelium version
+  --cwd <directory>        Set active working directory
+  --model <model>          Specify active model or alias (e.g. coding, qwen2.5:14b)
+  --provider <provider>    Specify default provider (e.g. openrouter, nvidia, ollama)
+  --mode <mode>            Set agent mode: ask | plan | build | debug | review | test | refactor
+  --permission <level>     Set permission level: ask | auto | full
+  --theme <theme>, -t      Specify terminal color theme
+  --plain                  Disable animations and graphical themes
+  --verbose                Enable verbose logging
+  --debug                  Enable diagnostic debug output
+
+Primary Commands:
+  scan [type]              Run project scan (project, deep, security, dependencies, git, tests)
+  system scan              Run complete hardware, OS, memory, storage & dev scan
+  security scan            Scan workspace and Git history for leaked secrets and vulnerabilities
+  doctor                   Run full environment & provider diagnostic checks
+  list                     List installed local models
+  pull <model>             Download model weights locally
+  show <model>             Display model parameters and architecture
+  ps                       List active local inference processes
+  rm <model>               Delete local model weights
+  run <task>               Execute an autonomous engineering task directly
+  session <list|resume>    Inspect and resume previous interactive sessions
+  git <status|diff>        Inspect repository Git status and diffs
+`);
+            return;
+        }
+        if (arg === '--cwd' && i + 1 < argv.length) {
+            customCwd = argv[++i];
+        }
+        else if (arg === '--permission' && i + 1 < argv.length) {
+            const p = argv[++i].toLowerCase();
+            if (['ask', 'auto', 'full'].includes(p)) {
+                customPermission = p;
+            }
+            else {
+                console.error(`Error: Invalid permission level "${p}". Valid options: ask, auto, full`);
+                process.exit(1);
+            }
+        }
+        else if (arg === '--mode' && i + 1 < argv.length) {
+            const m = argv[++i].toLowerCase();
+            if (isValidAgentMode(m)) {
+                customMode = m;
+            }
+            else {
+                console.error(`Error: Invalid agent mode "${m}". Valid options: ask, plan, build, debug, review, test, refactor`);
+                process.exit(1);
+            }
+        }
+        else if (arg === '--plain') {
             customTheme = 'plain';
             noAnimation = true;
             matrixMode = false;
@@ -103,19 +140,98 @@ export async function main(argv = process.argv.slice(2)) {
         else if (arg === '--provider' && i + 1 < argv.length) {
             customProvider = argv[++i];
         }
+        else if (arg === '--verbose') {
+            isVerbose = true;
+        }
+        else if (arg === '--debug') {
+            isDebug = true;
+        }
         else if (arg.startsWith('-')) {
-            // Ignore other flags or store
+            // Ignore other flags
         }
         else {
             positionalArgs.push(arg);
         }
     }
-    // Apply theme override if given
-    if (customTheme) {
-        themeManager.setTheme(customTheme);
+    // Handle working directory override if --cwd is passed
+    let resolvedWorkspaceRoot = process.cwd();
+    if (customCwd) {
+        const wdRes = WorkingDirectoryManager.getInstance().changeDirectory(customCwd);
+        if (!wdRes.success) {
+            console.error(`Error: ${wdRes.message}`);
+            process.exit(1);
+        }
+        resolvedWorkspaceRoot = wdRes.newDir;
+    }
+    else {
+        WorkingDirectoryManager.getInstance(resolvedWorkspaceRoot);
+    }
+    const logger = new Logger({ subsystem: 'berkelium', level: isDebug || isVerbose ? 'debug' : 'info' });
+    const eventBus = new EventBus();
+    const configManager = new ConfigManager(resolvedWorkspaceRoot);
+    const authStore = new AuthStore();
+    const themeManager = new ThemeManager(customTheme || configManager.getConfig().theme.name);
+    const renderer = new TUIRenderer(themeManager);
+    // Initialize Provider Router & all standard adapters
+    const router = new ProviderRouter(configManager.getConfig(), logger);
+    router.registerProvider(new OpenRouterProvider(authStore, configManager.getConfig().providers.openrouter.base_url));
+    router.registerProvider(new NVIDIAProvider(authStore, configManager.getConfig().providers.nvidia.base_url));
+    router.registerProvider(new GeminiProvider(authStore, configManager.getConfig().providers.gemini?.base_url));
+    router.registerProvider(new HuggingFaceProvider(authStore, configManager.getConfig().providers.huggingface?.base_url));
+    router.registerProvider(new GroqProvider(authStore, configManager.getConfig().providers.groq?.base_url));
+    router.registerProvider(new OllamaProvider(configManager.getConfig().providers.ollama.base_url));
+    router.registerProvider(new LMStudioProvider(configManager.getConfig().providers.lmstudio.base_url));
+    // Initialize Permission Engine & Redactor
+    const permissionEngine = new PermissionEngine(configManager.getWorkspaceRoot(), configManager.getConfig().permissions, eventBus);
+    if (customPermission) {
+        permissionEngine.setPermissionLevel(customPermission);
+    }
+    const secretRedactor = new SecretRedactor();
+    // Initialize Tool Registry & Orchestrator
+    const toolRegistry = new ToolRegistry();
+    const orchestrator = new ToolOrchestrator(toolRegistry, permissionEngine, secretRedactor, logger, configManager.getWorkspaceRoot(), eventBus);
+    // Initialize Context Engine
+    const contextEngine = new ContextEngine(configManager.getWorkspaceRoot(), logger);
+    // Initialize Plugin Manager
+    const pluginManager = new PluginManager(logger);
+    // Initialize Session Manager
+    const sessionManager = new SessionManager();
+    if (matrixMode === undefined) {
+        matrixMode = configManager.getConfig().ui.launch_matrix ?? true;
     }
     const firstArg = positionalArgs[0];
     // Subcommands
+    if (firstArg === 'scan') {
+        const scanType = positionalArgs[1]?.toLowerCase() || 'project';
+        const wsRoot = configManager.getWorkspaceRoot();
+        if (scanType === 'security') {
+            const secReport = await SecurityScanner.scan(wsRoot);
+            console.log(SecurityScanner.formatReport(secReport));
+            return;
+        }
+        const validModes = ['project', 'deep', 'dependencies', 'git', 'tests'];
+        const mode = validModes.includes(scanType) ? scanType : 'project';
+        const scanReport = await ProjectScanner.scan(wsRoot, mode);
+        console.log(ProjectScanner.formatReport(scanReport));
+        return;
+    }
+    if (firstArg === 'system') {
+        const subAction = positionalArgs[1]?.toLowerCase() || 'scan';
+        const sysInfo = await SystemScanner.scan();
+        if (subAction === 'scan' || subAction === 'info') {
+            console.log(SystemScanner.formatReport(sysInfo));
+        }
+        else {
+            console.log(SystemScanner.formatReport(sysInfo, subAction));
+        }
+        return;
+    }
+    if (firstArg === 'security') {
+        const wsRoot = configManager.getWorkspaceRoot();
+        const secReport = await SecurityScanner.scan(wsRoot);
+        console.log(SecurityScanner.formatReport(secReport));
+        return;
+    }
     if (firstArg === 'doctor') {
         const isJson = argv.includes('--json');
         await DoctorCommand.run(themeManager, authStore, router, isJson);
@@ -228,6 +344,9 @@ export async function main(argv = process.argv.slice(2)) {
     });
     if (customModel) {
         runtime.setActiveModel(customModel);
+    }
+    if (customMode) {
+        runtime.setMode(customMode);
     }
     // Direct autonomous run command: berkelium run "task"
     if (firstArg === 'run' && positionalArgs.length > 1) {

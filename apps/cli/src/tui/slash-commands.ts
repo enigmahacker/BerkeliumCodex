@@ -1,13 +1,14 @@
 import * as readline from 'node:readline/promises';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { AgentRuntime } from '@berkelium/agent';
+import { AgentRuntime, CheckpointManager, BackgroundTaskManager, isValidAgentMode, AgentMode } from '@berkelium/agent';
 import { ThemeManager } from '@berkelium/themes';
 import { ConfigManager, PromptEngine, pickFileWithFinder } from '@berkelium/config';
 import { ProviderRouter } from '@berkelium/providers';
-import { ToolOrchestrator } from '@berkelium/tools';
-import { ContextEngine, RepoMapper } from '@berkelium/context';
+import { ToolOrchestrator, NetworkController } from '@berkelium/tools';
+import { ContextEngine, RepoMapper, WorkingDirectoryManager, ProjectScanner, SystemScanner } from '@berkelium/context';
 import { AuthStore, AuthProviderId } from '@berkelium/auth';
+import { SecurityScanner, PermissionLevel } from '@berkelium/permissions';
 import { TUIOverlays } from './overlays.js';
 import { BkMatrix } from './bk-matrix.js';
 import { ModelPicker } from './model-picker.js';
@@ -74,6 +75,7 @@ export class SlashCommandHandler {
     console.log();
 
     const categoryOrder: CommandCategory[] = [
+      'NAVIGATION',
       'GENERAL',
       'MODEL',
       'PROVIDERS',
@@ -163,12 +165,218 @@ export class SlashCommandHandler {
         }
         return true;
 
+      case 'pwd': {
+        console.log();
+        console.log(WorkingDirectoryManager.getInstance().formatStatus());
+        console.log();
+        return true;
+      }
+
+      case 'ls': {
+        console.log();
+        const entries = WorkingDirectoryManager.getInstance().listDirectory(arg || undefined);
+        if (entries.length === 0) {
+          console.log(fmt.dimmed('  (empty directory)'));
+        } else {
+          for (const e of entries) {
+            const prefix = e.type === 'directory' ? '📁 ' : e.isExecutable ? '⚡ ' : '📄 ';
+            const size = e.type === 'directory' ? '' : ` (${Math.round(e.sizeBytes / 1024)} KB)`;
+            console.log(`  ${prefix}${e.name}${size}`);
+          }
+        }
+        console.log();
+        return true;
+      }
+
+      case 'cd': {
+        if (!arg) {
+          console.log(fmt.warning('Usage: /cd <directory_path>'));
+          return true;
+        }
+        const cdRes = WorkingDirectoryManager.getInstance().changeDirectory(arg);
+        if (!cdRes.success) {
+          console.log(fmt.error(`✗ ${cdRes.message}`));
+        } else {
+          console.log();
+          console.log(fmt.success(`✓ Changed working directory:`));
+          console.log(`  Working directory: ${fmt.primary(WorkingDirectoryManager.getInstance().getRelativeHome())}`);
+          console.log(`  Repository:        ${cdRes.project.hasGit ? 'Detected Git repository' : 'No Git repository detected'}`);
+          if (cdRes.project.gitBranch) {
+            console.log(`  Branch:            ${fmt.accent(cdRes.project.gitBranch)}`);
+          }
+          console.log(`  Project:           ${cdRes.project.language} / ${cdRes.project.framework}`);
+          console.log();
+          this.contextEngine.setWorkspaceRoot(cdRes.newDir);
+        }
+        return true;
+      }
+
+      case 'stop':
+      case 'cancel': {
+        this.runtime.cancel();
+        console.log(fmt.warning('✓ Stopped active model generation, tool execution, and child processes.'));
+        return true;
+      }
+
+      case 'scan': {
+        const scanType = subArgs[0]?.toLowerCase() || 'project';
+        const wsRoot = WorkingDirectoryManager.getInstance().getCwd();
+        console.log(fmt.dimmed(`Scanning project (${scanType})...`));
+        if (scanType === 'security') {
+          const secReport = await SecurityScanner.scan(wsRoot);
+          console.log();
+          console.log(SecurityScanner.formatReport(secReport));
+          console.log();
+          return true;
+        }
+        const validModes = ['project', 'deep', 'dependencies', 'git', 'tests'] as const;
+        const mode = validModes.includes(scanType as any) ? (scanType as any) : 'project';
+        const scanReport = await ProjectScanner.scan(wsRoot, mode);
+        console.log();
+        console.log(ProjectScanner.formatReport(scanReport));
+        console.log();
+        return true;
+      }
+
+      case 'checkpoint':
+      case 'cp': {
+        const cpMgr = new CheckpointManager(WorkingDirectoryManager.getInstance().getCwd());
+        const cp = cpMgr.createCheckpoint(arg || undefined);
+        console.log();
+        console.log(fmt.success(`✓ Created checkpoint ${fmt.bold(cp.id)}`));
+        console.log(`  Name:     ${cp.name}`);
+        console.log(`  Commit:   ${cp.commit}`);
+        console.log(`  Files:    ${cp.modifiedFiles.length} modified, ${cp.untrackedFiles.length} untracked`);
+        console.log();
+        return true;
+      }
+
+      case 'checkpoints': {
+        const cpMgr = new CheckpointManager(WorkingDirectoryManager.getInstance().getCwd());
+        console.log();
+        console.log(cpMgr.formatCheckpoints());
+        console.log();
+        return true;
+      }
+
+      case 'restore': {
+        if (!arg) {
+          console.log(fmt.warning('Usage: /restore <checkpoint_id>'));
+          return true;
+        }
+        const cpMgr = new CheckpointManager(WorkingDirectoryManager.getInstance().getCwd());
+        const res = cpMgr.restoreCheckpoint(arg);
+        if (res.success) {
+          console.log(fmt.success(`✓ ${res.message}`));
+        } else {
+          console.log(fmt.error(`✗ ${res.message}`));
+        }
+        return true;
+      }
+
+      case 'undo': {
+        const cpMgr = new CheckpointManager(WorkingDirectoryManager.getInstance().getCwd());
+        const res = cpMgr.undo();
+        if (res.success) {
+          console.log(fmt.success(`✓ ${res.message}`));
+        } else {
+          console.log(fmt.error(`✗ ${res.message}`));
+        }
+        return true;
+      }
+
+      case 'mission': {
+        if (!arg) {
+          console.log(fmt.warning('Usage: /mission <goal>'));
+          return true;
+        }
+        console.log(fmt.dimmed(`Starting autonomous mission: "${arg}"...`));
+        const report = await this.runtime.executeMission(arg);
+        console.log();
+        console.log(fmt.bold(fmt.primary('MISSION SUMMARY')));
+        console.log(`  Status:    ${report.status === 'completed' ? fmt.success('COMPLETED') : fmt.error(report.status.toUpperCase())}`);
+        console.log(`  Tasks:     ${report.completedTasks}/${report.totalTasks} completed`);
+        console.log(`  Duration:  ${(report.totalDurationMs / 1000).toFixed(1)}s`);
+        console.log();
+        for (const t of report.tasks) {
+          const icon = t.status === 'completed' ? '✓' : t.status === 'failed' ? '✗' : '•';
+          console.log(`  ${icon} [${t.status.toUpperCase()}] ${t.objective}`);
+          if (t.filesModified.length > 0) {
+            console.log(`      Modified: ${t.filesModified.join(', ')}`);
+          }
+          if (t.verification) {
+            console.log(`      Verification: ${t.verification}`);
+          }
+        }
+        console.log();
+        return true;
+      }
+
+      case 'tasks': {
+        const sub = subArgs[0]?.toLowerCase();
+        const btm = BackgroundTaskManager.getInstance();
+        if (sub === 'stop' && subArgs[1]) {
+          const stopped = btm.stopTask(subArgs[1]);
+          if (stopped) {
+            console.log(fmt.success(`✓ Stopped background task ${subArgs[1]}`));
+          } else {
+            console.log(fmt.warning(`Could not find running task ${subArgs[1]}`));
+          }
+        } else {
+          console.log();
+          console.log(btm.formatTaskList());
+          console.log();
+        }
+        return true;
+      }
+
+      case 'background': {
+        if (!arg) {
+          console.log(fmt.warning('Usage: /background <command>'));
+          return true;
+        }
+        const btm = BackgroundTaskManager.getInstance();
+        const task = btm.startTask(arg, WorkingDirectoryManager.getInstance().getCwd());
+        console.log(fmt.success(`✓ Spawned background task #${task.id}: "${task.command}"`));
+        return true;
+      }
+
+      case 'network': {
+        const sub = subArgs[0]?.toLowerCase();
+        const nc = NetworkController.getInstance();
+        if (sub === 'allow') {
+          nc.allowNetwork();
+          console.log(fmt.success('✓ Outbound network access ALLOWED.'));
+        } else if (sub === 'deny' || sub === 'block') {
+          nc.denyNetwork();
+          console.log(fmt.warning('⚠ Outbound network access BLOCKED at tool layer.'));
+        } else {
+          const status = nc.isNetworkAllowed() ? fmt.success('ALLOWED') : fmt.warning('BLOCKED');
+          console.log(`Network Status: ${status}`);
+          console.log(fmt.dimmed('Usage: /network allow | /network deny'));
+        }
+        return true;
+      }
+
       case 'system':
       case 'prompt': {
         const subAction = subArgs[0]?.toLowerCase();
         const layerName = subArgs[1]?.toLowerCase();
         const customContent = subArgs.slice(2).join(' ');
         const wsRoot = this.configManager.getWorkspaceRoot();
+
+        // System scanner integration for /system scan, /system info, /system processes, etc.
+        if (command === 'system' && (!subAction || ['scan', 'info', 'processes', 'storage', 'network', 'permissions', 'environment', 'hardware', 'cpu', 'memory', 'gpu'].includes(subAction))) {
+          const sysInfo = await SystemScanner.scan();
+          console.log();
+          if (!subAction || subAction === 'scan' || subAction === 'info') {
+            console.log(SystemScanner.formatReport(sysInfo));
+          } else {
+            console.log(SystemScanner.formatReport(sysInfo, subAction));
+          }
+          console.log();
+          return true;
+        }
 
         if (!subAction || subAction === 'show' || subAction === 'view') {
           const layers = PromptEngine.loadCustomPrompts(wsRoot);
@@ -420,9 +628,13 @@ export class SlashCommandHandler {
       case 'sec':
       case 'guard': {
         const subAction = subArgs[0]?.toLowerCase();
-        const wsRoot = this.configManager.getWorkspaceRoot();
-        if (subAction === 'audit' || subAction === 'check' || subAction === 'verify') {
-          TUIOverlays.renderSecurityAudit(this.themeManager, wsRoot);
+        const wsRoot = WorkingDirectoryManager.getInstance().getCwd();
+        if (subAction === 'scan' || subAction === 'audit' || subAction === 'check' || subAction === 'verify') {
+          console.log(fmt.dimmed('Running security audit for leaked secrets, keys, and tokens...'));
+          const secReport = await SecurityScanner.scan(wsRoot);
+          console.log();
+          console.log(SecurityScanner.formatReport(secReport));
+          console.log();
         } else {
           TUIOverlays.renderSecurity(
             this.themeManager,
@@ -434,12 +646,34 @@ export class SlashCommandHandler {
       }
 
       case 'permissions':
-      case 'perms':
-        TUIOverlays.renderPermissions(
-          this.themeManager,
-          this.configManager.getConfig().permissions
-        );
+      case 'permission':
+      case 'perms': {
+        const subAction = subArgs[0]?.toLowerCase();
+        const pe = typeof (this.orchestrator as any)?.getPermissionEngine === 'function'
+          ? this.orchestrator.getPermissionEngine()
+          : null;
+        if (!pe) {
+          console.log(fmt.dimmed('Permission engine is not active in this session.'));
+          return true;
+        }
+        if (subAction === 'ask' || subAction === 'auto' || subAction === 'full') {
+          pe.setPermissionLevel(subAction as any);
+          console.log(fmt.success(`✓ Permission mode changed to ${fmt.bold(subAction.toUpperCase())}`));
+          console.log(fmt.dimmed(`  Level description: ${subAction === 'ask' ? 'Prompt for confirmation on every external action' : subAction === 'auto' ? 'Safe operations automatic, high-risk actions prompt' : 'Autonomous operation within strict safety boundaries'}`));
+          return true;
+        }
+
+        const level = pe.getPermissionLevel();
+        const grants = pe.getGranularGrants();
+        console.log();
+        console.log(fmt.bold(fmt.primary('SECURITY & PERMISSION ENGINE')));
+        console.log(`  Active Level:     ${fmt.bold(fmt.accent(level.toUpperCase()))}`);
+        console.log(`  Granular Grants:  ${grants.length > 0 ? grants.map((g: any) => `${g.capability} (${g.scope})`).join(', ') : 'None'}`);
+        console.log(`  Protected Guards: Critical commands (rm -rf, sudo, force push) require explicit prompt.`);
+        console.log(`  Switch Level:     /permission ask | /permission auto | /permission full`);
+        console.log();
         return true;
+      }
 
       case 'context':
       case 'ctx': {
@@ -522,7 +756,24 @@ export class SlashCommandHandler {
       }
 
       case 'mode': {
-        await ModeCommand.run(this.themeManager, this.configManager, subArgs[0]);
+        const target = subArgs[0]?.toLowerCase();
+        if (target && isValidAgentMode(target)) {
+          this.runtime.setMode(target as any);
+          console.log(fmt.success(`✓ Switched agent mode to ${fmt.bold(target.toUpperCase())}`));
+          return true;
+        }
+        if (target && ['local', 'cloud', 'hybrid', 'auto'].includes(target)) {
+          await ModeCommand.run(this.themeManager, this.configManager, target);
+          return true;
+        }
+        console.log();
+        console.log(fmt.bold(fmt.primary('BERKELIUM MODES')));
+        console.log(`  Agent Mode:     ${fmt.bold(fmt.accent(this.runtime.getMode().toUpperCase()))}`);
+        console.log(`  Runtime Mode:   ${fmt.bold(fmt.accent((this.configManager.getConfig().runtime as any)?.mode || 'local'))}`);
+        console.log();
+        console.log(fmt.dimmed('  Switch agent mode:   /mode <ask|plan|build|debug|review|test|refactor>'));
+        console.log(fmt.dimmed('  Switch runtime mode: /mode <local|cloud|hybrid|auto>'));
+        console.log();
         return true;
       }
 
@@ -581,20 +832,24 @@ export class SlashCommandHandler {
       }
 
       case 'plan': {
-        if (!arg) {
-          console.log(fmt.error('Usage: /plan <task or feature description>'));
-          return true;
+        this.runtime.setMode('plan');
+        if (arg) {
+          console.log(fmt.dimmed('Generating non-destructive plan...'));
+          await this.runtime.executeTask(`Create a comprehensive non-destructive implementation plan for: ${arg}`);
+        } else {
+          console.log(fmt.success('✓ Switched agent mode to PLAN (Strictly non-destructive).'));
         }
-        await this.runtime.executeTask(`Create a detailed, step-by-step implementation plan for: ${arg}`);
         return true;
       }
 
       case 'debug': {
-        await this.runtime.executeTask(
-          arg
-            ? `Debug and identify root cause for: ${arg}`
-            : 'Inspect the codebase, run tests and diagnostics, and identify any issues or failures.'
-        );
+        this.runtime.setMode('debug');
+        if (arg) {
+          console.log(fmt.dimmed('Entering systematic debug workflow...'));
+          await this.runtime.executeTask(`Debug and diagnose: ${arg}`);
+        } else {
+          console.log(fmt.success('✓ Switched agent mode to DEBUG.'));
+        }
         return true;
       }
 
@@ -773,7 +1028,18 @@ export class SlashCommandHandler {
         return true;
       }
 
+      case 'ask':
+        this.runtime.setMode('ask');
+        if (arg) {
+          await this.runtime.executeTask(arg);
+        } else {
+          console.log(fmt.success('✓ Switched agent mode to ASK (Advisory Q&A).'));
+        }
+        return true;
+
+
       case 'review':
+        this.runtime.setMode('review');
         await this.runtime.executeTask('Review the git working tree diff and summarize key changes, risks, and improvements.');
         return true;
 

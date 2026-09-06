@@ -22,6 +22,12 @@ export class ContextEngine {
     this.maxContextLimit = maxContextLimit;
   }
 
+  public setWorkspaceRoot(newRoot: string): void {
+    this.workspaceRoot = path.resolve(newRoot);
+    this.repoMapper = new RepoMapper(this.workspaceRoot);
+    this.activeFiles.clear();
+  }
+
   public setMaxContextLimit(limit: number): void {
     this.maxContextLimit = limit;
   }

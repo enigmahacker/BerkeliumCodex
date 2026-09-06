@@ -9,6 +9,8 @@ import { HookManager } from '@berkelium/plugins';
 import { AgentState } from './state-machine.js';
 import { SessionManager, SessionData } from './session.js';
 import { ProjectMemory } from './memory.js';
+import { AgentMode } from './modes.js';
+import { MissionReport, MissionOptions } from './mission.js';
 export interface RuntimeInitOptions {
     workspaceRoot?: string;
     configManager: ConfigManager;
@@ -38,6 +40,8 @@ export declare class AgentRuntime {
     private privacyEngine;
     private costController;
     private memory;
+    private agentMode;
+    private missionRunner;
     private conversationMessages;
     private activeModelTarget;
     private abortController;
@@ -52,6 +56,9 @@ export declare class AgentRuntime {
     setActiveModel(modelOrAlias: string): void;
     getTelemetry(): TelemetryTracker;
     getSessionHistory(): Message[];
+    getMode(): AgentMode;
+    setMode(mode: AgentMode): void;
+    executeMission(goal: string, options?: MissionOptions): Promise<MissionReport>;
     cancel(): void;
     executeTask(prompt: string): Promise<void>;
     resumeFromSession(sessionData: SessionData): Promise<void>;

@@ -16,6 +16,11 @@ export class ContextEngine {
         this.repoMapper = new RepoMapper(this.workspaceRoot);
         this.maxContextLimit = maxContextLimit;
     }
+    setWorkspaceRoot(newRoot) {
+        this.workspaceRoot = path.resolve(newRoot);
+        this.repoMapper = new RepoMapper(this.workspaceRoot);
+        this.activeFiles.clear();
+    }
     setMaxContextLimit(limit) {
         this.maxContextLimit = limit;
     }

@@ -19,6 +19,7 @@ export declare class ToolOrchestrator {
     private workspaceRoot;
     constructor(registry: ToolRegistry, permissionEngine: PermissionEngine, secretRedactor: SecretRedactor, logger: Logger, workspaceRoot?: string, eventBus?: EventBus);
     getRegistry(): ToolRegistry;
+    getPermissionEngine(): PermissionEngine;
     execute(req: ToolExecutionRequest): Promise<ToolExecutionResult>;
     registerDefaultTools(): void;
 }

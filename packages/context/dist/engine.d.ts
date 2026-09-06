@@ -9,6 +9,7 @@ export declare class ContextEngine {
     private activeFiles;
     private maxContextLimit;
     constructor(workspaceRoot: string | undefined, logger: Logger, maxContextLimit?: number);
+    setWorkspaceRoot(newRoot: string): void;
     setMaxContextLimit(limit: number): void;
     markFileActive(filePath: string): void;
     getRepoMap(maxTokens?: number): Promise<string>;

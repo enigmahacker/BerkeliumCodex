@@ -20,12 +20,17 @@ export type AgentEventType =
   | 'network_request_blocked'
   | 'unsafe_command_blocked'
   | 'model_changed'
+  | 'mode_changed'
   | 'provider_changed'
   | 'context_compacted'
   | 'subagent_started'
   | 'subagent_completed'
   | 'verification_started'
   | 'verification_completed'
+  | 'mission_started'
+  | 'mission_task_started'
+  | 'mission_task_completed'
+  | 'mission_completed'
   | 'state_changed'
   | 'status_updated'
   | 'error'
@@ -239,6 +244,36 @@ export interface ErrorEvent extends BaseAgentEvent {
   stack?: string;
 }
 
+export interface ModeChangedEvent extends BaseAgentEvent {
+  type: 'mode_changed';
+  previousMode: string;
+  newMode: string;
+}
+
+export interface MissionStartedEvent extends BaseAgentEvent {
+  type: 'mission_started';
+  goal: string;
+  taskCount: number;
+}
+
+export interface MissionTaskStartedEvent extends BaseAgentEvent {
+  type: 'mission_task_started';
+  taskId: string;
+  objective: string;
+}
+
+export interface MissionTaskCompletedEvent extends BaseAgentEvent {
+  type: 'mission_task_completed';
+  taskId: string;
+  status: string;
+  result?: string;
+}
+
+export interface MissionCompletedEvent extends BaseAgentEvent {
+  type: 'mission_completed';
+  report: unknown;
+}
+
 export interface SessionCompletedEvent extends BaseAgentEvent {
   type: 'session_completed';
   durationMs: number;
@@ -269,12 +304,17 @@ export type AgentEvent =
   | NetworkRequestBlockedEvent
   | UnsafeCommandBlockedEvent
   | ModelChangedEvent
+  | ModeChangedEvent
   | ProviderChangedEvent
   | ContextCompactedEvent
   | SubagentStartedEvent
   | SubagentCompletedEvent
   | VerificationStartedEvent
   | VerificationCompletedEvent
+  | MissionStartedEvent
+  | MissionTaskStartedEvent
+  | MissionTaskCompletedEvent
+  | MissionCompletedEvent
   | StateChangedEvent
   | StatusUpdatedEvent
   | ErrorEvent

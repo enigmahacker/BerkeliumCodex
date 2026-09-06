@@ -7,6 +7,10 @@ import {
   PermissionRequest,
   PermissionCheckResult,
   PermissionPromptHandler,
+  PermissionPromptResponse,
+  PermissionLevel,
+  GranularCapability,
+  GranularGrant,
   RiskLevel,
 } from './types.js';
 
@@ -35,9 +39,12 @@ function canonicalizePath(targetPath: string): string {
 export class PermissionEngine {
   private workspaceRoot: string;
   private policy: PermissionPolicy;
+  private permissionLevel: PermissionLevel;
   private eventBus?: EventBus;
   private promptHandler?: PermissionPromptHandler;
   private sessionApprovals: Set<string> = new Set();
+  private sessionDenials: Set<string> = new Set();
+  private granularGrants: Map<string, GranularGrant> = new Map();
 
   private safeShellCommands = new Set([
     'ls', 'dir', 'pwd', 'cat', 'head', 'tail', 'grep', 'rg', 'find', 'git',
@@ -58,7 +65,9 @@ export class PermissionEngine {
     { pattern: /\bkillall\s+-9\b/, reason: 'Destructive mass process kill' },
     { pattern: /\bgit\s+push\s+(?:-f|--force)\b/, reason: 'Destructive remote Git force push' },
     { pattern: /\bgit\s+reset\s+--hard\b/, reason: 'Destructive uncommitted Git reset' },
-    { pattern: /\bgit\s+clean\s+-(?:[a-zA-Z]*x[a-zA-Z]*f|f[a-zA-Z]*d)\b/, reason: 'Destructive Git untracked workspace purge' },
+    { pattern: /\bgit\s+clean\s+-(?:[a-zA-Z]*x[a-zA-Z]*f|f[a-zA-Z]*d|[a-zA-Z]*f[a-zA-Z]*d)\b/, reason: 'Destructive Git untracked workspace purge' },
+    { pattern: /\bgit\s+branch\s+-(?:D)\b/, reason: 'Destructive unmerged Git branch deletion' },
+    { pattern: /\bdiskutil\s+eraseDisk\b/, reason: 'Raw disk erase command' },
     { pattern: /\b(?:sudo|su|doas)\b/, reason: 'Privilege escalation command detected' },
   ];
 
@@ -84,8 +93,10 @@ export class PermissionEngine {
   ) {
     this.workspaceRoot = canonicalizePath(workspaceRoot);
     this.policy = policy;
+    this.permissionLevel = (policy as any).level || 'auto';
     this.eventBus = eventBus;
     this.promptHandler = promptHandler;
+    this.loadPersistentGrants();
   }
 
   public setPromptHandler(handler: PermissionPromptHandler): void {
@@ -94,6 +105,27 @@ export class PermissionEngine {
 
   public setPolicy(policy: PermissionPolicy): void {
     this.policy = policy;
+    if ((policy as any).level) {
+      this.permissionLevel = (policy as any).level;
+    }
+  }
+
+  public getPolicy(): PermissionPolicy {
+    return this.policy;
+  }
+
+  public setPermissionLevel(level: PermissionLevel): void {
+    this.permissionLevel = level;
+    (this.policy as any).level = level;
+  }
+
+  public getPermissionLevel(): PermissionLevel {
+    return this.permissionLevel;
+  }
+
+  public setWorkspaceRoot(newRoot: string): void {
+    this.workspaceRoot = canonicalizePath(newRoot);
+    this.loadPersistentGrants();
   }
 
   public getWorkspaceRoot(): string {
@@ -103,7 +135,6 @@ export class PermissionEngine {
   public isWithinWorkspace(targetPath: string): boolean {
     const resolved = path.resolve(this.workspaceRoot, targetPath);
 
-    // If file exists on disk, check its realpath
     if (fs.existsSync(resolved)) {
       try {
         const canonical = fs.realpathSync(resolved);
@@ -113,7 +144,6 @@ export class PermissionEngine {
       }
     }
 
-    // For non-existent files, check canonical ancestor
     const canonical = canonicalizePath(resolved);
     return canonical === this.workspaceRoot || canonical.startsWith(this.workspaceRoot + path.sep);
   }
@@ -122,7 +152,6 @@ export class PermissionEngine {
     const normalized = path.resolve(this.workspaceRoot, targetPath);
     const homeDir = os.homedir();
 
-    // Check home directory sensitive paths
     if (normalized.startsWith(homeDir)) {
       const relHome = path.relative(homeDir, normalized);
       for (const { pattern, reason } of this.sensitiveFilePatterns) {
@@ -132,7 +161,6 @@ export class PermissionEngine {
       }
     }
 
-    // Check base patterns
     for (const { pattern, reason } of this.sensitiveFilePatterns) {
       if (pattern.test(normalized) || pattern.test(path.basename(normalized))) {
         return { isSensitive: true, reason };
@@ -140,6 +168,81 @@ export class PermissionEngine {
     }
 
     return { isSensitive: false };
+  }
+
+  public isProtectedCommand(command: string): { isProtected: boolean; reason?: string } {
+    const cmd = command.trim();
+    for (const { pattern, reason } of this.dangerousShellPatterns) {
+      if (pattern.test(cmd)) {
+        return { isProtected: true, reason };
+      }
+    }
+    return { isProtected: false };
+  }
+
+  public grantCapability(grant: GranularGrant): void {
+    this.granularGrants.set(grant.id, grant);
+    if (grant.scope === 'project') {
+      this.saveProjectGrant(grant);
+    } else if (grant.scope === 'permanent') {
+      this.savePermanentGrant(grant);
+    }
+  }
+
+  public revokeCapability(id: string): boolean {
+    const existed = this.granularGrants.delete(id);
+    this.persistAllGrants();
+    return existed;
+  }
+
+  public listGrants(): GranularGrant[] {
+    return Array.from(this.granularGrants.values());
+  }
+
+  public getGranularGrants(): GranularGrant[] {
+    return this.listGrants();
+  }
+
+  public hasGrant(capability: GranularCapability, target?: string): boolean {
+    for (const grant of this.granularGrants.values()) {
+      if (grant.capability === capability) {
+        if (!grant.targetPattern || !target) {
+          return true;
+        }
+        if (target.includes(grant.targetPattern) || grant.targetPattern === '*') {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  public mapActionToCapability(category: string, action: string): GranularCapability {
+    const act = action.toLowerCase();
+    if (category === 'filesystem') {
+      if (act.includes('delete') || act.includes('remove') || act.includes('unlink')) {
+        return 'filesystem.delete';
+      }
+      if (act.includes('write') || act.includes('edit') || act.includes('create')) {
+        return 'filesystem.write';
+      }
+      return 'filesystem.read';
+    }
+    if (category === 'shell') {
+      if (act.includes('spawn')) return 'process.spawn';
+      if (act.includes('kill')) return 'process.kill';
+      return 'shell.execute';
+    }
+    if (category === 'git') {
+      if (act.includes('push') || act.includes('commit') || act.includes('reset') || act.includes('checkout') || act.includes('restore')) {
+        return 'git.write';
+      }
+      return 'git.read';
+    }
+    if (category === 'network' || category === 'web') {
+      return 'network.access';
+    }
+    return 'shell.execute';
   }
 
   public async evaluate(request: PermissionRequest): Promise<boolean> {
@@ -150,30 +253,17 @@ export class PermissionEngine {
     }
 
     if (!check.allowed && !check.requiresPrompt) {
-      this.eventBus?.emit({
-        id: crypto.randomUUID(),
-        type: 'permission_denied',
-        sessionId: 'current',
-        timestamp: Date.now(),
-        permissionId: request.id,
-        reason: check.reason || 'Policy explicitly denies this action',
-      });
-      this.eventBus?.emit({
-        id: crypto.randomUUID(),
-        type: 'security_blocked',
-        sessionId: 'current',
-        timestamp: Date.now(),
-        action: request.action,
-        target: request.target,
-        reason: check.reason || 'Blocked by security policy',
-      });
+      this.emitBlockedEvents(request, check.reason || 'Policy explicitly denies this action');
       return false;
     }
 
-    // Check if previously approved for this session
+    // Check if previously approved or denied for this session
     const approvalKey = `${request.category}:${request.action}:${request.target}`;
     if (this.sessionApprovals.has(approvalKey)) {
       return true;
+    }
+    if (this.sessionDenials.has(approvalKey)) {
+      return false;
     }
 
     // Requires user confirmation
@@ -186,11 +276,14 @@ export class PermissionEngine {
       action: request.action,
       target: request.target,
       risk: check.risk || request.risk,
-      details: request.metadata,
+      details: {
+        ...request.metadata,
+        isProtectedOperation: check.isProtectedOperation,
+        permissionLevel: this.permissionLevel,
+      },
     });
 
     if (!this.promptHandler) {
-      // Default to deny if no prompt handler is registered
       this.eventBus?.emit({
         id: crypto.randomUUID(),
         type: 'permission_denied',
@@ -205,9 +298,22 @@ export class PermissionEngine {
     const decision = await this.promptHandler({
       ...request,
       risk: check.risk || request.risk,
+      isProtectedOperation: check.isProtectedOperation,
     });
 
-    if (decision === 'always_allow') {
+    if (decision === 'allow' || decision === 'allow_once') {
+      this.eventBus?.emit({
+        id: crypto.randomUUID(),
+        type: 'permission_granted',
+        sessionId: 'current',
+        timestamp: Date.now(),
+        permissionId: request.id,
+        remember: false,
+      });
+      return true;
+    }
+
+    if (decision === 'always_allow' || decision === 'allow_session') {
       this.sessionApprovals.add(approvalKey);
       this.eventBus?.emit({
         id: crypto.randomUUID(),
@@ -220,16 +326,34 @@ export class PermissionEngine {
       return true;
     }
 
-    if (decision === 'allow') {
-      this.eventBus?.emit({
-        id: crypto.randomUUID(),
-        type: 'permission_granted',
-        sessionId: 'current',
-        timestamp: Date.now(),
-        permissionId: request.id,
-        remember: false,
+    if (decision === 'allow_project') {
+      this.sessionApprovals.add(approvalKey);
+      const cap = this.mapActionToCapability(request.category, request.action);
+      this.grantCapability({
+        id: `proj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        capability: cap,
+        targetPattern: request.target,
+        scope: 'project',
+        grantedAt: Date.now(),
       });
       return true;
+    }
+
+    if (decision === 'allow_permanent') {
+      this.sessionApprovals.add(approvalKey);
+      const cap = this.mapActionToCapability(request.category, request.action);
+      this.grantCapability({
+        id: `perm_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        capability: cap,
+        targetPattern: request.target,
+        scope: 'permanent',
+        grantedAt: Date.now(),
+      });
+      return true;
+    }
+
+    if (decision === 'deny_session') {
+      this.sessionDenials.add(approvalKey);
     }
 
     this.eventBus?.emit({
@@ -244,28 +368,49 @@ export class PermissionEngine {
   }
 
   public checkPolicy(request: PermissionRequest): PermissionCheckResult {
-    switch (request.category) {
-      case 'filesystem':
-        return this.checkFilesystem(request);
-      case 'shell':
-        return this.checkShell(request);
-      case 'git':
-        return this.checkGit(request);
-      case 'diagnostics':
-        return { allowed: true, requiresPrompt: false, risk: 'low' };
-      case 'network':
-      case 'web':
-        return this.checkNetwork(request);
-      case 'mcp':
-        return this.checkMcp(request);
-      default:
-        return {
-          allowed: false,
-          requiresPrompt: true,
-          risk: request.risk,
-          reason: 'Custom action requires confirmation',
-        };
+    const capability = request.capability || this.mapActionToCapability(request.category, request.action);
+
+    // Check granular grants
+    if (this.hasGrant(capability, request.target)) {
+      return { allowed: true, requiresPrompt: false, risk: request.risk };
     }
+
+    // 1. Filesystem check
+    if (request.category === 'filesystem') {
+      return this.checkFilesystem(request);
+    }
+
+    // 2. Shell check
+    if (request.category === 'shell') {
+      return this.checkShell(request);
+    }
+
+    // 3. Git check
+    if (request.category === 'git') {
+      return this.checkGit(request);
+    }
+
+    // 4. Diagnostics check
+    if (request.category === 'diagnostics') {
+      return { allowed: true, requiresPrompt: false, risk: 'low' };
+    }
+
+    // 5. Network / Web check
+    if (request.category === 'network' || request.category === 'web') {
+      return this.checkNetwork(request);
+    }
+
+    // 6. MCP check
+    if (request.category === 'mcp') {
+      return this.checkMcp(request);
+    }
+
+    return {
+      allowed: false,
+      requiresPrompt: true,
+      risk: request.risk,
+      reason: 'Custom action requires confirmation',
+    };
   }
 
   private checkFilesystem(request: PermissionRequest): PermissionCheckResult {
@@ -274,20 +419,7 @@ export class PermissionEngine {
     const sensitive = this.isSensitivePath(target);
     const act = request.action.toLowerCase();
 
-    // 1. If path escapes workspace or symlinks outside
-    if (!isInside) {
-      this.eventBus?.emit({
-        id: crypto.randomUUID(),
-        type: 'path_escape_blocked',
-        sessionId: 'current',
-        timestamp: Date.now(),
-        attemptedPath: target,
-        workspaceRoot: this.workspaceRoot,
-        reason: 'Path traversal or symlink escapes authorized workspace root',
-      });
-    }
-
-    // 2. Sensitive files protection (SSH keys, AWS credentials, .env, etc.)
+    // Sensitive files are NEVER auto-approved, regardless of mode
     if (sensitive.isSensitive) {
       this.eventBus?.emit({
         id: crypto.randomUUID(),
@@ -299,16 +431,16 @@ export class PermissionEngine {
         warning: `Access requested for sensitive path: ${sensitive.reason}`,
       });
 
-      // Default deny or critical prompt
       return {
         allowed: false,
         requiresPrompt: true,
         risk: 'critical',
+        isProtectedOperation: true,
         reason: `Target path is sensitive (${sensitive.reason}). Explicit confirmation required.`,
       };
     }
 
-    // Read actions
+    // Reading files
     if (
       act.includes('read') ||
       act === 'list_directory' ||
@@ -316,22 +448,45 @@ export class PermissionEngine {
       act === 'search_text' ||
       act === 'inspect_project'
     ) {
+      if (this.permissionLevel === 'full') {
+        return { allowed: true, requiresPrompt: false, risk: 'low' };
+      }
+
       if (!isInside) {
         return {
           allowed: false,
           requiresPrompt: true,
           risk: 'high',
-          reason: 'Reading files outside the workspace boundary requires explicit confirmation',
+          reason: 'Reading files outside workspace boundary requires confirmation',
         };
       }
+
+      if (this.permissionLevel === 'ask') {
+        if (act === 'list_directory' || act === 'search_files') {
+          return { allowed: true, requiresPrompt: false, risk: 'low' };
+        }
+        return { allowed: false, requiresPrompt: true, risk: 'low' };
+      }
+
+      // Auto mode
       const pol = this.policy.filesystem.read;
       if (pol === 'allow') return { allowed: true, requiresPrompt: false, risk: 'low' };
       if (pol === 'deny') return { allowed: false, requiresPrompt: false, risk: 'low', reason: 'Filesystem read denied by policy' };
       return { allowed: false, requiresPrompt: true, risk: 'low' };
     }
 
-    // Write / Edit actions
+    // Writing files
     if (act.includes('write') || act.includes('edit') || act.includes('create')) {
+      if (this.permissionLevel === 'full') {
+        if (isInside) return { allowed: true, requiresPrompt: false, risk: 'low' };
+        return { allowed: false, requiresPrompt: true, risk: 'high', reason: 'Writing outside workspace requires confirmation' };
+      }
+
+      if (this.permissionLevel === 'ask') {
+        return { allowed: false, requiresPrompt: true, risk: 'medium', reason: 'Filesystem modification requires confirmation in ASK mode' };
+      }
+
+      // Auto mode
       if (!isInside) {
         const pol = this.policy.filesystem.write.outside_workspace;
         if (pol === 'deny') return { allowed: false, requiresPrompt: false, risk: 'high', reason: 'Writing outside workspace is denied by policy' };
@@ -344,18 +499,28 @@ export class PermissionEngine {
       return { allowed: false, requiresPrompt: true, risk: 'medium' };
     }
 
-    // Delete actions
+    // Deleting files
     if (act.includes('delete') || act.includes('unlink') || act.includes('remove')) {
       if (!isInside) {
-        const pol = this.policy.filesystem.delete.outside_workspace;
-        if (pol === 'deny') return { allowed: false, requiresPrompt: false, risk: 'critical', reason: 'Deleting outside workspace is denied by policy' };
-        return { allowed: false, requiresPrompt: true, risk: 'critical', reason: 'Deleting files outside workspace requires explicit confirmation' };
+        return {
+          allowed: false,
+          requiresPrompt: true,
+          risk: 'critical',
+          isProtectedOperation: true,
+          reason: 'Deleting files outside workspace requires explicit confirmation',
+        };
       }
 
-      const pol = this.policy.filesystem.delete.workspace;
-      if (pol === 'allow') return { allowed: true, requiresPrompt: false, risk: 'medium' };
-      if (pol === 'deny') return { allowed: false, requiresPrompt: false, risk: 'critical', reason: 'File deletion denied by policy' };
-      return { allowed: false, requiresPrompt: true, risk: 'medium' };
+      if (this.permissionLevel === 'full') {
+        return { allowed: true, requiresPrompt: false, risk: 'medium' };
+      }
+
+      return {
+        allowed: false,
+        requiresPrompt: true,
+        risk: 'medium',
+        reason: 'File deletion requires confirmation',
+      };
     }
 
     return { allowed: false, requiresPrompt: true, risk: 'medium' };
@@ -364,60 +529,99 @@ export class PermissionEngine {
   private checkShell(request: PermissionRequest): PermissionCheckResult {
     const cmd = request.target.trim();
 
-    // Check for dangerous / destructive patterns
-    for (const { pattern, reason } of this.dangerousShellPatterns) {
-      if (pattern.test(cmd)) {
-        this.eventBus?.emit({
-          id: crypto.randomUUID(),
-          type: 'unsafe_command_blocked',
-          sessionId: 'current',
-          timestamp: Date.now(),
-          command: cmd,
-          reason,
-        });
+    // PROTECTED OPERATIONS SAFEGUARD:
+    // Even in FULL mode, dangerous destructive commands ALWAYS require explicit authorization or are denied by policy!
+    const protectedCheck = this.isProtectedCommand(cmd);
+    if (protectedCheck.isProtected) {
+      this.eventBus?.emit({
+        id: crypto.randomUUID(),
+        type: 'unsafe_command_blocked',
+        sessionId: 'current',
+        timestamp: Date.now(),
+        command: cmd,
+        reason: protectedCheck.reason || 'Protected command detected',
+      });
 
-        const pol = this.policy.shell.privileged;
-        if (pol === 'deny') {
-          return {
-            allowed: false,
-            requiresPrompt: false,
-            risk: 'critical',
-            reason: `Dangerous shell command denied: ${reason}`,
-          };
-        }
+      const pol = this.policy.shell.privileged;
+      if (pol === 'deny') {
         return {
           allowed: false,
-          requiresPrompt: true,
+          requiresPrompt: false,
           risk: 'critical',
-          reason: `Potentially dangerous command (${reason}) requires explicit user confirmation.`,
+          isProtectedOperation: true,
+          reason: `Dangerous shell command denied by policy: ${protectedCheck.reason}`,
         };
       }
+
+      return {
+        allowed: false,
+        requiresPrompt: true,
+        risk: 'critical',
+        isProtectedOperation: true,
+        reason: `Protected high-risk operation (${protectedCheck.reason}) strictly requires explicit user confirmation.`,
+      };
     }
 
-    // Check if known safe read-only command without chained execution
+    // In FULL mode: non-protected shell commands execute automatically
+    if (this.permissionLevel === 'full') {
+      return { allowed: true, requiresPrompt: false, risk: 'medium' };
+    }
+
+    // In ASK mode: every shell command prompts
+    if (this.permissionLevel === 'ask') {
+      return {
+        allowed: false,
+        requiresPrompt: true,
+        risk: 'medium',
+        reason: 'Shell execution requires confirmation in ASK mode',
+      };
+    }
+
+    // In AUTO mode: safe read-only commands execute automatically; others prompt
     const firstWord = cmd.split(' ')[0];
     const isKnownSafe = this.safeShellCommands.has(firstWord) || this.safeShellCommands.has(cmd);
     const hasChainOperators = cmd.includes('&&') || cmd.includes(';') || cmd.includes('|') || cmd.includes('`') || cmd.includes('$(');
 
     if (isKnownSafe && !hasChainOperators) {
-      const pol = this.policy.shell.safe;
-      if (pol === 'allow') return { allowed: true, requiresPrompt: false, risk: 'low' };
-      if (pol === 'deny') return { allowed: false, requiresPrompt: false, risk: 'low', reason: 'Shell execution denied' };
-      return { allowed: false, requiresPrompt: true, risk: 'low' };
+      return { allowed: true, requiresPrompt: false, risk: 'low' };
     }
 
-    // General shell commands
-    const pol = this.policy.shell.destructive;
-    if (pol === 'allow') return { allowed: true, requiresPrompt: false, risk: 'medium' };
-    if (pol === 'deny') return { allowed: false, requiresPrompt: false, risk: 'high', reason: 'Shell command denied by policy' };
-    return { allowed: false, requiresPrompt: true, risk: 'medium' };
+    return {
+      allowed: false,
+      requiresPrompt: true,
+      risk: 'medium',
+      reason: 'Non-trivial shell command requires confirmation in AUTO mode',
+    };
   }
 
   private checkGit(request: PermissionRequest): PermissionCheckResult {
     const act = request.action.toLowerCase();
-    if (act === 'git_status' || act === 'git_diff' || act === 'git_log' || act === 'git_branch') {
+    const isReadOnly = act === 'git_status' || act === 'git_diff' || act === 'git_log' || act === 'git_branch' || act === 'git_conflicts';
+
+    if (isReadOnly) {
       return { allowed: true, requiresPrompt: false, risk: 'low' };
     }
+
+    // Check for destructive git commands
+    const isDestructive = act.includes('reset_hard') || act.includes('clean') || act.includes('force_push') || act.includes('branch_delete');
+    if (isDestructive) {
+      return {
+        allowed: false,
+        requiresPrompt: true,
+        risk: 'critical',
+        isProtectedOperation: true,
+        reason: 'Destructive Git operation requires explicit user authorization',
+      };
+    }
+
+    if (this.permissionLevel === 'full') {
+      return { allowed: true, requiresPrompt: false, risk: 'medium' };
+    }
+
+    if (this.permissionLevel === 'ask') {
+      return { allowed: false, requiresPrompt: true, risk: 'medium', reason: 'Git mutation requires confirmation in ASK mode' };
+    }
+
     return { allowed: true, requiresPrompt: false, risk: 'medium' };
   }
 
@@ -426,18 +630,125 @@ export class PermissionEngine {
     if (this.policy.network.allowed_domains.includes(domain)) {
       return { allowed: true, requiresPrompt: false, risk: 'low' };
     }
+
+    if (this.permissionLevel === 'full') {
+      return { allowed: true, requiresPrompt: false, risk: 'low' };
+    }
+
     const pol = this.policy.network.default;
     if (pol === 'allow') return { allowed: true, requiresPrompt: false, risk: 'medium' };
-    if (pol === 'deny') return { allowed: false, requiresPrompt: false, risk: 'medium', reason: 'Network access denied' };
+    if (pol === 'deny') return { allowed: false, requiresPrompt: false, risk: 'medium', reason: 'Network access denied by policy' };
     return { allowed: false, requiresPrompt: true, risk: 'medium' };
   }
 
   private checkMcp(request: PermissionRequest): PermissionCheckResult {
+    if (this.permissionLevel === 'full') {
+      return { allowed: true, requiresPrompt: false, risk: 'low' };
+    }
     return {
       allowed: false,
       requiresPrompt: true,
       risk: request.risk || 'medium',
       reason: `MCP Tool "${request.action}" requires confirmation`,
     };
+  }
+
+  private emitBlockedEvents(request: PermissionRequest, reason: string): void {
+    this.eventBus?.emit({
+      id: crypto.randomUUID(),
+      type: 'permission_denied',
+      sessionId: 'current',
+      timestamp: Date.now(),
+      permissionId: request.id,
+      reason,
+    });
+    this.eventBus?.emit({
+      id: crypto.randomUUID(),
+      type: 'security_blocked',
+      sessionId: 'current',
+      timestamp: Date.now(),
+      action: request.action,
+      target: request.target,
+      reason,
+    });
+  }
+
+  private loadPersistentGrants(): void {
+    try {
+      const projPath = path.join(this.workspaceRoot, '.berkelium', 'permissions.json');
+      if (fs.existsSync(projPath)) {
+        const data = JSON.parse(fs.readFileSync(projPath, 'utf-8'));
+        if (Array.isArray(data)) {
+          for (const g of data) {
+            this.granularGrants.set(g.id, g);
+          }
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
+    try {
+      const globalPath = path.join(os.homedir(), '.berkelium', 'permissions.json');
+      if (fs.existsSync(globalPath)) {
+        const data = JSON.parse(fs.readFileSync(globalPath, 'utf-8'));
+        if (Array.isArray(data)) {
+          for (const g of data) {
+            this.granularGrants.set(g.id, g);
+          }
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  private saveProjectGrant(grant: GranularGrant): void {
+    try {
+      const dir = path.join(this.workspaceRoot, '.berkelium');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const projPath = path.join(dir, 'permissions.json');
+      const existing = fs.existsSync(projPath) ? JSON.parse(fs.readFileSync(projPath, 'utf-8')) : [];
+      existing.push(grant);
+      fs.writeFileSync(projPath, JSON.stringify(existing, null, 2), 'utf-8');
+    } catch {
+      // Ignore
+    }
+  }
+
+  private savePermanentGrant(grant: GranularGrant): void {
+    try {
+      const dir = path.join(os.homedir(), '.berkelium');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const globalPath = path.join(dir, 'permissions.json');
+      const existing = fs.existsSync(globalPath) ? JSON.parse(fs.readFileSync(globalPath, 'utf-8')) : [];
+      existing.push(grant);
+      fs.writeFileSync(globalPath, JSON.stringify(existing, null, 2), 'utf-8');
+    } catch {
+      // Ignore
+    }
+  }
+
+  private persistAllGrants(): void {
+    const projectGrants = Array.from(this.granularGrants.values()).filter((g) => g.scope === 'project');
+    const permanentGrants = Array.from(this.granularGrants.values()).filter((g) => g.scope === 'permanent');
+
+    try {
+      const projDir = path.join(this.workspaceRoot, '.berkelium');
+      if (fs.existsSync(projDir)) {
+        fs.writeFileSync(path.join(projDir, 'permissions.json'), JSON.stringify(projectGrants, null, 2), 'utf-8');
+      }
+    } catch {
+      // Ignore
+    }
+
+    try {
+      const globalDir = path.join(os.homedir(), '.berkelium');
+      if (fs.existsSync(globalDir)) {
+        fs.writeFileSync(path.join(globalDir, 'permissions.json'), JSON.stringify(permanentGrants, null, 2), 'utf-8');
+      }
+    } catch {
+      // Ignore
+    }
   }
 }

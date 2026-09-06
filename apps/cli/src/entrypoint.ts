@@ -3,7 +3,7 @@ import { Logger } from '@berkelium/logging';
 import { ConfigManager } from '@berkelium/config';
 import { ThemeManager } from '@berkelium/themes';
 import { AuthStore } from '@berkelium/auth';
-import { PermissionEngine, SecretRedactor } from '@berkelium/permissions';
+import { PermissionEngine, SecretRedactor, SecurityScanner, PermissionLevel } from '@berkelium/permissions';
 import {
   ProviderRouter,
   NVIDIAProvider,
@@ -15,9 +15,9 @@ import {
   LMStudioProvider,
 } from '@berkelium/providers';
 import { ToolRegistry, ToolOrchestrator } from '@berkelium/tools';
-import { ContextEngine } from '@berkelium/context';
+import { ContextEngine, WorkingDirectoryManager, ProjectScanner, SystemScanner } from '@berkelium/context';
 import { PluginManager } from '@berkelium/plugins';
-import { AgentRuntime, SessionManager } from '@berkelium/agent';
+import { AgentRuntime, SessionManager, isValidAgentMode, AgentMode } from '@berkelium/agent';
 
 import { LaunchAnimation } from './tui/animation.js';
 import { TUIRenderer } from './tui/renderer.js';
@@ -47,11 +47,131 @@ import { AccessibilityCommand } from './commands/accessibility-cmd.js';
 import { ConfigCommand } from './commands/config-cmd.js';
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
-  const logger = new Logger({ subsystem: 'berkelium' });
+  // Parse CLI flags early
+  let noAnimation = false;
+  let hackathonMode = false;
+  let matrixMode: boolean | undefined;
+  let customTheme: string | undefined;
+  let customModel: string | undefined;
+  let customProvider: string | undefined;
+  let customCwd: string | undefined;
+  let customPermission: PermissionLevel | undefined;
+  let customMode: AgentMode | undefined;
+  let isDebug = false;
+  let isVerbose = false;
+
+  const positionalArgs: string[] = [];
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+
+    if (arg === '--version' || arg === '-v') {
+      console.log('Berkelium CLI v1.0.0 (darwin-arm64 native)');
+      return;
+    }
+
+    if (arg === '--help' || arg === '-h') {
+      console.log(`
+Berkelium CLI — Your terminal. Your codebase. Your AI.
+
+Usage:
+  berkelium [command] [options]
+
+Core Options:
+  --help, -h               Display this help guide
+  --version, -v            Display Berkelium version
+  --cwd <directory>        Set active working directory
+  --model <model>          Specify active model or alias (e.g. coding, qwen2.5:14b)
+  --provider <provider>    Specify default provider (e.g. openrouter, nvidia, ollama)
+  --mode <mode>            Set agent mode: ask | plan | build | debug | review | test | refactor
+  --permission <level>     Set permission level: ask | auto | full
+  --theme <theme>, -t      Specify terminal color theme
+  --plain                  Disable animations and graphical themes
+  --verbose                Enable verbose logging
+  --debug                  Enable diagnostic debug output
+
+Primary Commands:
+  scan [type]              Run project scan (project, deep, security, dependencies, git, tests)
+  system scan              Run complete hardware, OS, memory, storage & dev scan
+  security scan            Scan workspace and Git history for leaked secrets and vulnerabilities
+  doctor                   Run full environment & provider diagnostic checks
+  list                     List installed local models
+  pull <model>             Download model weights locally
+  show <model>             Display model parameters and architecture
+  ps                       List active local inference processes
+  rm <model>               Delete local model weights
+  run <task>               Execute an autonomous engineering task directly
+  session <list|resume>    Inspect and resume previous interactive sessions
+  git <status|diff>        Inspect repository Git status and diffs
+`);
+      return;
+    }
+
+    if (arg === '--cwd' && i + 1 < argv.length) {
+      customCwd = argv[++i];
+    } else if (arg === '--permission' && i + 1 < argv.length) {
+      const p = argv[++i].toLowerCase();
+      if (['ask', 'auto', 'full'].includes(p)) {
+        customPermission = p as PermissionLevel;
+      } else {
+        console.error(`Error: Invalid permission level "${p}". Valid options: ask, auto, full`);
+        process.exit(1);
+      }
+    } else if (arg === '--mode' && i + 1 < argv.length) {
+      const m = argv[++i].toLowerCase();
+      if (isValidAgentMode(m)) {
+        customMode = m as AgentMode;
+      } else {
+        console.error(`Error: Invalid agent mode "${m}". Valid options: ask, plan, build, debug, review, test, refactor`);
+        process.exit(1);
+      }
+    } else if (arg === '--plain') {
+      customTheme = 'plain';
+      noAnimation = true;
+      matrixMode = false;
+    } else if (arg === '--no-animation') {
+      noAnimation = true;
+    } else if (arg === '--no-matrix') {
+      matrixMode = false;
+    } else if (arg === '--matrix' || arg === '-m') {
+      matrixMode = true;
+    } else if (arg === '--hackathon') {
+      hackathonMode = true;
+    } else if ((arg === '--theme' || arg === '-t') && i + 1 < argv.length) {
+      customTheme = argv[++i];
+    } else if (arg === '--model' && i + 1 < argv.length) {
+      customModel = argv[++i];
+    } else if (arg === '--provider' && i + 1 < argv.length) {
+      customProvider = argv[++i];
+    } else if (arg === '--verbose') {
+      isVerbose = true;
+    } else if (arg === '--debug') {
+      isDebug = true;
+    } else if (arg.startsWith('-')) {
+      // Ignore other flags
+    } else {
+      positionalArgs.push(arg);
+    }
+  }
+
+  // Handle working directory override if --cwd is passed
+  let resolvedWorkspaceRoot = process.cwd();
+  if (customCwd) {
+    const wdRes = WorkingDirectoryManager.getInstance().changeDirectory(customCwd);
+    if (!wdRes.success) {
+      console.error(`Error: ${wdRes.message}`);
+      process.exit(1);
+    }
+    resolvedWorkspaceRoot = wdRes.newDir;
+  } else {
+    WorkingDirectoryManager.getInstance(resolvedWorkspaceRoot);
+  }
+
+  const logger = new Logger({ subsystem: 'berkelium', level: isDebug || isVerbose ? 'debug' : 'info' });
   const eventBus = new EventBus();
-  const configManager = new ConfigManager();
+  const configManager = new ConfigManager(resolvedWorkspaceRoot);
   const authStore = new AuthStore();
-  const themeManager = new ThemeManager(configManager.getConfig().theme.name);
+  const themeManager = new ThemeManager(customTheme || configManager.getConfig().theme.name);
   const renderer = new TUIRenderer(themeManager);
 
   // Initialize Provider Router & all standard adapters
@@ -64,13 +184,15 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   router.registerProvider(new OllamaProvider(configManager.getConfig().providers.ollama.base_url));
   router.registerProvider(new LMStudioProvider(configManager.getConfig().providers.lmstudio.base_url));
 
-
   // Initialize Permission Engine & Redactor
   const permissionEngine = new PermissionEngine(
     configManager.getWorkspaceRoot(),
     configManager.getConfig().permissions,
     eventBus
   );
+  if (customPermission) {
+    permissionEngine.setPermissionLevel(customPermission);
+  }
   const secretRedactor = new SecretRedactor();
 
   // Initialize Tool Registry & Orchestrator
@@ -93,57 +215,46 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   // Initialize Session Manager
   const sessionManager = new SessionManager();
 
-  // Parse CLI flags
-  let noAnimation = false;
-  let hackathonMode = false;
-  let matrixMode = configManager.getConfig().ui.launch_matrix ?? true;
-  let customTheme: string | undefined;
-  let customModel: string | undefined;
-  let customProvider: string | undefined;
-
-  const positionalArgs: string[] = [];
-
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-
-    if (arg === '--version' || arg === '-v') {
-      console.log('Berkelium CLI v1.0.0 (darwin-arm64 native)');
-      return;
-    }
-
-    if (arg === '--plain') {
-      customTheme = 'plain';
-      noAnimation = true;
-      matrixMode = false;
-    } else if (arg === '--no-animation') {
-      noAnimation = true;
-    } else if (arg === '--no-matrix') {
-      matrixMode = false;
-    } else if (arg === '--matrix' || arg === '-m') {
-      matrixMode = true;
-    } else if (arg === '--hackathon') {
-      hackathonMode = true;
-    } else if ((arg === '--theme' || arg === '-t') && i + 1 < argv.length) {
-      customTheme = argv[++i];
-    } else if (arg === '--model' && i + 1 < argv.length) {
-      customModel = argv[++i];
-    } else if (arg === '--provider' && i + 1 < argv.length) {
-      customProvider = argv[++i];
-    } else if (arg.startsWith('-')) {
-      // Ignore other flags or store
-    } else {
-      positionalArgs.push(arg);
-    }
-  }
-
-  // Apply theme override if given
-  if (customTheme) {
-    themeManager.setTheme(customTheme);
+  if (matrixMode === undefined) {
+    matrixMode = configManager.getConfig().ui.launch_matrix ?? true;
   }
 
   const firstArg = positionalArgs[0];
 
   // Subcommands
+  if (firstArg === 'scan') {
+    const scanType = positionalArgs[1]?.toLowerCase() || 'project';
+    const wsRoot = configManager.getWorkspaceRoot();
+    if (scanType === 'security') {
+      const secReport = await SecurityScanner.scan(wsRoot);
+      console.log(SecurityScanner.formatReport(secReport));
+      return;
+    }
+    const validModes = ['project', 'deep', 'dependencies', 'git', 'tests'] as const;
+    const mode = validModes.includes(scanType as any) ? (scanType as any) : 'project';
+    const scanReport = await ProjectScanner.scan(wsRoot, mode);
+    console.log(ProjectScanner.formatReport(scanReport));
+    return;
+  }
+
+  if (firstArg === 'system') {
+    const subAction = positionalArgs[1]?.toLowerCase() || 'scan';
+    const sysInfo = await SystemScanner.scan();
+    if (subAction === 'scan' || subAction === 'info') {
+      console.log(SystemScanner.formatReport(sysInfo));
+    } else {
+      console.log(SystemScanner.formatReport(sysInfo, subAction));
+    }
+    return;
+  }
+
+  if (firstArg === 'security') {
+    const wsRoot = configManager.getWorkspaceRoot();
+    const secReport = await SecurityScanner.scan(wsRoot);
+    console.log(SecurityScanner.formatReport(secReport));
+    return;
+  }
+
   if (firstArg === 'doctor') {
     const isJson = argv.includes('--json');
     await DoctorCommand.run(themeManager, authStore, router, isJson);
@@ -318,6 +429,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 
   if (customModel) {
     runtime.setActiveModel(customModel);
+  }
+  if (customMode) {
+    runtime.setMode(customMode);
   }
 
   // Direct autonomous run command: berkelium run "task"

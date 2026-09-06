@@ -84,6 +84,7 @@ export const ProviderConfigSchema = z.object({
 export const PermissionActionPolicySchema = z.enum(['allow', 'ask', 'deny']);
 
 export const PermissionPolicySchema = z.object({
+  level: z.enum(['ask', 'auto', 'full']).default('auto'),
   filesystem: z.object({
     read: PermissionActionPolicySchema.default('allow'),
     write: z.object({
