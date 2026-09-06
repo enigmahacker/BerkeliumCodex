@@ -14,7 +14,7 @@
     "bench": "tsx --tsconfig tsconfig.base.json benchmarks/index.ts",
     "berkelium": "tsx --tsconfig tsconfig.base.json apps/cli/src/bin/berkelium.ts",
     "bk": "tsx --tsconfig tsconfig.base.json apps/cli/src/bin/berkelium.ts",
-    "lint": "pnpm -r run lint"
+    "lint": "tsc -b ./tsconfig.json"
   },
   "bin": {
     "bk": "./apps/cli/dist/bin/berkelium.js",
