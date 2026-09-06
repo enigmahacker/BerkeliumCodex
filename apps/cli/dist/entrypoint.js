@@ -60,6 +60,7 @@ export async function main(argv = process.argv.slice(2)) {
 Berkelium CLI — Your terminal. Your codebase. Your AI.
 
 Usage:
+  bk [command] [options]
   berkelium [command] [options]
 
 Core Options:

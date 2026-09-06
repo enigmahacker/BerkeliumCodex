@@ -75,6 +75,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 Berkelium CLI — Your terminal. Your codebase. Your AI.
 
 Usage:
+  bk [command] [options]
   berkelium [command] [options]
 
 Core Options:

@@ -14,6 +14,7 @@
     "bench": "tsx --tsconfig tsconfig.base.json benchmarks/index.ts",
     "berkelium": "tsx --tsconfig tsconfig.base.json apps/cli/src/bin/berkelium.ts",
     "bk": "tsx --tsconfig tsconfig.base.json apps/cli/src/bin/berkelium.ts",
+    "link:bin": "node -e 'const fs=require(\"fs\"),path=require(\"path\"),os=require(\"os\");const binDir=path.join(os.homedir(),\".local/bin\");if(!fs.existsSync(binDir))fs.mkdirSync(binDir,{recursive:true});const target=path.resolve(\"./apps/cli/dist/bin/berkelium.js\");for(const name of [\"bk\",\"berkelium\"]){const link=path.join(binDir,name);try{fs.unlinkSync(link);}catch{};fs.symlinkSync(target,link);console.log(\"Linked\",name,\"->\",link);}'",
     "lint": "tsc -b ./tsconfig.json"
   },
   "bin": {
