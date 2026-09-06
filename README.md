@@ -1,8 +1,109 @@
+<style>
+  /* Berkelium Codex Visual Theme */
+  body, .markdown-body {
+    background-color: #0d1117 !important;
+    color: #c9d1d9 !important;
+  }
+  .berkelium-codex-theme {
+    background-color: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.65;
+    padding: 24px 32px;
+    border-radius: 12px;
+    border: 1px solid #30363d;
+    box-shadow: 0 0 40px rgba(0, 210, 211, 0.04);
+  }
+  .berkelium-codex-theme h1,
+  .berkelium-codex-theme h2,
+  .berkelium-codex-theme h3,
+  .berkelium-codex-theme h4 {
+    color: #58a6ff !important;
+    border-bottom: 1px solid #21262d;
+    padding-bottom: 0.3em;
+  }
+  .berkelium-codex-theme a {
+    color: #38bdf8 !important;
+    text-decoration: none;
+  }
+  .berkelium-codex-theme a:hover {
+    text-decoration: underline;
+  }
+  .berkelium-codex-theme code {
+    background-color: #161b22 !important;
+    color: #e6edf3 !important;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 0.2em 0.4em;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  .berkelium-codex-theme pre {
+    background-color: #161b22 !important;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .berkelium-codex-theme pre code {
+    background-color: transparent !important;
+    border: none;
+    padding: 0;
+  }
+  .berkelium-codex-theme blockquote {
+    border-left: 4px solid #38bdf8;
+    background-color: #161b22;
+    color: #8b949e;
+    padding: 8px 16px;
+    margin: 16px 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .berkelium-codex-theme table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 16px 0;
+  }
+  .berkelium-codex-theme th {
+    background-color: #161b22;
+    color: #58a6ff;
+    border: 1px solid #30363d;
+    padding: 8px 12px;
+  }
+  .berkelium-codex-theme td {
+    border: 1px solid #30363d;
+    background-color: #0d1117;
+    color: #c9d1d9;
+    padding: 8px 12px;
+  }
+  .berkelium-codex-theme hr {
+    border: none;
+    border-top: 1px solid #30363d;
+    margin: 28px 0;
+  }
+</style>
+
+<div class="berkelium-codex-theme">
+
+<div align="center">
+
+<img src="./assets/berkelium-banner.png" alt="Berkelium Codex — Proudly Indian. Built for the World." width="440" />
+
 # Berkelium CLI
+
+### Berkelium Codex // Neural Coding Runtime
+**PROUDLY INDIAN. BUILT FOR THE WORLD.**
 
 > Your terminal. Your codebase. Your AI.
 
-Berkelium CLI is a terminal-native AI development platform and coding agent. It integrates Ollama-style local model management, hardware-accelerated local runtimes, cloud AI providers, local repository intelligence, and policy-gated tool execution into a single command-line interface. Built from the ground up for software engineering, Berkelium provides an autonomous development loop that plans, edits, tests, and verifies code directly inside your terminal.
+<p align="center">
+  <span style="color: #ff9f43; font-weight: 600; font-family: monospace;">[ 97 ]</span>
+  &nbsp;&nbsp;
+  <span style="color: #38bdf8;">───●───</span>
+  &nbsp;&nbsp;
+  <span style="color: #54a0ff; font-weight: 600; font-family: monospace;">( 247 )</span>
+</p>
+
+</div>
+
+Berkelium CLI (Berkelium Codex) is a terminal-native AI development platform and neural coding runtime. Proudly Indian, built for the world. It integrates Ollama-style local model management, hardware-accelerated local runtimes optimized for Apple Silicon, cloud AI providers, local repository intelligence, and policy-gated tool execution into a single command-line interface. Built from the ground up for software engineering, Berkelium provides an autonomous development loop that plans, edits, tests, and verifies code directly inside your terminal.
 
 ```
 $ berkelium
@@ -1021,3 +1122,5 @@ If you discover a security vulnerability, sandbox escape, or credential leakage 
 ## License
 
 License: To be determined.
+
+</div>
