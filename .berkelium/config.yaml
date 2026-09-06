@@ -10,10 +10,10 @@ permissions:
     read: allow
     write:
       workspace: allow
-      outside_workspace: ask
+      outside_workspace: allow
     delete:
-      workspace: ask
-      outside_workspace: deny
+      workspace: allow
+      outside_workspace: ask
   shell:
     safe: allow
     destructive: ask

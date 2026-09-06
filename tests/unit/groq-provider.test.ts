@@ -46,6 +46,10 @@ describe('Groq Provider Adapter & Integration', () => {
     const modelIds = models.map((m) => m.id);
     expect(modelIds).toContain('llama-3.3-70b-versatile');
     expect(modelIds).toContain('llama-3.1-8b-instant');
+    expect(modelIds).toContain('llama-3.2-11b-vision-preview');
+    expect(modelIds).toContain('qwen-2.5-72b');
+    expect(modelIds).toContain('gemma2-9b-it');
+    expect(modelIds).toContain('whisper-large-v3');
     expect(modelIds).toContain('deepseek-r1-distill-llama-70b');
     expect(modelIds).toContain('qwen-qwq-32b');
   });

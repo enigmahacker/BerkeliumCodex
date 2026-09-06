@@ -166,19 +166,54 @@ export const BerkeliumConfigSchema = z.object({
             model: 'llama-3.3-70b-versatile',
             context_length: 128000,
         },
+        'groq-vision': {
+            provider: 'groq',
+            model: 'llama-3.2-11b-vision-preview',
+            context_length: 128000,
+        },
+        'groq-qwen': {
+            provider: 'groq',
+            model: 'qwen-2.5-72b',
+            context_length: 131072,
+        },
         gemini: {
             provider: 'gemini',
-            model: 'gemini-3.6-flash',
+            model: 'gemini-3-flash',
             context_length: 1048576,
         },
         google: {
             provider: 'gemini',
-            model: 'gemini-3.6-flash',
+            model: 'gemini-3-flash',
             context_length: 1048576,
         },
         'gemini-flash': {
             provider: 'gemini',
-            model: 'gemini-3.6-flash',
+            model: 'gemini-3-flash',
+            context_length: 1048576,
+        },
+        'gemini-3-flash': {
+            provider: 'gemini',
+            model: 'gemini-3-flash',
+            context_length: 1048576,
+        },
+        'gemini-free': {
+            provider: 'gemini',
+            model: 'gemini-3-flash',
+            context_length: 1048576,
+        },
+        'gemini-flash-lite': {
+            provider: 'gemini',
+            model: 'gemini-3.1-flash-lite',
+            context_length: 1048576,
+        },
+        'gemini-2.0-flash': {
+            provider: 'gemini',
+            model: 'gemini-2.0-flash',
+            context_length: 1048576,
+        },
+        'gemini-2.5-flash': {
+            provider: 'gemini',
+            model: 'gemini-2.5-flash',
             context_length: 1048576,
         },
         'gemini-pro': {
@@ -193,18 +228,73 @@ export const BerkeliumConfigSchema = z.object({
         },
         huggingface: {
             provider: 'huggingface',
-            model: 'meta-llama/Llama-3.3-70B-Instruct',
+            model: 'meta-llama/Llama-3.1-8B-Instruct',
             context_length: 131072,
         },
         hf: {
             provider: 'huggingface',
-            model: 'meta-llama/Llama-3.3-70B-Instruct',
+            model: 'meta-llama/Llama-3.1-8B-Instruct',
             context_length: 131072,
+        },
+        'hf-llama-8b': {
+            provider: 'huggingface',
+            model: 'meta-llama/Llama-3.1-8B-Instruct',
+            context_length: 131072,
+        },
+        'hf-gemma-9b': {
+            provider: 'huggingface',
+            model: 'google/gemma-2-9b-it',
+            context_length: 8192,
+        },
+        'hf-qwen-coder': {
+            provider: 'huggingface',
+            model: 'Qwen/Qwen2.5-Coder-7B',
+            context_length: 32768,
         },
         nvidia: {
             provider: 'nvidia',
             model: 'meta/llama-3.3-70b-instruct',
             context_length: 131072,
+        },
+        'nvidia-nemotron-lightning': {
+            provider: 'nvidia',
+            model: 'nvidia/nemotron-3.5-lightning-30b-a3b',
+            context_length: 131072,
+        },
+        'nvidia-deepseek-v4': {
+            provider: 'nvidia',
+            model: 'deepseek-ai/deepseek-v4-pro-0813',
+            context_length: 163840,
+        },
+        'nvidia-kimi-k3': {
+            provider: 'nvidia',
+            model: 'moonshotai/kimi-k3',
+            context_length: 200000,
+        },
+        'free-llama4': {
+            provider: 'openrouter',
+            model: 'meta-llama/llama-4-scout:free',
+            context_length: 131072,
+        },
+        'free-llama3': {
+            provider: 'openrouter',
+            model: 'meta-llama/llama-3.3-70b-instruct:free',
+            context_length: 131072,
+        },
+        'free-qwen': {
+            provider: 'openrouter',
+            model: 'qwen/qwen-2.5-72b-instruct:free',
+            context_length: 131072,
+        },
+        'free-nemotron': {
+            provider: 'openrouter',
+            model: 'nvidia/nemotron-3.5-lightning:free',
+            context_length: 131072,
+        },
+        'free-minimax': {
+            provider: 'openrouter',
+            model: 'minimax/minimax-m3:free',
+            context_length: 1048576,
         },
         // ── Anthropic Claude (via OpenRouter) ──────────────────────────
         anthropic: {

@@ -54,6 +54,11 @@ describe('Hugging Face Provider Adapter & Integration', () => {
     const models = await provider.listModels();
     expect(models.length).toBeGreaterThan(0);
     const modelIds = models.map((m) => m.id);
+    expect(modelIds).toContain('meta-llama/Llama-3.1-8B-Instruct');
+    expect(modelIds).toContain('google/gemma-2-9b-it');
+    expect(modelIds).toContain('Qwen/Qwen2.5-Coder-7B');
+    expect(modelIds).toContain('BAAI/bge-large-en-v1.5');
+    expect(modelIds).toContain('black-forest-labs/FLUX.1-schnell');
     expect(modelIds).toContain('meta-llama/Llama-3.3-70B-Instruct');
     expect(modelIds).toContain('deepseek-ai/DeepSeek-R1');
     expect(modelIds).toContain('Qwen/Qwen2.5-Coder-32B-Instruct');

@@ -59,11 +59,37 @@ describe('Synced Provider Models & Capability Matrix', () => {
       expect(ids).toContain('google/gemini-3.8-flash');
       expect(ids).toContain('google/gemini-3.1-pro-preview');
     });
+
+    it('should include community-subsidized OpenRouter :free endpoints', () => {
+      const ids = defaults.map((m) => m.id);
+      expect(ids).toContain('meta-llama/llama-4-scout:free');
+      expect(ids).toContain('meta-llama/llama-4-maverick:free');
+      expect(ids).toContain('meta-llama/llama-3.3-70b-instruct:free');
+      expect(ids).toContain('meta-llama/llama-3.1-8b-instruct:free');
+      expect(ids).toContain('minimax/minimax-m3:free');
+      expect(ids).toContain('nvidia/nemotron-3.5-lightning:free');
+      expect(ids).toContain('google/gemma-3-27b-it:free');
+      expect(ids).toContain('qwen/qwen-2.5-72b-instruct:free');
+      expect(ids).toContain('mistralai/mistral-7b-instruct:free');
+    });
   });
 
   describe('NVIDIAProvider Model Catalog (NVIDIA NIM)', () => {
     const provider = new NVIDIAProvider(authStore);
     const defaults = provider.getDefaultModels();
+
+    it('should include new NIM catalog models eligible for 1,000 free API credits', () => {
+      const ids = defaults.map((m) => m.id);
+      expect(ids).toContain('nvidia/nemotron-3.5-lightning-30b-a3b');
+      expect(ids).toContain('nvidia/nemotron-3-embed-1b');
+      expect(ids).toContain('nvidia/nemotron-ocr-v2');
+      expect(ids).toContain('deepseek-ai/deepseek-v4-pro-0813');
+      expect(ids).toContain('deepseek-ai/deepseek-v4-flash-0731');
+      expect(ids).toContain('moonshotai/kimi-k3');
+      expect(ids).toContain('meta/muse-glimmer-30b');
+      expect(ids).toContain('poolside/laguna-xs-2.1');
+      expect(ids).toContain('minimax/minimax-m3');
+    });
 
     it('should include DeepSeek R1 and V3 on NIM', () => {
       const ids = defaults.map((m) => m.id);

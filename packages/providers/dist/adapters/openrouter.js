@@ -73,14 +73,119 @@ export class OpenRouterProvider {
     }
     getDefaultModels() {
         return [
-            // ── Anthropic Claude ──────────────────────────────────────────
+            // ── OpenRouter Free Endpoints (:free Models) ───────────────────────
+            {
+                id: 'meta-llama/llama-4-scout:free',
+                name: 'Llama 4 Scout (Free)',
+                provider: 'openrouter',
+                context_length: 131072,
+                capabilities: { streaming: true, tool_calling: true, vision: true },
+                description: 'Meta Llama 4 Scout 17B (16E) multimodal open MoE via free community endpoint',
+            },
+            {
+                id: 'meta-llama/llama-4-maverick:free',
+                name: 'Llama 4 Maverick (Free)',
+                provider: 'openrouter',
+                context_length: 1048576,
+                capabilities: { streaming: true, tool_calling: true, vision: true },
+                description: 'Meta Llama 4 Maverick 17B (128E) 1M-context flagship via free community endpoint',
+            },
+            {
+                id: 'meta-llama/llama-3.3-70b-instruct:free',
+                name: 'Llama 3.3 70B Instruct (Free)',
+                provider: 'openrouter',
+                context_length: 131072,
+                capabilities: { streaming: true, tool_calling: true },
+                description: 'Meta 70B instruction-tuned flagship model via free community-subsidized endpoint',
+            },
+            {
+                id: 'meta-llama/llama-3.1-8b-instruct:free',
+                name: 'Llama 3.1 8B Instruct (Free)',
+                provider: 'openrouter',
+                context_length: 131072,
+                capabilities: { streaming: true, tool_calling: true },
+                description: 'Meta 8B ultra-fast instruction model via free community-subsidized endpoint',
+            },
+            {
+                id: 'minimax/minimax-m3:free',
+                name: 'MiniMax M3 (Free)',
+                provider: 'openrouter',
+                context_length: 1048576,
+                capabilities: { streaming: true, tool_calling: true, reasoning: true },
+                description: 'MiniMax M3 frontier large-scale MoE model via free community endpoint',
+            },
+            {
+                id: 'minimax/minimax-m2.7:free',
+                name: 'MiniMax M2.7 (Free)',
+                provider: 'openrouter',
+                context_length: 200000,
+                capabilities: { streaming: true, tool_calling: true },
+                description: 'MiniMax M2.7 high-efficiency reasoning model via free community endpoint',
+            },
+            {
+                id: 'nvidia/nemotron-3-ultra:free',
+                name: 'Nemotron 3 Ultra (Free)',
+                provider: 'openrouter',
+                context_length: 131072,
+                capabilities: { streaming: true, tool_calling: true, reasoning: true },
+                description: 'NVIDIA Nemotron 3 Ultra enterprise-grade intelligence via free endpoint',
+            },
+            {
+                id: 'nvidia/nemotron-3.5-lightning:free',
+                name: 'Nemotron 3.5 Lightning (Free)',
+                provider: 'openrouter',
+                context_length: 131072,
+                capabilities: { streaming: true, tool_calling: true, reasoning: true },
+                description: 'NVIDIA Nemotron 3.5 Lightning high-throughput reasoning via free endpoint',
+            },
+            {
+                id: 'poolside/laguna-s-2.1:free',
+                name: 'Laguna S 2.1 (Free)',
+                provider: 'openrouter',
+                context_length: 65536,
+                capabilities: { streaming: true, tool_calling: true },
+                description: 'Poolside Laguna S 2.1 specialized software engineering engine via free endpoint',
+            },
+            {
+                id: 'google/gemma-3-27b-it:free',
+                name: 'Gemma 3 27B IT (Free)',
+                provider: 'openrouter',
+                context_length: 32768,
+                capabilities: { streaming: true, tool_calling: true, vision: true },
+                description: 'Google Gemma 3 27B multimodal instruction-tuned model via free endpoint',
+            },
+            {
+                id: 'google/gemma-2-9b-it:free',
+                name: 'Gemma 2 9B IT (Free)',
+                provider: 'openrouter',
+                context_length: 8192,
+                capabilities: { streaming: true, tool_calling: true },
+                description: 'Google Gemma 2 9B open-weights assistant via free community endpoint',
+            },
+            {
+                id: 'qwen/qwen-2.5-72b-instruct:free',
+                name: 'Qwen 2.5 72B Instruct (Free)',
+                provider: 'openrouter',
+                context_length: 131072,
+                capabilities: { streaming: true, tool_calling: true, reasoning: true },
+                description: 'Alibaba Qwen 2.5 72B flagship open model via free community endpoint',
+            },
+            {
+                id: 'mistralai/mistral-7b-instruct:free',
+                name: 'Mistral 7B Instruct (Free)',
+                provider: 'openrouter',
+                context_length: 32768,
+                capabilities: { streaming: true, tool_calling: true },
+                description: 'Mistral 7B open instruct model via free community-subsidized endpoint',
+            },
+            // ── Anthropic Claude (Paid / Requires Account Billing) ────────
             {
                 id: 'anthropic/claude-3.7-sonnet',
                 name: 'Claude 3.7 Sonnet',
                 provider: 'openrouter',
                 context_length: 200000,
                 capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
-                description: 'Anthropic Claude 3.7 Sonnet — flagship hybrid reasoning and agentic software engineering',
+                description: 'Anthropic Claude 3.7 Sonnet — flagship hybrid reasoning (requires billing/credits)',
             },
             {
                 id: 'anthropic/claude-3.7-sonnet:thinking',
@@ -88,7 +193,7 @@ export class OpenRouterProvider {
                 provider: 'openrouter',
                 context_length: 200000,
                 capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
-                description: 'Anthropic Claude 3.7 Sonnet with extended thinking mode for complex architecture and debugging',
+                description: 'Anthropic Claude 3.7 Sonnet extended thinking mode (requires billing/credits)',
             },
             {
                 id: 'anthropic/claude-3.5-sonnet',
@@ -96,7 +201,7 @@ export class OpenRouterProvider {
                 provider: 'openrouter',
                 context_length: 200000,
                 capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
-                description: 'Anthropic Claude 3.5 Sonnet — industry standard frontier agentic coding model',
+                description: 'Anthropic Claude 3.5 Sonnet — industry standard coding model (requires billing/credits)',
             },
             {
                 id: 'anthropic/claude-3.5-haiku',
@@ -104,7 +209,7 @@ export class OpenRouterProvider {
                 provider: 'openrouter',
                 context_length: 200000,
                 capabilities: { streaming: true, tool_calling: true, vision: true },
-                description: 'Anthropic Claude 3.5 Haiku — blazing-fast, cost-effective coding and triage',
+                description: 'Anthropic Claude 3.5 Haiku — fast, cost-effective coding and triage (requires billing/credits)',
             },
             {
                 id: 'anthropic/claude-3-opus',
@@ -112,7 +217,7 @@ export class OpenRouterProvider {
                 provider: 'openrouter',
                 context_length: 200000,
                 capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
-                description: 'Anthropic Claude 3 Opus — deep analytical comprehension and synthesis',
+                description: 'Anthropic Claude 3 Opus — deep analytical comprehension and synthesis (requires billing/credits)',
             },
             {
                 id: 'anthropic/claude-sonnet-4-5',
@@ -120,7 +225,7 @@ export class OpenRouterProvider {
                 provider: 'openrouter',
                 context_length: 200000,
                 capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
-                description: 'Anthropic Claude Sonnet 4.5 — next-generation hybrid reasoning & coding',
+                description: 'Anthropic Claude Sonnet 4.5 — next-generation hybrid reasoning (requires billing/credits)',
             },
             {
                 id: 'anthropic/claude-opus-4-5',
@@ -128,16 +233,16 @@ export class OpenRouterProvider {
                 provider: 'openrouter',
                 context_length: 200000,
                 capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
-                description: 'Anthropic Claude Opus 4.5 — pinnacle frontier intelligence for difficult engineering tasks',
+                description: 'Anthropic Claude Opus 4.5 — pinnacle frontier intelligence (requires billing/credits)',
             },
-            // ── OpenAI ────────────────────────────────────────────────────
+            // ── OpenAI (Paid / Requires Account Billing) ──────────────────
             {
                 id: 'openai/gpt-4o',
                 name: 'OpenAI GPT-4o',
                 provider: 'openrouter',
                 context_length: 128000,
                 capabilities: { streaming: true, tool_calling: true, vision: true },
-                description: 'OpenAI GPT-4o — multimodal flagship with high throughput and dependable tool execution',
+                description: 'OpenAI GPT-4o — multimodal flagship with high throughput (requires billing/credits)',
             },
             {
                 id: 'openai/gpt-4o-mini',
@@ -145,7 +250,7 @@ export class OpenRouterProvider {
                 provider: 'openrouter',
                 context_length: 128000,
                 capabilities: { streaming: true, tool_calling: true, vision: true },
-                description: 'OpenAI GPT-4o Mini — ultra-fast, affordable multimodal workhorse for continuous agent loops',
+                description: 'OpenAI GPT-4o Mini — affordable multimodal workhorse (requires billing/credits)',
             },
             {
                 id: 'openai/o3-mini',

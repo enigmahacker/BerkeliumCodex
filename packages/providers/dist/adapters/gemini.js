@@ -57,7 +57,15 @@ export class GeminiProvider {
     }
     getDefaultModels() {
         return [
-            // ── Gemini 3 series ─────────────────────────────────────────────
+            // ── Google AI Studio Free Tier ──────────────────────────────────
+            {
+                id: 'gemini-3-flash',
+                name: 'Gemini 3 Flash',
+                provider: 'gemini',
+                context_length: 1048576,
+                capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
+                description: '🌟 Recommended default free-tier model — long-horizon agentic workflows, high-speed coding and multimodal reasoning',
+            },
             {
                 id: 'gemini-3.8-flash',
                 name: 'Gemini 3.8 Flash',
@@ -66,6 +74,55 @@ export class GeminiProvider {
                 capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
                 description: '🆕 Newest stable Flash — engineered for long-horizon software engineering, autonomous agents, and complex enterprise workflows',
             },
+            {
+                id: 'gemini-3.1-flash-lite',
+                name: 'Gemini 3.1 Flash-Lite',
+                provider: 'gemini',
+                context_length: 1048576,
+                capabilities: { streaming: true, tool_calling: true, vision: true },
+                description: 'Frontier-class performance rivaling larger models at maximum throughput within free rate limits',
+            },
+            {
+                id: 'gemini-2.5-flash',
+                name: 'Gemini 2.5 Flash',
+                provider: 'gemini',
+                context_length: 1048576,
+                capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
+                description: 'Permanent free tier model with integrated thinking and deliberate reasoning',
+            },
+            {
+                id: 'gemini-2.0-flash',
+                name: 'Gemini 2.0 Flash',
+                provider: 'gemini',
+                context_length: 1048576,
+                capabilities: { streaming: true, tool_calling: true, vision: true },
+                description: 'Permanent free tier: High-speed multimodal generation and agentic tool loop',
+            },
+            {
+                id: 'gemini-2.5-pro',
+                name: 'Gemini 2.5 Pro',
+                provider: 'gemini',
+                context_length: 2097152,
+                capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
+                description: 'High-capability reasoning (available with limited experimental free cap, ~50 requests/day)',
+            },
+            {
+                id: 'text-embedding-004',
+                name: 'Text Embedding 004',
+                provider: 'gemini',
+                context_length: 8192,
+                capabilities: { streaming: false, tool_calling: false, vision: false },
+                description: 'Google permanent free-tier text embeddings model (768 dimensions) for semantic retrieval and RAG',
+            },
+            {
+                id: 'multimodal-embeddings',
+                name: 'Google Multimodal Embeddings',
+                provider: 'gemini',
+                context_length: 8192,
+                capabilities: { streaming: false, tool_calling: false, vision: true },
+                description: 'Google Multimodal Embeddings for vector search across code, documentation, and image assets',
+            },
+            // ── Additional Versions ─────────────────────────────────────────
             {
                 id: 'gemini-3.7-flash',
                 name: 'Gemini 3.7 Flash',
@@ -83,62 +140,12 @@ export class GeminiProvider {
                 description: 'Balanced speed and multimodal capabilities across general agentic and everyday tasks',
             },
             {
-                id: 'gemini-3.5-flash',
-                name: 'Gemini 3.5 Flash',
-                provider: 'gemini',
-                context_length: 1048576,
-                capabilities: { streaming: true, tool_calling: true, vision: true },
-                description: 'Baseline speed and foundational performance for routine, high-throughput workloads',
-            },
-            {
-                id: 'gemini-3.5-flash-lite',
-                name: 'Gemini 3.5 Flash-Lite',
-                provider: 'gemini',
-                context_length: 1048576,
-                capabilities: { streaming: true, tool_calling: true, vision: true },
-                description: 'Fastest, most cost-effective 3.5 model for high-throughput execution',
-            },
-            {
-                id: 'gemini-3.1-flash-lite',
-                name: 'Gemini 3.1 Flash-Lite',
-                provider: 'gemini',
-                context_length: 1048576,
-                capabilities: { streaming: true, tool_calling: true, vision: true },
-                description: 'Frontier-class performance rivaling larger models at a fraction of the cost',
-            },
-            // ── Gemini 3 preview ────────────────────────────────────────────
-            {
                 id: 'gemini-3.1-pro-preview',
                 name: 'Gemini 3.1 Pro (Preview)',
                 provider: 'gemini',
                 context_length: 2097152,
                 capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
                 description: 'Advanced intelligence with complex problem-solving and powerful agentic coding capabilities',
-            },
-            {
-                id: 'gemini-3-flash-preview',
-                name: 'Gemini 3 Flash (Preview)',
-                provider: 'gemini',
-                context_length: 1048576,
-                capabilities: { streaming: true, tool_calling: true, vision: true },
-                description: 'Frontier-class performance rivaling larger models at a fraction of the cost',
-            },
-            // ── Legacy (Gemini 2.5) ──────────────────────────────────────────
-            {
-                id: 'gemini-2.5-pro',
-                name: 'Gemini 2.5 Pro',
-                provider: 'gemini',
-                context_length: 2097152,
-                capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
-                description: 'Legacy: Google 2.5 Pro — 2M context, strong reasoning (superseded by Gemini 3 series)',
-            },
-            {
-                id: 'gemini-2.5-flash',
-                name: 'Gemini 2.5 Flash',
-                provider: 'gemini',
-                context_length: 1048576,
-                capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
-                description: 'Legacy: Gemini 2.5 Flash with thinking mode',
             },
         ];
     }

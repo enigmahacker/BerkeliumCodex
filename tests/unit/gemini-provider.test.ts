@@ -39,12 +39,15 @@ describe('Google Gemini Provider Adapter & Integration', () => {
     const provider = new GeminiProvider(authStore);
     const models = await provider.listModels();
 
-    expect(models.length).toBeGreaterThanOrEqual(4);
+    expect(models.length).toBeGreaterThanOrEqual(6);
     const modelIds = models.map((m) => m.id);
+    expect(modelIds).toContain('gemini-3-flash');
     expect(modelIds).toContain('gemini-3.8-flash');
-    expect(modelIds).toContain('gemini-3.6-flash');
-    expect(modelIds).toContain('gemini-2.5-pro');
+    expect(modelIds).toContain('gemini-3.1-flash-lite');
     expect(modelIds).toContain('gemini-2.5-flash');
+    expect(modelIds).toContain('gemini-2.0-flash');
+    expect(modelIds).toContain('gemini-2.5-pro');
+    expect(modelIds).toContain('text-embedding-004');
   });
 
   it('should reflect availability based on GEMINI_API_KEY or GOOGLE_API_KEY presence', async () => {
