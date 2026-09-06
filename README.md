@@ -1,784 +1,1023 @@
-# 🌌 Berkelium CLI (Bk)
+# Berkelium CLI
+
+> Your terminal. Your codebase. Your AI.
+
+Berkelium CLI is a terminal-native AI development platform and coding agent. It integrates Ollama-style local model management, hardware-accelerated local runtimes, cloud AI providers, local repository intelligence, and policy-gated tool execution into a single command-line interface. Built from the ground up for software engineering, Berkelium provides an autonomous development loop that plans, edits, tests, and verifies code directly inside your terminal.
 
 ```
-             97               ╭───●───╮              (247)
-                            ╭─╯       ╰─╮
-             ██████╗      ██╗  ██╗      │
-             ██╔══██╗     ██║ ██╔╝      │
-             ██████╔╝     █████╔╝       │
-             ██╔══██╗     ██╔═██╗       │
-             ██████╔╝  ●  ██║  ██╗     ╭─╯
-             ╚═════╝      ╚═╝  ╚═╝   ╰───╯
-
-              PROUDLY INDIAN. BUILT FOR THE WORLD.
-                          ─────────────
-             BERKELIUM CODEX // NEURAL CODING RUNTIME
+$ berkelium
+Berkelium CLI
+Model     qwen3-coder:30b
+Runtime   MLX
+Mode      LOCAL
+Privacy   LOCAL
+Status    ● READY
+› Fix the authentication bug
+Inspecting repository...
+Found 3 failing tests.
+Editing:
+src/auth/session.ts
+Running tests...
+✓ 47 passed
 ```
-
-> **Ultra-Customizable, Local-First Terminal AI Coding Agent & Autonomous Workstation**  
-> *Engineered for Apple Silicon & modern development environments.*
-
-[![Tests](https://img.shields.io/badge/tests-58%2F58%20passing-brightgreen.svg)](#-verification--benchmarks)
-[![Startup Latency](https://img.shields.io/badge/startup%20latency-21ms%20%28budget%20%3C150ms%29-blue.svg)](#-performance-benchmarks)
-[![Memory Footprint](https://img.shields.io/badge/memory-74MB%20%28budget%20%3C100MB%29-blueviolet.svg)](#-performance-benchmarks)
-[![Token Speed](https://img.shields.io/badge/tokenizer-49.9M%20tok%2Fs-orange.svg)](#-performance-benchmarks)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D20.0.0-informational.svg)](#-installation--developer-guide)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](#-license)
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 
-- [⚡ Overview & Philosophy](#-overview--philosophy)
-- [🏛 Core Architectural Invariants](#-core-architectural-invariants)
-- [📦 Monorepo Package Breakdown](#-monorepo-package-breakdown)
-- [🔍 Interactive Command Palette & Autocomplete](#-interactive-command-palette--autocomplete)
-- [🤖 Universal Model Runtime & Multi-Provider Architecture](#-universal-model-runtime--multi-provider-architecture)
-- [⚙️ 12-State Agent Runtime & Autonomous Execution Loop](#️-12-state-agent-runtime--autonomous-execution-loop)
-- [👥 Subagent Multi-Agent Persona System](#-subagent-multi-agent-persona-system)
-- [🧠 Lossless Context Engine & AST Compaction](#-lossless-context-engine--ast-compaction)
-- [🛠 20+ Sandboxed Native Tools & MCP Bridge](#-20-sandboxed-native-tools--mcp-bridge)
-- [🔒 Enterprise Security, Permissions & Credential Isolation](#-enterprise-security-permissions--credential-isolation)
-- [📜 7-Tier Configuration Precedence & Layered System Prompts](#-7-tier-configuration-precedence--layered-system-prompts)
-- [🎨 Theming Engine & Live Matrix Rain Animation](#-theming-engine--live-matrix-rain-animation)
-- [🔌 Plugin Architecture & Lifecycle Hooks](#-plugin-architecture--lifecycle-hooks)
-- [📈 Telemetry, Metrics & Audit Logging](#-telemetry-metrics--audit-logging)
-- [💻 CLI Commands & Interactive Slash Command Reference](#-cli-commands--interactive-slash-command-reference)
-- [📊 Verification & Performance Benchmarks](#-verification--performance-benchmarks)
-- [🚀 Installation & Developer Quickstart](#-installation--developer-quickstart)
-- [📄 License & Trademark](#-license--trademark)
-
----
-
-## ⚡ Overview & Philosophy
-
-**Berkelium CLI (Bk)** is an ultra-fast, local-first terminal AI coding agent engineered from first principles to provide the seamless, fluid developer experience of Claude Code while remaining strictly **provider-neutral**, **privacy-first**, and **deeply customizable**.
-
-### Foundational Principles
-
-1. **Provider Independence**: Seamlessly switch between top-tier cloud APIs (**OpenRouter**, **NVIDIA NIM**, **OpenAI**, **Anthropic**) and zero-latency local models (**Ollama**, **LM Studio**) without changing your workflow.
-2. **Instantaneous Terminal UX**: Real-time raw-mode TTY keypress processing, 4-tier fuzzy slash command autocomplete (`/`), and non-executing <kbd>Tab</kbd> expansions with sub-millisecond responsiveness.
-3. **Deterministic Self-Healing Runtime**: A 12-state finite state machine with automated verification pipelines (`CHANGE -> BUILD -> TEST -> LINT -> DIFF REVIEW -> VERIFY`).
-4. **Hardware-Accelerated Apple Silicon Optimization**: Cold startup under **21ms** (budget <150ms), idle memory under **74MB** (budget <100MB), and BPE tokenization over **49 million tokens/second**.
-5. **Zero-Leak Security**: macOS Keychain credential isolation, AES-256 encrypted vault fallback, AST workspace jail security, and automatic secret redaction for API keys, private keys, and JWTs.
+- [Overview](#overview)
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [Local Models](#local-models)
+- [Apple Silicon](#apple-silicon)
+- [Cloud Models](#cloud-models)
+- [Local / Cloud / Hybrid](#local--cloud--hybrid)
+- [Agentic Development](#agentic-development)
+- [Repository Intelligence](#repository-intelligence)
+- [Tools](#tools)
+- [Security](#security)
+- [Privacy](#privacy)
+- [Accessibility](#accessibility)
+- [Sessions](#sessions)
+- [Slash Commands](#slash-commands)
+- [Diagnostics](#diagnostics)
+- [Command Reference](#command-reference)
+- [Configuration](#configuration)
+- [Architecture](#architecture)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+- [Contributing](#contributing)
+- [Security Reporting](#security-reporting)
+- [Roadmap](#roadmap)
+- [License](#license)
 
 ---
 
-## 🏛 Core Architectural Invariants
+## Overview
 
-Every subsystem in Berkelium complies with the architectural boundaries defined in `AGENTS.md`:
+Berkelium puts model management, AI inference, and agentic software development directly in the terminal. Instead of wrapping web views or relying on external cloud daemons, Berkelium executes as a lean, provider-neutral command-line process that communicates directly with local inference engines and remote model APIs.
+
+The system strictly decouples architectural concerns across seven core layers:
 
 ```
-                           BERKELIUM CLI INTERACTIVE TUI
-                                         │
-                         ┌───────────────┴───────────────┐
-                         ▼                               ▼
-               CommandPalette / InputSM            TUIRenderer
-                         │                               ▲
-                         ▼                               │
-                  CommandRegistry                  EventBus (AgentEvents)
-                         │                               ▲
-                         ▼                               │
-                  CommandExecutor                  AgentRuntime
-                         │                 (12-State Autonomous FSM)
-                         │                               │
-                         └───────────────┬───────────────┘
-                                         │
-             ┌───────────────────────────┼───────────────────────────┐
-             ▼                           ▼                           ▼
-       ContextEngine            ToolOrchestrator             ProviderRouter
-       (RepoMap, Tokens,       (Permissions, Redactor,       (NVIDIA, OpenRouter,
-       Compaction)             20+ Native Tools, MCP)        Ollama, LM Studio)
-                                         │                           │
-                                         ▼                           ▼
-                                  PermissionEngine           ResponseNormalizer
+┌────────────────────────────────────────────────────────┐
+│                      BERKELIUM CLI                     │
+├───────────────┬────────────────────────┬───────────────┤
+│     AGENT     │    ROUTER & RUNTIME    │   SECURITY    │
+│  State Loop   │   Unified Target ID    │ Policy Engine │
+│  Planner      │   MLX Engine           │ Jail Sandbox  │
+│  Verifier     │   GGUF Engine          │ Secret Redact │
+│  Memory       │   Cloud Providers      │ Privacy Tier  │
+└───────────────┴────────────────────────┴───────────────┘
 ```
 
-### Invariants Matrix
-
-| Principle | Invariant Rule | Implementation |
-| :--- | :--- | :--- |
-| **Provider Neutrality** | Never couple `AgentRuntime` to proprietary provider formats or endpoints. | `packages/providers` + `ResponseNormalizer` |
-| **Event-Driven Decoupling** | All TUI renders & telemetry must originate from typed `AgentEvents`. | `packages/events` (`EventBus`) |
-| **No Direct UI Execution** | Never execute shell commands or file writes directly from UI code. | `ToolOrchestrator` + `PermissionEngine` |
-| **Credential Isolation** | API keys must never touch prompt contexts, logs, or unencrypted storage. | `@berkelium/auth` (macOS Keychain / AES-256) |
-| **Mandatory Schemas** | Tools must register strict Zod schemas; provider chunks must normalize. | `ToolRegistry` + `ResponseNormalizer` |
-| **Bounded Execution** | Autonomous loops must enforce iteration bounds and tool retry limits. | `max_iterations: 40`, `max_tool_retries: 3` |
-| **Zero Hardcoded Themes** | ANSI styling must consume dynamic semantic design tokens. | `@berkelium/themes` (`ThemeManager`) |
+- **Model**: Format-agnostic weights and parameter definitions (MLX, GGUF, or remote API endpoints).
+- **Runtime**: Local execution engines executing on your machine (Apple MLX, llama.cpp server, CPU).
+- **Provider**: External cloud model gateways (Google Gemini, OpenAI, Anthropic, Groq, NVIDIA NIM, Hugging Face).
+- **Router**: Capability-aware resolver mapping target identifiers (`local/<model>`, `cloud/<provider>/<model>`) to the appropriate engine.
+- **Agent**: State machine orchestrating codebase inspection, step-by-step planning, tool invocation, and test verification.
+- **Tools**: Sandboxed filesystem, shell, git, search, and build utilities operating under explicit access control.
+- **Security**: Permission engine enforcing policy boundaries, destructive command gates, and secret redaction.
 
 ---
 
-## 📦 Monorepo Package Breakdown
+## Features
 
-Berkelium is structured as a high-cohesion, low-coupling **pnpm monorepo** across 13 packages and 1 application:
+Berkelium presents its capabilities as concrete, terminal-first CLI workflows:
+
+### Local Runtime
+
+Manage, inspect, and execute local models without external servers:
+
+- `berkelium list` — List downloaded local models with size, runtime, and context window metrics.
+- `berkelium pull <model>` — Download and verify model weights from Hugging Face or model registries.
+- `berkelium run <model>` — Run inference or a coding task headlessly against a specified model.
+- `berkelium show <model>` — Inspect architecture, quantization, context limits, and storage paths.
+- `berkelium ps` — Display active local runtime subprocesses and memory consumption.
+- `berkelium rm <model>` — Delete local model weights and free storage space.
+
+### Cloud Stack
+
+Access supported cloud inference providers through a unified interface:
+
+- `berkelium cloud providers` — Display connected cloud providers and connection statuses.
+- `berkelium cloud models [provider]` — List models available through authenticated cloud providers.
+- `berkelium cloud login <provider>` — Securely store API credentials in the macOS Keychain or encrypted vault.
+- `berkelium cloud status` — Inspect API connectivity, authentication state, and token usage.
+
+### Agentic Development
+
+Run an autonomous software engineering loop directly in your workspace:
+
+- `berkelium` — Launch the interactive terminal coding agent.
+- `berkelium run "<task>"` — Execute a specific coding task, bug fix, or refactor non-interactively.
+- `berkelium resume [id]` — Restore conversation context, memory, and task state from a prior session.
 
 ```
-berkelium/
-├── apps/
-│   └── cli/                  # CLI runner, Command Palette, TUI state machine, Bk matrix animation
-├── packages/
-│   ├── agent/                # 12-state AgentRuntime, Planner, Verifier, Subagents, Session persistence
-│   ├── auth/                 # macOS Keychain integration, AES-256 vault fallback, auto-key detection
-│   ├── config/               # 7-tier config hierarchy, schema validation, layered system prompt composer
-│   ├── context/              # BPE Tokenizer, AST RepoMap, dependency graph, smart file ranker, compactor
-│   ├── events/               # Typed AgentEvent definitions and asynchronous EventBus
-│   ├── logging/              # Structured JSON logging and human-readable audit trail
-│   ├── permissions/          # 3-tier policy engine (ALLOW/ASK/DENY), workspace jail, SecretRedactor
-│   ├── plugins/              # Plugin loader, manifest validator, lifecycle hook dispatcher
-│   ├── providers/            # Universal ProviderRouter, adapters (NVIDIA, OpenRouter, Ollama, LM Studio)
-│   ├── telemetry/            # Latency tracking, TTFT accumulator, token throughput, memory profiler
-│   ├── themes/               # 8 built-in color themes, ANSI tokenization, YAML theme loader
-│   └── tools/                # ToolRegistry, ToolOrchestrator, 20+ sandboxed native tools, MCP Bridge
-├── benchmarks/               # ToolBench accuracy, startup latency, token throughput, memory RSS
-└── tests/                    # 18 unit, integration, golden workflow, and regression test suites
+$ berkelium
+› Refactor the database connection pool to use exponential backoff.
+Inspecting repository...
+Planning:
+  1. Locate database pool implementation in src/db/pool.ts
+  2. Implement backoff calculation with jitter
+  3. Update retry handler in acquireConnection()
+  4. Run database unit and integration tests
+Editing:
+  src/db/pool.ts
+Running tests...
+✓ 24 passed
+✓ 0 failed
+Verified.
 ```
-
-### Monorepo Packages Summary
-
-| Package | Path | Direct Dependencies | Responsibility |
-| :--- | :--- | :--- | :--- |
-| **`@berkelium/cli`** | `apps/cli` | `agent`, `config`, `themes`, `logging`, `events`, `auth`, `providers`, `tools` | Interactive TUI, raw mode input FSM, command palette, startup logo, Matrix rain. |
-| **`@berkelium/agent`** | `packages/agent` | `providers`, `tools`, `context`, `config`, `logging`, `events`, `telemetry`, `plugins` | 12-state autonomous execution loop, Planner, Verifier, Subagent personas, session state. |
-| **`@berkelium/providers`** | `packages/providers` | `logging`, `events`, `telemetry` | Unified provider interface, adapters for OpenRouter, NVIDIA, Ollama, LM Studio, OpenAI, Anthropic. |
-| **`@berkelium/tools`** | `packages/tools` | `permissions`, `logging`, `events`, `config` | Tool registry, execution sandboxing, 20+ native filesystem/shell/git/diagnostic tools, MCP bridge. |
-| **`@berkelium/context`** | `packages/context` | `logging`, `events` | BPE tokenizer, AST symbol indexing, RepoMap generation, heuristic ranking, lossless compaction. |
-| **`@berkelium/permissions`**| `packages/permissions`| `logging`, `events` | Security policy evaluator, risk tier classification, confirmation workflow, secret redactor. |
-| **`@berkelium/config`** | `packages/config` | `logging` | 7-tier config loader, Zod schema validation, 7-layer system prompt composer. |
-| **`@berkelium/auth`** | `packages/auth` | `logging`, `events` | macOS Keychain CLI interop, AES-256 encrypted file vault, auto-key detection. |
-| **`@berkelium/themes`** | `packages/themes` | *(zero deps)* | 8 built-in themes (`berkelium-dark`, `matrix`, `dracula`, `nord`, etc.), ANSI tokenization. |
-| **`@berkelium/plugins`** | `packages/plugins` | `logging`, `events` | Plugin discovery, lifecycle hooks (`before_tool`, `after_tool`, `before_model`, `after_model`). |
-| **`@berkelium/events`** | `packages/events` | *(zero deps)* | Strongly-typed event contracts, asynchronous publish-subscribe `EventBus`. |
-| **`@berkelium/telemetry`** | `packages/telemetry` | `events` | TTFT metrics, token throughput accumulator, execution latency profiler, memory footprint tracking. |
-| **`@berkelium/logging`** | `packages/logging` | *(zero deps)* | Structured JSON logger (`.berkelium/logs/audit.jsonl`) and human-readable audit trail. |
 
 ---
 
-## 🔍 Interactive Command Palette & Autocomplete
+## Quick Start
 
-Berkelium features an instantaneous, Claude Code-style interactive command palette that triggers character-by-character directly in TTY raw mode:
+### Installation
 
-```
-berkelium > /m
-
-╭─ COMMANDS: "/m" ───────────────────────────────────────────────────╮
-│  › /model       Change active model target or alias                │
-│    /models      List discovered local and cloud models             │
-│    /matrix      Trigger live Matrix neural digital rain stream     │
-│  (1/3)                                                             │
-├────────────────────────────────────────────────────────────────────┤
-│  Usage: /model <model_name>                                        │
-╰────────────────────────────────────────────────────────────────────╯
-  ↑↓ Navigate • Tab Complete • Enter Select • Esc Close
-```
-
-### Autocomplete State Machine
-
-```
-              ┌───────────────────────────┐
-              │          NORMAL           │ (Regular chat prompt)
-              └─────────────┬─────────────┘
-                            │ Type '/'
-                            ▼
-              ┌───────────────────────────┐
-              │       SLASH_COMMAND       │ (Fuzzy command matching)
-              └─────────────┬─────────────┘
-                            │ Space / Tab with argument
-                            ▼
-              ┌───────────────────────────┐
-              │      SLASH_ARGUMENT       │ (Dynamic option resolution)
-              └───────────────────────────┘
-```
-
-### Key Capabilities
-
-- **Trigger Safety**: Only a leading `/` (or with leading whitespace `   /`) triggers command mode. Sentences containing slashes (e.g. `explain /etc/hosts`, `search for /src/auth`) are preserved as regular text.
-- **4-Tier Fuzzy Ranking**:
-  1. **Exact Match** (Score 1000)
-  2. **Prefix Match** (Score 800)
-  3. **Word-Boundary Match** (Score 650)
-  4. **Subsequence Match** (Score 400 - distance)
-- **Character Highlight Indexing**: Matched characters are highlighted in real-time in the terminal suggestion box.
-- **Non-Executing Tab Completion**: Pressing <kbd>Tab</kbd> places `/model ` into the input buffer without executing it prematurely.
-- **Dynamic Argument Expansion**:
-  - `/model ` → Live catalog of aliases (`coding`, `local`, `fast`, `reasoning`) and discovered Ollama / LM Studio / OpenRouter models.
-  - `/provider ` → Supported providers (`openrouter`, `nvidia`, `ollama`, `lmstudio`, `openai`, `anthropic`).
-  - `/theme ` → Live installed color themes (`berkelium-dark`, `matrix`, `dracula`, `nord`, etc.).
-  - `/tools ` → Registered tool schemas.
-  - `/agents ` → Specialized subagents (`explorer`, `coder`, `tester`, `reviewer`).
-  - `/system ` → Prompt layer targets (`identity`, `behavior`, `coding`, `safety`, `tools`, `workspace`, `custom`).
-- **Custom Markdown Workflows**: Place any markdown file in `.berkelium/commands/<name>.md` to register persistent project-specific slash commands automatically.
-
-### Keystroke Navigation Matrix
-
-| Keystroke | State: `SLASH_COMMAND` | State: `SLASH_ARGUMENT` |
-| :--- | :--- | :--- |
-| <kbd>↑</kbd> / <kbd>Ctrl+P</kbd> | Move selection up | Move argument selection up |
-| <kbd>↓</kbd> / <kbd>Ctrl+N</kbd> | Move selection down | Move argument selection down |
-| <kbd>Home</kbd> / <kbd>End</kbd> | Jump to first / last suggestion | Jump to first / last option |
-| <kbd>Tab</kbd> | Fill command into prompt (non-executing) | Fill argument into prompt (non-executing) |
-| <kbd>Enter</kbd> | Execute if 0 args required, else populate | Execute command with selected argument |
-| <kbd>Esc</kbd> | Dismiss suggestion palette | Dismiss argument palette |
-| <kbd>Backspace</kbd> | Delete character / exit palette if empty | Delete character / return to command state |
-
----
-
-## 🤖 Universal Model Runtime & Multi-Provider Architecture
-
-Berkelium interfaces with local and cloud model backends through a unified, high-throughput `ProviderRouter`:
+Clone the repository and build from source:
 
 ```bash
-# Switch active model target on the fly
-/model coding               # Configured primary alias
-/model ollama/qwen2.5:14b   # Zero-latency local Ollama model
-/model lmstudio/deepseek    # Local LM Studio workstation model
-/model nvidia/llama-3.3-70b # High-throughput NVIDIA NIM model
-/model openrouter/deepseek  # OpenRouter universal gateway
+git clone https://github.com/berkelium-org/berkelium.git
+cd berkelium
+pnpm install
+pnpm run build
 ```
 
-### Model Aliases & Default Routing
+Verify that the CLI executable is built and functional:
 
-Configure smart aliases in your `.berkelium/config.json`:
+```bash
+./apps/cli/dist/bin/berkelium.js --version
+```
+
+*(Optional)* Create a symbolic link in your local binary path:
+
+```bash
+ln -sf "$(pwd)/apps/cli/dist/bin/berkelium.js" /usr/local/bin/berkelium
+```
+
+### Initial Diagnostic Check
+
+Run `berkelium doctor` to assess your system environment, hardware detection, runtimes, and providers:
+
+```bash
+berkelium doctor
+```
+
+```
+BERKELIUM DOCTOR
+Diagnostics and environment health assessment
+
+Platform
+  ✓ macOS Operating System           macOS (25.6.0)
+  ✓ Apple Silicon Native (ARM64)     Native arm64 architecture
+  ✓ Apple Silicon Chip (M4 Max)      12P + 4E cores, 40 GPU cores
+  ✓ Model Memory Budget              51.0 GB allocatable for local models
+
+Runtime
+  ✓ Node.js Runtime                  Node v26.8.1
+  ✓ Git Version Control              git version 2.50.1
+  ✓ macOS Keychain Storage           Available
+  ✓ Apple MLX Inference Engine       Ready (v0.29.1)
+  ✓ GGUF (llama.cpp) Inference Engine Ready (installed)
+  ✓ CPU Fallback Inference Engine    Ready
+
+Providers
+  ✓ Google Gemini Provider           Authenticated / API key present
+  ✓ Groq LPU Inference Engine        Authenticated / API key present
+  ✓ OpenRouter Cloud Provider        Authenticated / API key present
+  ✓ Ollama Local Provider            Local service running at 127.0.0.1:11434
+
+✓ No critical system issues found. Berkelium is ready.
+```
+
+### Launch the Terminal Agent
+
+```bash
+berkelium
+```
+
+---
+
+## Local Models
+
+Berkelium manages local models in `~/.berkelium/models/` with an indexed manifest tracking parameter counts, quantization formats, context lengths, and disk footprints.
+
+### Listing Local Models
+
+*(Example terminal output)*:
+
+```
+$ berkelium list
+NAME                    SIZE       RUNTIME    CONTEXT
+────────────────────────────────────────────────────────
+berkelium-coder:3b     2.1 GB     MLX        32K
+qwen3-coder:30b       18.4 GB     MLX        128K
+deepseek-coder:33b    20.1 GB     GGUF       128K
+```
+
+> **Note:** Models are downloaded on demand and are not pre-bundled with the repository.
+
+### Pulling a Model
+
+Download model weights from supported registries or Hugging Face repositories:
+
+```bash
+$ berkelium pull <model>
+```
+
+Example:
+
+```
+$ berkelium pull qwen3-coder:30b
+Pulling model qwen3-coder:30b...
+  Resolving manifest from Hugging Face Hub...
+  Architecture: Qwen2.5-Coder-30B-Instruct (4-bit MLX)
+  Downloading weights: [████████████████████] 100% (18.4 GB)
+  Verifying SHA256 checksum...
+✓ Successfully installed qwen3-coder:30b to ~/.berkelium/models/
+```
+
+### Inspecting Model Metadata
+
+```bash
+$ berkelium show <model>
+```
+
+Example:
+
+```
+$ berkelium show qwen3-coder:30b
+Model:           qwen3-coder:30b
+Architecture:    qwen
+Parameters:      30B (4-bit quantized)
+Context Window:  131,072 tokens
+Runtime:         MLX (Apple Silicon optimized)
+Disk Size:       18.4 GB
+Location:        ~/.berkelium/models/qwen3-coder-30b/
+Capabilities:    chat, code, tool_calling, structured_output
+```
+
+### Selecting an Active Model
+
+Select a model interactively using the arrow-key model picker, or pass a target identifier directly:
+
+```bash
+# Open interactive picker (groups LOCAL and CLOUD models)
+berkelium model
+
+# Direct selection
+berkelium model use local/qwen3-coder:30b
+```
+
+### Process Inspection, Verification, and Removal
+
+```bash
+# List active model processes
+berkelium ps
+
+# Validate file integrity and SHA256 checksums
+berkelium model verify <model>
+
+# Remove a model from local disk
+berkelium rm <model>
+```
+
+---
+
+## Apple Silicon
+
+Berkelium is engineered specifically for Apple Silicon hardware, including M1, M2, M3, M4, and future generations.
+
+```
+┌────────────────────────────────────────────────────────┐
+│                  UNIFIED MEMORY POOL                   │
+├───────────────────────────┬────────────────────────────┤
+│       CPU CORES           │         GPU CORES          │
+│   (Performance +          │   (Metal Graphic &         │
+│    Efficiency Cores)      │    Compute Pipeline)       │
+├───────────────────────────┴────────────────────────────┤
+│         APPLE MLX / NEURAL ENGINE ACCELERATOR          │
+└────────────────────────────────────────────────────────┘
+```
+
+- **Unified Memory Architecture**: CPU, GPU, and Neural Engine access a shared physical memory pool. Weights loaded into memory do not require redundant host-to-device bus transfers.
+- **Sub-Millisecond Hardware Discovery**: `HardwareDetector` queries system control interfaces and native hardware tables in <1ms, identifying exact chip generation, core topologies (Performance vs. Efficiency), GPU core counts, and total system RAM.
+- **Memory-Aware Operation & Dynamic Budgeting**: Berkelium checks available memory before launching a model. It enforces safety headroom to protect against macOS memory compression overhead and system thrashing:
+  ```bash
+  $ berkelium status
+  HARDWARE & MEMORY BUDGET
+  Chip:           M4 Max
+  CPU:            12P + 4E cores
+  GPU:            40 cores
+  Neural Engine:  Available
+  Memory:         37.2 GB available / 64.0 GB total
+  Model Budget:   51.0 GB allocatable
+  ```
+- **MLX Runtime Optimization**: Spawns isolated native `mlx_lm` subprocesses with Server-Sent Events (SSE) streaming, native structured tool calling, and clean signal handling.
+- **Quantization Support**: Runs 4-bit and 8-bit quantized models natively, allowing 30B+ parameter code models to run comfortably within workstation memory.
+- **Context Limits**: Enforces context sliding and token window caps based on physical memory allocation rather than theoretical model ceilings.
+
+---
+
+## Cloud Models
+
+Berkelium provides a unified adapter interface for external inference providers, enabling access to large cloud reasoning models when local compute is insufficient or when remote models are preferred.
+
+*(Example terminal output)*:
+
+```
+$ berkelium cloud providers
+PROVIDER       STATUS
+────────────────────────────
+Gemini         ● CONNECTED
+OpenAI         ○ DISCONNECTED
+Anthropic      ○ DISCONNECTED
+Groq           ● CONNECTED
+```
+
+> **Provider Notice:** Provider availability depends on local implementation, network reachability, and official API support. Berkelium connects via official developer API keys; it does not claim access to third-party consumer subscriptions unless a dedicated and supported API authentication method exists.
+
+### Credential Isolation
+
+API credentials are never saved in project directories, workspace configuration files, or prompt contexts. They are stored securely in macOS Keychain or an encrypted vault fallback:
+
+```bash
+# Securely store a provider API key in macOS Keychain
+berkelium cloud login <provider>
+
+# Or supply via standard environment variables
+export GEMINI_API_KEY="<your-api-key>"
+export GROQ_API_KEY="<your-api-key>"
+export OPENROUTER_API_KEY="<your-api-key>"
+```
+
+### Cloud Operations
+
+```bash
+# Inspect cloud provider status and configuration
+berkelium cloud status
+
+# List models available from a connected provider
+berkelium cloud models gemini
+
+# Select a cloud model target
+berkelium model use cloud/gemini/gemini-3.6-flash
+
+# Review token consumption and cost tracking
+berkelium cloud usage
+```
+
+---
+
+## Local / Cloud / Hybrid
+
+Berkelium allows you to set your execution mode to balance privacy, latency, reasoning depth, and hardware availability:
+
+```
+                 BERKELIUM
+                     │
+              ┌──────┴──────┐
+              │             │
+           LOCAL          CLOUD
+              │             │
+             MLX        API PROVIDER
+              │             │
+              └──────┬──────┘
+                     │
+                    AGENT
+```
+
+### Runtime Modes
+
+```bash
+berkelium mode local
+berkelium mode cloud
+berkelium mode hybrid
+berkelium mode auto
+```
+
+- **`local`**: Strictly local execution. Tokens are processed entirely by your machine's MLX or GGUF runtime. Zero prompt data leaves your device.
+- **`cloud`**: Direct inference via configured remote API providers.
+- **`hybrid`**: Two-stage execution pipeline:
+  1. **Local Context Preparation**: AST parsing, symbol mapping, codebase search, and sensitive file redaction execute locally.
+  2. **Cloud Reasoning**: Complex architectural planning or difficult bug isolation is processed by a high-parameter cloud model.
+  3. **Local Tool Execution**: File mutations, shell commands, and test verification execute locally under strict policy controls.
+- **`auto`**: Evaluates model requirements against currently allocatable unified memory. If the model fits within your hardware budget, Berkelium executes locally; otherwise, it resolves to cloud providers adhering to the active privacy policy.
+
+---
+
+## Agentic Development
+
+Berkelium is built for agentic software engineering. It operates through a bounded iterative state machine that inspects repository context, drafts plans, applies surgical code edits, and executes tests to verify every modification.
+
+```
+INSPECT ──→ PLAN ──→ EDIT ──→ TEST ──→ VERIFY
+                                │         ▲
+                                └── FAIL ─┘
+```
+
+### Realistic Workflow Session
+
+```
+$ berkelium
+› Find and fix the failing authentication tests.
+Inspecting repository...
+Planning:
+  1. Locate authentication middleware
+  2. Trace token validation
+  3. Identify failure
+  4. Apply minimal patch
+  5. Run affected tests
+  6. Run full verification
+Editing:
+  src/auth/middleware.ts
+Testing...
+✓ 47 passed
+✓ 0 failed
+Verified.
+```
+
+### Engineering Loop Invariants
+
+- **Inspect**: Extracts relevant symbols, reads file segments, and locates error traces before touching any code.
+- **Plan**: Constructs an explicit sequence of modification steps visible in the terminal before execution.
+- **Edit**: Performs targeted, non-contiguous patch replacements rather than rewriting entire files.
+- **Test**: Executes workspace test runners (`vitest`, `jest`, `pytest`, `cargo test`, `go test`) to validate fixes.
+- **Verify**: Inspects exit codes and test summaries. If tests fail, the agent analyzes the failure output and attempts a corrected patch within bounded iterations (`max_iterations: 40`, `max_tool_retries: 3`).
+
+---
+
+## Repository Intelligence
+
+Berkelium inspects your codebase efficiently by extracting symbols and structure without exhausting model context budgets.
+
+```bash
+# Generate a token-budgeted AST repository symbol map
+berkelium map
+
+# Search symbols, classes, functions, and interfaces across files
+berkelium search <query>
+
+# Inspect file metadata, line counts, token density, and symbols
+berkelium inspect <path>
+```
+
+### How the Agent Reads Codebases
+
+- **Source Code**: Slices files by line ranges with strict byte and token limits.
+- **Symbols**: Indexes functions, methods, classes, and exported interfaces using AST extractors.
+- **Dependencies**: Analyzes package manifests (`package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`) to determine framework conventions.
+- **Configuration**: Respects `.gitignore`, workspace configuration, and local ignore rules.
+- **Tests**: Identifies test runners, test file naming conventions, and failure stack traces.
+- **Documentation**: Locates project READMEs, architecture documents, and API specifications.
+
+Example output:
+
+```
+$ berkelium search SessionStore
+SEARCH RESULTS FOR "SessionStore"
+Found 1 matching file
+
+  • src/auth/session.ts
+    class SessionStore, method createSession, method invalidateSession
+```
+
+---
+
+## Tools
+
+All tool execution in Berkelium is controlled. The agent cannot execute arbitrary shell commands or write to disk without passing through the policy and permission engine.
+
+```
+Agent
+  ↓
+Policy
+  ↓
+Permission
+  ↓
+Tool
+  ↓
+Result
+```
+
+### Implemented Native Tools
+
+- **`read_file`**: Read file contents with line range slicing and token limits.
+- **`write_file`**: Write new files with atomic workspace validation.
+- **`edit_file`**: Apply non-contiguous line replacements with exact string matching.
+- **`list_dir`**: Traverse directories with recursive entry summaries and size tracking.
+- **`search` / `file_search`**: Find files by path glob matching while respecting ignore rules.
+- **`grep_search`**: Fast regex and literal pattern matching across files.
+- **`shell`**: Execute shell commands inside the workspace directory under security supervision.
+- **`git`**: Inspect repository working tree status, commit history, and diffs.
+- **`test`**: Run workspace test runners with output capture and error parsing.
+- **`lint`**: Execute project linter checks.
+- **`typecheck`**: Validate TypeScript or language-specific types.
+- **`build`**: Execute workspace build scripts and report compiler outputs.
+
+---
+
+## Security
+
+Berkelium treats model output as untrusted. Autonomy is bounded by deterministic policy checks, sandbox constraints, and secret redaction.
+
+```
+MODEL OUTPUT
+      ↓
+POLICY
+      ↓
+PERMISSION
+      ↓
+AUTHORIZATION
+      ↓
+TOOL
+```
+
+### Security Controls
+
+- **Untrusted Model Output**: Model output is treated strictly as an unvalidated proposal. The model cannot execute commands directly; every operation is dispatched through the `ToolOrchestrator`.
+- **Controlled Tool Execution**: Filesystem operations are confined to the workspace root by default. Directory traversal outside the workspace is denied unless explicitly permitted.
+- **Authorization for Destructive Actions**: Destructive operations (such as `git reset --hard`, `git clean -f`, or `rm -rf`) require explicit user confirmation via flags (`--force`) or interactive prompts.
+- **Secret Redaction**: Inputs sent to models and outputs returned from tools are scanned by `SecretRedactor` to prevent API tokens, private keys, passwords, and sensitive strings from entering model context or persistent logs.
+- **Immutable Security Policy**: Workspace repository files cannot override root security policies or disable sandbox boundaries.
+- **Integrity Validation**: Local model files undergo SHA256 checksum verification to ensure downloaded weights have not been corrupted or altered.
+
+---
+
+## Privacy
+
+Berkelium provides explicit privacy tiers to control whether code and context may leave your local machine:
+
+```bash
+berkelium privacy local
+berkelium privacy balanced
+berkelium privacy hybrid
+berkelium privacy cloud
+```
+
+| Privacy Tier | External Inference | Code Transmission | User Confirmation |
+|:---|:---|:---|:---|
+| **`local`** | Blocked | Never leaves machine | None (strictly local operation) |
+| **`balanced`** | Permitted | Permitted with confirmation | Prompts confirmation before cloud escalation |
+| **`hybrid`** | Permitted | Redacted context only | Allows pre-approved cloud models |
+| **`cloud`** | Permitted | Permitted | None (cloud-first operation) |
+
+When operating under `local` privacy mode, any attempted external network call by a model or tool triggers an immediate error:
+
+```
+Error: Privacy policy violation: Outbound network inference blocked under "local" privacy policy.
+```
+
+---
+
+## Accessibility
+
+Berkelium is designed to be accessible to developers using screen readers, Braille displays, high-contrast monitors, or reduced-motion environments.
+
+```bash
+# Enable high-contrast accessibility mode
+berkelium accessibility enable
+
+# Inspect accessibility settings
+berkelium accessibility status
+
+# Run any command without ANSI escape sequences
+berkelium --plain status
+```
+
+### Support Matrix
+
+- **Available**:
+  - Full keyboard navigation throughout all interactive prompts and menus.
+  - Zero-ANSI plain mode (`--plain`) for compatibility with screen readers and Braille terminals.
+  - High-contrast terminal color theme (`high-contrast`).
+  - Structured machine-readable JSON output (`--json`) for scriptable inspection.
+  - Automatic disabling of terminal animations in plain mode.
+- **Planned**:
+  - Speech-to-text voice input bridge (`/voice`).
+  - Text-to-speech audio status updates.
+  - Synthesized audio indicator cues for task success and test failures.
+- **Experimental**:
+  - Large-text layout formatting for low-vision workflows.
+
+---
+
+## Sessions
+
+Berkelium persists task execution state, token consumption metrics, and conversation context in session files located in `~/.berkelium/sessions/`.
+
+```bash
+# List previous sessions
+berkelium session list
+
+# Start a fresh persistent session
+berkelium session new
+
+# Resume a specific session by ID
+berkelium session resume <session-id>
+
+# Delete a session file
+berkelium session delete <session-id>
+```
+
+Example listing:
+
+```
+$ berkelium session list
+PERSISTENT SESSIONS
+Saved state across runs in ~/.berkelium/sessions/
+
+  • ses_1788689423_a1b2c3  2026-09-06 10:10:23  [qwen3-coder:30b]
+    ~/Projects/my-app
+  • ses_1788626096_d4e5f6  2026-09-05 16:35:05  [gemini-3.6-flash]
+    ~/Projects/backend-service
+```
+
+> **Credential Isolation Notice:** Session files persist task history, prompt context, and token usage. API keys, secrets, and authorization tokens are never written into session files.
+
+---
+
+## Slash Commands
+
+In the interactive TUI, typing `/` opens the command palette. It displays available commands, provides fuzzy filtering, and allows keyboard navigation. Typing `/` opens the palette for selection; it does not immediately execute a command.
+
+```
+/
+────────────────────────────────────
+/plan
+/build
+/debug
+/test
+/review
+/search
+/model
+/cloud
+/privacy
+/session
+/help
+↑ ↓ navigate
+Enter select
+Esc close
+```
+
+### Available Interactive Commands
+
+| Slash Command | Description |
+|:---|:---|
+| `/help` | Display all available slash commands and descriptions |
+| `/plan <task>` | Create an implementation plan before executing edits |
+| `/build` | Run project build scripts and parse outputs |
+| `/debug` | Analyze test failure stack traces or error logs |
+| `/test [filter]` | Run workspace test suite or filtered test files |
+| `/review` | Review uncommitted git changes and diffs |
+| `/search <query>`| Search codebase symbols and files |
+| `/model [name]` | Open interactive model picker or select model |
+| `/cloud [action]`| Inspect cloud providers, login, and monitor usage |
+| `/mode [mode]` | Switch execution mode (`local`, `cloud`, `hybrid`, `auto`) |
+| `/privacy [tier]`| Switch data privacy policy (`local`, `balanced`, `hybrid`, `cloud`) |
+| `/session [act]` | Manage persistent sessions (`list`, `resume`, `clear`) |
+| `/context` | Display token budget breakdown and context usage |
+| `/compact` | Losslessly compact conversation history |
+| `/git` | Inspect working tree status |
+| `/diff` | Display uncommitted git diffs |
+| `/theme [name]` | Live-switch terminal color theme |
+| `/clear` | Clear terminal screen buffer |
+| `/quit` | Exit Berkelium CLI |
+
+---
+
+## Diagnostics
+
+Verify your local environment, hardware detection, runtimes, model store, and provider credentials at any time:
+
+```bash
+# Show summary of hardware, memory budget, runtimes, and models
+berkelium status
+
+# Run comprehensive environment diagnostic check
+berkelium doctor
+
+# Run deep health assessment
+berkelium doctor --deep
+```
+
+*(Example diagnostic output)*:
+
+```
+$ berkelium doctor
+CLI                 ✓
+Configuration       ✓
+Runtime             ✓
+Model               ✓
+Storage             ✓
+Agent               ✓
+Tools               ✓
+Permissions         ✓
+Git                 ✓
+Cloud               ✓
+STATUS: READY
+```
+
+---
+
+## Command Reference
+
+| Command | Purpose |
+|:---|:---|
+| `berkelium` | Start the interactive agent |
+| `berkelium run <task>` | Run a task or command non-interactively |
+| `berkelium resume [id]` | Resume a previous session |
+| `berkelium list` | List local models |
+| `berkelium pull <model>` | Download a model |
+| `berkelium show <model>` | Show model information |
+| `berkelium ps` | Show active models |
+| `berkelium rm <model>` | Remove a model |
+| `berkelium model` | Open interactive model picker |
+| `berkelium model use <model>` | Select a model |
+| `berkelium model verify <model>` | Validate model checksum and file integrity |
+| `berkelium model cache` | Inspect model cache disk usage |
+| `berkelium model prune [days]` | Remove models unused for N days |
+| `berkelium runtime list` | List local inference runtimes |
+| `berkelium runtime status` | Inspect runtime health and versions |
+| `berkelium cloud providers` | List supported cloud providers and status |
+| `berkelium cloud models [prov]` | List models from a cloud provider |
+| `berkelium cloud login <prov>` | Store provider API key in Keychain |
+| `berkelium cloud logout <prov>` | Remove provider API key |
+| `berkelium cloud status` | Show cloud provider status |
+| `berkelium cloud usage` | View token usage and cost tracking |
+| `berkelium mode local` | Use local inference |
+| `berkelium mode cloud` | Use cloud inference |
+| `berkelium mode hybrid` | Use hybrid inference |
+| `berkelium mode auto` | Use dynamic resource-aware inference |
+| `berkelium privacy [policy]` | Inspect or set data privacy tier |
+| `berkelium map` | Display AST repository symbol map |
+| `berkelium search <query>` | Search codebase symbols and files |
+| `berkelium inspect <path>` | Inspect file size, lines, tokens, and symbols |
+| `berkelium session list` | List saved persistent sessions |
+| `berkelium session new` | Create a new session |
+| `berkelium session resume <id>` | Resume a specific session |
+| `berkelium session delete <id>` | Delete a saved session |
+| `berkelium git status` | Show working tree status |
+| `berkelium git diff` | Show working tree diff |
+| `berkelium git history [n]` | View recent commit history |
+| `berkelium accessibility [act]` | Enable or disable screen-reader friendly mode |
+| `berkelium config list` | View active layered configuration |
+| `berkelium config get <key>` | Get specific configuration property |
+| `berkelium config set <k> <v>` | Set configuration property override |
+| `berkelium config path` | Show configuration filesystem paths |
+| `berkelium doctor` | Diagnose installation |
+| `berkelium status` | View hardware, memory, runtimes, and models |
+
+---
+
+## Configuration
+
+Berkelium configuration is resolved using a strict 7-tier precedence hierarchy:
+
+```
+Defaults → Global Config → Machine Config → Project Config → Directory Config → Session Config → CLI Flags
+```
+
+Configuration files reside in:
+- Global: `~/.berkelium/config.json`
+- Project: `<workspace>/.berkelium/config.json`
+
+### Configuration Categories
+
+- **`runtime`**: Default local runtime (`mlx`, `gguf`, `cpu`), execution mode (`local`, `cloud`, `hybrid`, `auto`).
+- **`model`**: Default model target identifier, context limit overrides, temperature.
+- **`provider`**: Cloud provider endpoints, timeout thresholds, base URLs.
+- **`privacy`**: Active tier (`local`, `balanced`, `hybrid`, `cloud`), outbound network permissions.
+- **`security`**: Filesystem read/write/delete boundaries, shell execution policies, dangerous command blacklist.
+- **`agent`**: Maximum autonomous iterations (`max_iterations: 40`), retry limits.
+- **`routing`**: Cost caps (`hard_limit_usd`, `warn_limit_usd`), capability routing preferences.
+
+### Example Configuration
 
 ```json
 {
-  "default_model": "coding",
-  "routing": {
-    "primary": "openrouter/coding",
-    "fallback": ["nvidia/coding", "ollama/local", "lmstudio/workstation"]
+  "default_model": "local/qwen3-coder:30b",
+  "runtime": {
+    "default": "mlx",
+    "mode": "local"
   },
-  "models": {
-    "coding": {
-      "provider": "openrouter",
-      "model": "deepseek/deepseek-chat",
-      "context_length": 65536,
-      "max_tokens": 2048
+  "privacy": {
+    "mode": "balanced",
+    "allow_external_inference": true
+  },
+  "cost": {
+    "hard_limit_usd": 10.0,
+    "warn_limit_usd": 5.0
+  },
+  "permissions": {
+    "filesystem": {
+      "read": "allow",
+      "write": { "workspace": "allow", "outside_workspace": "ask" },
+      "delete": { "workspace": "ask", "outside_workspace": "deny" }
     },
-    "reasoning": {
-      "provider": "openrouter",
-      "model": "deepseek/deepseek-r1",
-      "context_length": 163840
+    "shell": {
+      "enabled": true,
+      "ask_on_destructive": true
     },
-    "local": {
-      "provider": "ollama",
-      "model": "qwen2.5:14b-instruct-q4_K_M",
-      "context_length": 32768
-    },
-    "fast": {
-      "provider": "openrouter",
-      "model": "google/gemini-2.0-flash-001",
-      "context_length": 1048576
+    "network": {
+      "allow_outbound": true
     }
+  },
+  "ui": {
+    "theme": "berkelium-dark",
+    "launch_animation": true,
+    "plain_mode": false
+  },
+  "agent": {
+    "max_iterations": 40
   }
 }
 ```
 
-### Auto-Pasted API Key Detection
-
-Paste raw API keys directly into the interactive prompt for instant zero-configuration registration:
-- `sk-or-v1-...` → Stored automatically for **OpenRouter** in macOS Keychain.
-- `nvapi-...` → Stored automatically for **NVIDIA NIM** in macOS Keychain.
-- `sk-ant-...` → Stored automatically for **Anthropic** in macOS Keychain.
-- `sk-proj-...` / `sk-...` → Stored automatically for **OpenAI** in macOS Keychain.
+> **Credential Notice:** Do not write raw API credentials into configuration files. Store them securely in macOS Keychain using `berkelium cloud login <provider>` or export them via environment variables.
 
 ---
 
-## ⚙️ 12-State Agent Runtime & Autonomous Execution Loop
-
-The Berkelium core runtime operates as a deterministic, resilient finite state machine:
+## Architecture
 
 ```
- ┌─────────┐     User Input      ┌────────────┐
- │  IDLE   │ ──────────────────> │  THINKING  │
- └─────────┘                     └─────┬──────┘
-      ▲                                │
-      │                                ▼
-      │                          ┌────────────┐
-      │ Task Done / Cancelled    │  PLANNING  │
-      │                          └─────┬──────┘
-      │                                │
-      │                                ▼
-      │                  ┌───────────────────────────┐
-      │                  │  WAITING_FOR_PERMISSION   │
-      │                  └─────────────┬─────────────┘
-      │                                │ Approved
-      │                                ▼
-      │                  ┌───────────────────────────┐
-      │                  │      EXECUTING_TOOL       │
-      │                  └─────────────┬─────────────┘
-      │                                │
-      │                                ▼
-      │                  ┌───────────────────────────┐
-      │                  │         VERIFYING         │
-      │                  │ (Build -> Test -> Lint)   │
-      │                  └─────────────┬─────────────┘
-      │                                │
-      │       ┌────────────────────────┴────────────────────────┐
-      │       ▼                                                 ▼
-┌───────────┐   ┌────────┐                                ┌──────────┐
-│ COMPLETED │   │ FAILED │                                │ CANCELLED│
-└───────────┘   └────────┘                                └──────────┘
+                     BERKELIUM CLI
+                           │
+                     ┌─────▼─────┐
+                     │   Agent   │
+                     └─────┬─────┘
+                           │
+                    ┌──────▼──────┐
+                    │ Model Router│
+                    └──────┬──────┘
+                           │
+             ┌─────────────┼─────────────┐
+             ▼             ▼             ▼
+           Local         Cloud         Hybrid
+             │             │             │
+            MLX        Providers      Local + Cloud
+             │             │             │
+             └─────────────┼─────────────┘
+                           │
+                     ┌─────▼─────┐
+                     │   Tools   │
+                     └───────────┘
 ```
 
-### The 12 Runtime States
-
-| State | Description | Event Triggered |
-| :--- | :--- | :--- |
-| `IDLE` | Waiting for user command or task in interactive prompt. | `session_idle` |
-| `THINKING` | Inspecting context, evaluating prompt, formulating reasoning. | `thinking_started` |
-| `PLANNING` | Generating structured multi-step task execution plan. | `plan_generated` |
-| `WAITING_FOR_PERMISSION` | Awaiting user confirmation for high-risk operations. | `permission_requested` |
-| `EXECUTING_TOOL` | Running sandboxed native tool or MCP call. | `tool_started` |
-| `WAITING_FOR_MODEL` | Awaiting streaming response chunk from provider adapter. | `model_stream_chunk` |
-| `COMPACTING_CONTEXT` | Losslessly pruning conversation history & token budget. | `compaction_completed` |
-| `RUNNING_SUBAGENT` | Delegating isolated sub-task to specialized subagent. | `subagent_spawned` |
-| `VERIFYING` | Running automated build, test, lint, and diff validation. | `verification_step` |
-| `COMPLETED` | Task successfully accomplished and verified. | `task_completed` |
-| `FAILED` | Unrecoverable error encountered after retries. | `task_failed` |
-| `CANCELLED` | Aborted by user via <kbd>Ctrl+C</kbd> or `/reset`. | `task_cancelled` |
-
-### Self-Healing Verification Pipeline
-
-When modifications are made to your codebase, Berkelium's `Verifier` automatically runs a continuous quality gate:
-
-1. **CHANGE**: Surgical multi-file edits applied via `edit_file` / `write_file`.
-2. **BUILD**: Runs project compiler (`npm run build`, `pnpm build`, `tsc`, `cargo build`).
-3. **TEST**: Runs targeted unit and regression test suites.
-4. **LINT**: Validates formatting and static analysis rules.
-5. **DIFF REVIEW**: Performs automated semantic diff audit against architectural boundaries.
-6. **HEAL**: If build, test, or lint fails, the error output is piped back to the `Planner` for automated correction without manual developer intervention.
+- **Agent Engine**: Autonomous state machine coordinating planning, context budgeting, tool execution, and verification.
+- **Model Router**: Resolves unified target identifiers (`local/...`, `cloud/...`) based on capability requirements, cost constraints, and privacy policies.
+- **Inference Layer**: Direct bindings to Apple MLX and GGUF subprocesses locally, or HTTPS streaming adapters for remote cloud providers.
+- **Tool Orchestrator**: Gated execution layer enforcing permission checks, workspace boundaries, and secret redaction.
 
 ---
 
-## 👥 Subagent Multi-Agent Persona System
+## Troubleshooting
 
-Complex architectural tasks are decomposed across specialized subagent personas:
+### Model will not load
+- **Symptom**: CLI reports `Model allocation failed` or local process terminates immediately upon loading.
+- **Cause**: The requested model exceeds the available unified memory budget.
+- **Command to diagnose**: `berkelium status`
+- **Possible fix**: Select a smaller model or higher quantization tier (e.g. 4-bit instead of 8-bit/fp16), or switch to a cloud target using `berkelium model use cloud/gemini/gemini-3.6-flash`.
 
-```
-                            SUBAGENT ORCHESTRATOR
-                                      │
-        ┌──────────────┬──────────────┼──────────────┬──────────────┐
-        ▼              ▼              ▼              ▼              ▼
-    EXPLORER         CODER          TESTER        REVIEWER       CUSTOM
-  (RepoMap AST,   (Surgical      (Test Runner,  (Diff Audit,   (Project
-   Symbols)       Mutations)     Regressions)   Security)      Defined)
-```
+### Runtime unavailable
+- **Symptom**: `Runtime MLX unavailable` or `llama-server not found`.
+- **Cause**: The underlying engine dependencies are not installed in your environment.
+- **Command to diagnose**: `berkelium doctor`
+- **Possible fix**: For MLX on Apple Silicon, ensure Python 3.10+ and `mlx-lm` are installed (`pip install mlx-lm`). For GGUF, ensure `llama-server` is in your system `$PATH`.
 
-1. **Explorer**: Read-only codebase traversal. Extracts AST symbol definitions, traces dependency trees, and identifies relevant modules without modifying files.
-2. **Coder**: High-precision code generation and surgical diff editing. Enforces language-specific typing and strict architectural modularity.
-3. **Tester**: Executes test runners (`vitest`, `jest`, `pytest`, `cargo test`), parses failure stack traces, and pinpoints breaking regressions.
-4. **Reviewer**: Audits git working tree diffs, checks security invariants, detects credential leaks, and verifies AGENTS.md rule compliance.
+### Cloud provider unavailable
+- **Symptom**: Remote inference returns network timeout or connection refused.
+- **Cause**: Provider endpoint is unreachable, service is degraded, or firewall is blocking outbound HTTPS.
+- **Command to diagnose**: `berkelium cloud status`
+- **Possible fix**: Check external provider status pages, verify network connectivity, or switch to local inference with `berkelium mode local`.
 
-Inspect subagents live via `/agents` or delegate tasks directly:
-```bash
-/agents coder "Implement JWT token validation in auth service"
-```
+### Authentication failure
+- **Symptom**: Cloud model calls return `401 Unauthorized` or `Invalid API Key`.
+- **Cause**: The stored credential has expired, been revoked, or contains whitespace.
+- **Command to diagnose**: `berkelium cloud status`
+- **Possible fix**: Re-authenticate with `berkelium cloud login <provider>` or export a fresh key in your shell environment.
 
----
+### Insufficient memory
+- **Symptom**: System reports high memory pressure or inference slows significantly during generation.
+- **Cause**: Other applications are competing for unified memory.
+- **Command to diagnose**: `berkelium status`
+- **Possible fix**: Close background memory-heavy applications, lower model context length in `.berkelium/config.json`, or switch execution to `berkelium mode hybrid`.
 
-## 🧠 Lossless Context Engine & AST Compaction
+### Model download failed
+- **Symptom**: `berkelium pull` terminates with network error or checksum mismatch.
+- **Cause**: Network interruption or invalid model repository identifier.
+- **Command to diagnose**: `berkelium model verify <model>`
+- **Possible fix**: Verify repository name and re-run `berkelium pull <model>`.
 
-Berkelium maintains ultra-lean token usage without losing critical architectural references through its tokenizer-aware context engine:
+### Agent cannot execute a command
+- **Symptom**: Tool execution outputs `Permission denied by security policy`.
+- **Cause**: The command attempts to modify files outside the workspace root or matches a restricted shell pattern.
+- **Command to diagnose**: Check permissions with `/permissions` in the interactive session or view `.berkelium/config.json`.
+- **Possible fix**: Adjust permission settings in `<workspace>/.berkelium/config.json` if the operation is legitimate.
 
-```
-Input Tokens: 4,000  ───►  Lossless Compactor  ───►  Output Tokens: 1,852 (-54%)
-```
+### Tests fail during agent task
+- **Symptom**: Agent stops and reports test regression after applying edits.
+- **Cause**: The generated code patch broke an existing test assertion.
+- **Command to diagnose**: Review the test execution output displayed in the terminal.
+- **Possible fix**: The agent will automatically inspect the failure and attempt a patch within its iteration budget. If stalled, type `/reset` to clear the conversation context.
 
-### Context Pipeline Components
-
-1. **BPE Tokenizer**: Blazing-fast token counter operating at **49.9 million tokens/second**.
-2. **RepoMap Generator**: Dynamic AST symbol graph containing exported interfaces, classes, functions, and module dependency relationships.
-3. **Smart File Ranker**: Heuristic ranking based on recency, working tree git status, import proximity, and keyword relevance.
-4. **Lossless Compaction**: Replaces voluminous intermediate tool outputs with structural summaries while strictly preserving active file diffs and unresolved compiler errors.
-
-Inspect your live context budget:
-```bash
-/context
-/compact
-```
-
----
-
-## 🛠 20+ Sandboxed Native Tools & MCP Bridge
-
-Berkelium provides a comprehensive suite of built-in native tools operating under strict permission policies:
-
-| Category | Tool | Parameters | Description | Policy Default |
-| :--- | :--- | :--- | :--- | :--- |
-| **Filesystem** | `read_file` | `path`, `offset?`, `length?` | Read file contents with range support | `ALLOW` |
-| | `write_file` | `path`, `content`, `overwrite?` | Write new file to workspace | `ALLOW` |
-| | `edit_file` | `path`, `target`, `replacement` | Surgical text replacement in file | `ALLOW` |
-| | `delete_file` | `path` | Delete workspace file | `PROMPT` |
-| | `list_directory` | `path`, `recursive?` | List directory tree structure | `ALLOW` |
-| | `search_files` | `pattern`, `directory?` | Find files matching glob pattern | `ALLOW` |
-| | `search_text` | `query`, `path?`, `regex?` | Fast semantic grep across files | `ALLOW` |
-| **Shell & Process** | `run_shell` | `command`, `timeout_ms?` | Execute safe terminal command | `ALLOW (safe) / PROMPT (destr)` |
-| | `run_process` | `command`, `args`, `cwd?` | Run detached or background process | `PROMPT` |
-| **Git Intelligence** | `git_status` | *(none)* | Inspect working tree git status | `ALLOW` |
-| | `git_diff` | `path?`, `cached?` | View git unified diff | `ALLOW` |
-| | `git_log` | `count?` | View recent git commits | `ALLOW` |
-| | `git_branch` | *(none)* | List local & remote git branches | `ALLOW` |
-| | `git_commit` | `message` | Create staged git commit | `ALLOW` |
-| **Diagnostics** | `inspect_project`| *(none)* | Detect package managers, configs & stack | `ALLOW` |
-| | `diagnostics` | `path?` | Run project diagnostics & typechecks | `ALLOW` |
-| | `test` | `filter?` | Run project unit test suites | `ALLOW` |
-| | `lint` | `fix?` | Run linters and formatting tools | `ALLOW` |
-| | `build` | *(none)* | Run project build pipeline | `ALLOW` |
-| **Web & Network** | `fetch_url` | `url`, `method?`, `headers?` | Fetch HTTP resource content | `PROMPT` |
-| | `web_search` | `query` | Query web search engines | `PROMPT` |
-| **MCP Bridge** | `mcp-bridge` | Dynamic MCP schema | Connect external Model Context Protocol servers | `PROMPT` |
-
-### Model Context Protocol (MCP) Integration
-
-Connect external tools via standard MCP server definitions in `.berkelium/mcp.json` or `~/.berkelium/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "..." }
-    },
-    "postgres": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"]
-    }
-  }
-}
-```
+### Ctrl+C does not stop an operation
+- **Symptom**: Pressing `Ctrl+C` does not exit the running process.
+- **Cause**: The CLI is running inside a detached subshell or handling an active child subprocess.
+- **Command to diagnose**: Check active subprocesses with `berkelium ps`.
+- **Possible fix**: In an interactive terminal, a single `Ctrl+C` sends an abort signal to the running task; pressing `Ctrl+C` a second time within 1.5 seconds forces an immediate exit.
 
 ---
 
-## 🔒 Enterprise Security, Permissions & Credential Isolation
+## Development
 
-Berkelium enforces mandatory multi-tier security policies before performing any filesystem mutation, process invocation, or network communication:
+Berkelium is maintained as a pnpm monorepo written in TypeScript using composite project references.
 
-```
-╭──────────── BERKELIUM PERMISSIONS ─────────────╮
-│                                                │
-│ Filesystem                                     │
-│ Read workspace                ALLOW            │
-│ Write workspace               ALLOW            │
-│ Delete workspace              PROMPT           │
-│ Outside workspace             DENY             │
-│                                                │
-│ Shell                                          │
-│ Safe commands (ls, git, cat)  ALLOW            │
-│ Destructive commands (rm, mv) PROMPT           │
-│ Privileged commands (sudo)    DENY             │
-│                                                │
-│ Network                                        │
-│ HTTP requests                 PROMPT           │
-╰────────────────────────────────────────────────╯
-```
-
-### Security Tiers
-
-1. **`ALLOW`**: Executed autonomously without interrupting the developer.
-2. **`PROMPT`**: Displays interactive confirmation modal detailing the exact command/diff before execution.
-3. **`DENY`**: Hard-blocked by `PermissionEngine` (e.g., accessing files outside the workspace jail, executing `sudo` or `rm -rf /`).
-
-### Automated Secret Redaction
-
-The built-in `SecretRedactor` scans all model inputs, tool outputs, and telemetry streams in real-time, automatically masking:
-- OpenAI / OpenRouter / Anthropic API keys (`sk-...`, `sk-or-v1-...`, `sk-ant-...`)
-- NVIDIA NIM API keys (`nvapi-...`)
-- AWS Access Keys & Secret Keys (`AKIA...`)
-- GitHub Personal Access Tokens (`ghp_...`, `gho_...`)
-- JSON Web Tokens (`eyJ...`)
-- RSA / OpenSSH Private Keys (`-----BEGIN OPENSSH PRIVATE KEY-----`)
-
----
-
-## 📜 7-Tier Configuration Precedence & Layered System Prompts
-
-### Configuration Hierarchy
-
-Berkelium resolves settings through a strict 7-tier precedence hierarchy:
-
-```
-  CLI Flags                (--model, --provider, --theme)
-     ▲
-  Session Config           (Live overrides set in active TUI session)
-     ▲
-  Directory Config         (./.berkelium/dir.json)
-     ▲
-  Project Config           (./berkelium.json or ./.berkelium/config.json)
-     ▲
-  Machine Config           (/etc/berkelium/config.json)
-     ▲
-  Global Config            (~/.berkelium/config.json)
-     ▲
-  Default Config           (Compiled package defaults)
-```
-
-### Composable 7-Layer System Prompt
-
-The system prompt sent to models is dynamically composed from isolated layers:
-
-```
-┌────────────────────────────────────────────────────────────┐
-│ 1. Identity Layer   (Persona, agent role, invariants)      │
-│ 2. Behavior Layer   (Thinking mode, response guidelines)   │
-│ 3. Coding Layer     (Code style, typing, architecture)     │
-│ 4. Safety Layer     (Credential redaction, boundary rules) │
-│ 5. Tools Layer      (Tool calling schema & discipline)     │
-│ 6. Workspace Layer  (Dynamic RepoMap, active files tree)   │
-│ 7. Custom Layer     (Project AGENTS.md / custom overrides) │
-└────────────────────────────────────────────────────────────┘
-```
-
-Inspect and modify layers live from the terminal:
-```bash
-/system view
-/system file                         # Opens macOS Finder pop-up selector to choose text file
-/system file coding                  # Opens Finder selector and imports into 'coding' layer
-/system file custom ./prompt.txt     # Loads directly from text/markdown file
-/system set coding "Enforce strict TypeScript with zero any types and FP patterns"
-/system reset coding
-/system export ./composed-system-prompt.md
-```
-
----
-
-## 🎨 Theming Engine & Live Matrix Rain Animation
-
-Switch terminal aesthetics instantly without restarting:
+### Building from Source
 
 ```bash
-/theme berkelium-dark   # Electric cyan & deep obsidian (default)
-/theme matrix           # Neon green cyberpunk hacker terminal
-/theme dracula          # Classic vampire purple & vibrant pink
-/theme nord             # Arctic ice blue & cool slate tones
-/theme solarized-dark   # Warm teal & earthy dark palette
-/theme cyberpunk        # Hot neon pink, electric yellow & cyan
-/theme monokai          # Golden yellow, magenta & charcoal
-/theme terminal         # Classic retro amber CRT phosphor
-```
-
-### Bk Matrix Digital Rain
-
-Trigger the neural digital rain stream animation anytime via `/matrix`:
-
-```bash
-/matrix matrix          # Launch digital rain in matrix neon green
-/matrix cyberpunk       # Launch digital rain in cyberpunk neon pink
-```
-
-Featuring the Element 97 emblem and the brand tagline:  
-**`PROUDLY INDIAN. BUILT FOR THE WORLD.`**
-
----
-
-## 🔌 Plugin Architecture & Lifecycle Hooks
-
-Extend Berkelium with custom plugins placed in `.berkelium/plugins/<plugin-name>/`:
-
-```
-.berkelium/plugins/my-plugin/
-├── plugin.json               # Plugin metadata & manifest
-└── index.js                  # Lifecycle hook handlers
-```
-
-### Supported Lifecycle Hooks
-
-- `before_tool`: Intercept, inspect, or modify tool arguments before execution.
-- `after_tool`: Transform or validate tool execution results before model ingestion.
-- `before_model`: Modify prompt payloads, add custom context layers, or reroute requests.
-- `after_model`: Inspect streaming chunks or normalized responses.
-- `on_state_change`: Listen for transitions across the 12 runtime states.
-
----
-
-## 📈 Telemetry, Metrics & Audit Logging
-
-Berkelium provides deep observability into latency, throughput, and operational security:
-
-- **Time to First Token (TTFT)**: High-resolution profiler measuring streaming responsiveness.
-- **Token Throughput**: Real-time tokens/second accumulator tracked across all provider streams.
-- **Audit Logging**: Human-readable and structured JSON logs written to `.berkelium/logs/audit.jsonl`.
-- **System Metrics**: Live memory footprint (RSS, Heap), active handles, and loop iteration counts.
-
-Inspect runtime telemetry live:
-```bash
-/status
-```
-
----
-
-## 💻 CLI Commands & Interactive Slash Command Reference
-
-### Global CLI Commands
-
-```bash
-bk                         # Launch interactive Berkelium TUI session
-bk "Refactor auth tokens"  # One-shot headless autonomous execution
-bk doctor                  # Run comprehensive environment & provider diagnostics
-bk models                  # List all local & cloud models discovered
-bk auth                    # Inspect Keychain & vault credential statuses
-bk codex                   # Display the Berkelium Codex Emblem
-```
-
-### CLI Flags
-
-| Flag | Short | Description | Example |
-| :--- | :--- | :--- | :--- |
-| `--model` | `-m` | Specify active model or alias | `bk -m reasoning` |
-| `--provider` | `-p` | Specify active provider | `bk -p ollama` |
-| `--theme` | `-t` | Set terminal UI color theme | `bk -t matrix` |
-| `--cwd` | `-C` | Set working directory root | `bk -C /path/to/project` |
-| `--max-iterations`| `-i` | Override max autonomous loops | `bk -i 50` |
-| `--verbose` | `-v` | Enable verbose debugging logs | `bk -v` |
-| `--version` | `-V` | Print Berkelium CLI version | `bk -V` |
-| `--help` | `-h` | Display CLI help menu | `bk -h` |
-
-### Complete Slash Command Reference
-
-| Command | Aliases | Usage | Category | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| **`/help`** | `/?` | `/help [command]` | `GENERAL` | Display all commands or inspect detailed command usage |
-| **`/clear`** | `/cls` | `/clear` | `GENERAL` | Clear terminal screen |
-| **`/reset`** | *(none)* | `/reset` | `GENERAL` | Reset active conversation session context |
-| **`/quit`** | `/exit`, `/q`| `/quit` | `GENERAL` | Exit Berkelium CLI |
-| **`/model`** | `/m` | `/model <model_name>` | `MODEL` | Switch active model target or alias (with dynamic completion) |
-| **`/models`**| *(none)* | `/models` | `MODEL` | List discovered local & cloud models across providers |
-| **`/provider`**| `/p` | `/provider <name>` | `PROVIDERS` | Change active default provider target |
-| **`/providers`**| *(none)*| `/providers` | `PROVIDERS` | List supported model providers and endpoints |
-| **`/auth`** | *(none)* | `/auth [status\|login\|logout]` | `PROVIDERS` | Manage API keys in macOS Keychain / Encrypted Vault |
-| **`/context`**| `/ctx` | `/context` | `CONTEXT` | Inspect token budget breakdown & context utilization |
-| **`/compact`**| *(none)* | `/compact` | `CONTEXT` | Losslessly compact conversation history & token budget |
-| **`/tools`** | `/t` | `/tools [tool_name]` | `TOOLS` | List all registered native tools & MCP server schemas |
-| **`/agents`**| `/subagents`| `/agents [name]` | `AGENTS` | Inspect and manage specialized subagents |
-| **`/config`**| `/cfg` | `/config` | `CONFIGURATION` | Inspect active 7-tier hierarchical configuration |
-| **`/system`**| `/prompt`| `/system [view\|file\|set\|load\|reset]` | `CONFIGURATION` | Inspect, edit, or import layered system prompts from text files / Finder selector |
-| **`/permissions`**| `/perms`| `/permissions` | `PERMISSIONS` | Inspect security, filesystem jail & shell policies |
-| **`/theme`** | *(none)* | `/theme [theme_name]` | `THEMES` | Live-switch terminal color theme (8 built-in themes) |
-| **`/matrix`**| *(none)* | `/matrix [theme]` | `THEMES` | Trigger live Matrix neural digital rain stream animation |
-| **`/git`** | *(none)* | `/git` | `GIT` | Show working tree git status & branch info |
-| **`/diff`** | *(none)* | `/diff` | `GIT` | Show current git working tree unified diff |
-| **`/commit`**| *(none)* | `/commit [message]` | `GIT` | Create git commit with automated AI message |
-| **`/session`**| *(none)* | `/session [list\|resume]` | `SESSION` | Manage persisted sessions and conversation states |
-| **`/history`**| *(none)* | `/history` | `SESSION` | View session command, task, and message history |
-| **`/test`** | *(none)* | `/test [filter]` | `DEVELOPMENT` | Run workspace unit test suite |
-| **`/build`** | *(none)* | `/build` | `DEVELOPMENT` | Run workspace build pipeline scripts |
-| **`/review`**| *(none)* | `/review` | `DEVELOPMENT` | Ask Berkelium to review current git working tree changes |
-| **`/fix`** | *(none)* | `/fix [issue]` | `DEVELOPMENT` | Diagnose errors and apply automated self-healing fixes |
-| **`/refactor`**| *(none)*| `/refactor [target]` | `DEVELOPMENT` | Refactor codebase architecture cleanly |
-| **`/explain`**| *(none)* | `/explain [topic]` | `DEVELOPMENT` | Provide deep architectural walkthrough of codebase |
-| **`/status`**| *(none)* | `/status` | `SYSTEM` | View runtime state machine & telemetry statistics |
-| **`/doctor`**| *(none)* | `/doctor` | `SYSTEM` | Diagnose local environment, providers & tools |
-| **`/version`**| `/v` | `/version` | `SYSTEM` | Show Berkelium CLI version and platform architecture |
-
----
-
-## 📊 Verification & Performance Benchmarks
-
-### Automated Test Suite (52/52 Passing)
-
-```bash
-$ pnpm test
-
- ✓ tests/unit/command-registry.test.ts (4 tests)
- ✓ tests/unit/command-matcher.test.ts (4 tests)
- ✓ tests/unit/themes.test.ts (3 tests)
- ✓ tests/unit/normalizer.test.ts (2 tests)
- ✓ tests/unit/config.test.ts (3 tests)
- ✓ tests/unit/redaction.test.ts (3 tests)
- ✓ tests/unit/tools.test.ts (3 tests)
- ✓ tests/unit/system-prompt.test.ts (3 tests)
- ✓ tests/unit/permissions.test.ts (3 tests)
- ✓ tests/unit/compaction.test.ts (2 tests)
- ✓ tests/golden/golden-workflow.test.ts (1 test)
- ✓ tests/unit/slash-detection-regression.test.ts (2 tests)
- ✓ tests/unit/dynamic-completion.test.ts (4 tests)
- ✓ tests/integration/agent-loop.test.ts (1 test)
- ✓ tests/unit/input-state-machine.test.ts (7 tests)
- ✓ tests/unit/slash-options.test.ts (2 tests)
- ✓ tests/unit/bk-matrix.test.ts (3 tests)
- ✓ tests/unit/auth-command.test.ts (2 tests)
-
- Test Files  18 passed (18)
-      Tests  52 passed (52)
-   Duration  624ms
-```
-
-### Performance Benchmarks
-
-```bash
-$ pnpm bench
-
-╔════════════════════════════════════════════════════════════╗
-║             BERKELIUM PERFORMANCE BENCHMARKS               ║
-╚════════════════════════════════════════════════════════════╝
-
-[1] Cold Startup Latency:      21 ms   (Budget: <150ms)           ✓ PASS
-[2] ToolBench Schema Accuracy: 100.0%  (6/6 tools verified)       ✓ PASS
-[3] Tokenizer Throughput:      0.28 ms (49,931,911 tokens/sec)    ✓ PASS
-[4] Context Compaction:        0.34 ms (4000 -> 1852 tokens, -54%)✓ PASS
-[5] Memory Footprint (RSS):    74.0 MB (Budget: <100MB)           ✓ PASS
-```
-
----
-
-## 🚀 Installation & Developer Quickstart
-
-### Prerequisites
-
-- **macOS** (Apple Silicon M1/M2/M3/M4 or Intel) or **Linux**
-- **Node.js** >= `v20.0.0`
-- **pnpm** >= `v9.0.0`
-
-### Setup & Build
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/enigmahacker/berkelium.git
+# Clone the repository
+git clone https://github.com/berkelium-org/berkelium.git
 cd berkelium
 
-# 2. Install monorepo dependencies
+# Install dependencies
 pnpm install
 
-# 3. Build all packages
-pnpm build
+# Build all packages and CLI application
+pnpm run build
 
-# 4. Run test suites
-pnpm test
+# Typecheck with TypeScript composite references
+pnpm run typecheck
 
-# 5. Run performance benchmarks
-pnpm bench
-
-# 6. Link `bk` globally to your system PATH
-npm link --force
-
-# 7. Launch Berkelium!
-bk
+# Run test suite
+pnpm run test
 ```
 
-### Setting Up Providers
+### Validation Workflow
+
+Run the complete validation suite before submitting code:
 
 ```bash
-# Option A: Paste your API key directly into the Berkelium interactive prompt
-bk
-berkelium > sk-or-v1-xxxxxxxxxxxxxxxxxxxx
+# Run unit, integration, and security tests
+pnpm run test
 
-# Option B: Use the /auth slash command
-berkelium > /auth login openrouter
+# Typecheck across all workspace packages
+pnpm run typecheck
 
-# Option C: Use standard environment variables
-export OPENROUTER_API_KEY="sk-or-v1-..."
-export NVIDIA_API_KEY="nvapi-..."
-export OPENAI_API_KEY="sk-..."
-export ANTHROPIC_API_KEY="sk-ant-..."
+# Verify build outputs
+pnpm run build
 ```
 
 ---
 
-## 📄 License & Trademark
+## Contributing
 
-Distributed under the **MIT License**. See `LICENSE` for more information.
+Contributions that improve Berkelium while preserving its architectural boundaries are welcome:
 
-```
-       PROUDLY INDIAN. BUILT FOR THE WORLD.
-                   ─────────────
-      BERKELIUM CODEX // NEURAL CODING RUNTIME
-```
+1. **Preserve Architectural Invariants**: Maintain provider neutrality. Never place provider-specific logic, endpoints, or error formatting inside `AgentRuntime`.
+2. **Apple Silicon First**: Preserve sub-150ms startup latency, sub-millisecond hardware detection, and lean memory footprints. Avoid background daemons.
+3. **Decouple UI from Execution**: All terminal UI updates must originate from `AgentEvents` dispatched through the `EventBus`. Never couple TUI rendering directly to model APIs.
+4. **Enforce Security & Privacy Controls**: All filesystem mutations, shell executions, and outbound network requests must pass through `PermissionEngine` and privacy validation.
+5. **Add Tests**: All new features require corresponding unit tests, type validation (`pnpm run typecheck`), and regression coverage for bug fixes.
+6. **Document Behavioral Changes**: Keep command references, configuration schemas, and options updated.
+
+---
+
+## Security Reporting
+
+If you discover a security vulnerability, sandbox escape, or credential leakage issue in Berkelium, please report it responsibly:
+
+- Do **not** post vulnerability details in public GitHub issues, discussions, or pull requests.
+- Do **not** include actual API keys, passwords, private keys, or personal tokens in reports.
+- Disclose findings privately through repository security advisories or by contacting the project maintainers.
+
+---
+
+## Roadmap
+
+- [x] Local model runtime abstraction (MLX, GGUF, CPU)
+- [x] Model management (`pull`, `list`, `show`, `rm`, `ps`, `verify`)
+- [x] Apple Silicon hardware detection and unified memory budgeting
+- [x] Cloud provider adapters (Gemini, OpenRouter, Groq, NVIDIA NIM, Hugging Face)
+- [x] Capability-aware model routing and unified target identifiers
+- [x] Local, cloud, hybrid, and auto inference modes
+- [x] Data privacy governance tiers (`local`, `balanced`, `hybrid`, `cloud`)
+- [x] Agentic development loop (inspect, plan, edit, test, verify)
+- [x] Repository intelligence (AST symbol mapper, search, file inspector)
+- [x] Sandboxed native tools and permission engine
+- [x] Safe Git operations with destructive command protection
+- [x] Persistent session management (`list`, `new`, `resume`, `delete`)
+- [x] Interactive terminal model picker and `/` command palette
+- [x] Screen-reader friendly accessibility mode (`--plain`) and high-contrast theme
+- [x] Environment health diagnostics (`berkelium doctor`)
+- [ ] Speech-to-text voice input bridge
+- [ ] Text-to-speech audio status cues
+- [ ] Multi-node distributed inference bridge
+
+---
+
+## License
+
+License: To be determined.
