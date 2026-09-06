@@ -206,6 +206,150 @@ export const BerkeliumConfigSchema = z.object({
             model: 'meta/llama-3.3-70b-instruct',
             context_length: 131072,
         },
+        // ── Anthropic Claude (via OpenRouter) ──────────────────────────
+        anthropic: {
+            provider: 'openrouter',
+            model: 'anthropic/claude-3.7-sonnet',
+            context_length: 200000,
+        },
+        claude: {
+            provider: 'openrouter',
+            model: 'anthropic/claude-3.7-sonnet',
+            context_length: 200000,
+        },
+        'claude-thinking': {
+            provider: 'openrouter',
+            model: 'anthropic/claude-3.7-sonnet:thinking',
+            context_length: 200000,
+        },
+        'claude-3.5-sonnet': {
+            provider: 'openrouter',
+            model: 'anthropic/claude-3.5-sonnet',
+            context_length: 200000,
+        },
+        'claude-haiku': {
+            provider: 'openrouter',
+            model: 'anthropic/claude-3.5-haiku',
+            context_length: 200000,
+        },
+        'claude-opus': {
+            provider: 'openrouter',
+            model: 'anthropic/claude-3-opus',
+            context_length: 200000,
+        },
+        'claude-4.5': {
+            provider: 'openrouter',
+            model: 'anthropic/claude-sonnet-4-5',
+            context_length: 200000,
+        },
+        'claude-opus-4.5': {
+            provider: 'openrouter',
+            model: 'anthropic/claude-opus-4-5',
+            context_length: 200000,
+        },
+        // ── OpenAI (via OpenRouter) ────────────────────────────────────
+        openai: {
+            provider: 'openrouter',
+            model: 'openai/gpt-4o',
+            context_length: 128000,
+        },
+        gpt4o: {
+            provider: 'openrouter',
+            model: 'openai/gpt-4o',
+            context_length: 128000,
+        },
+        'gpt4o-mini': {
+            provider: 'openrouter',
+            model: 'openai/gpt-4o-mini',
+            context_length: 128000,
+        },
+        o1: {
+            provider: 'openrouter',
+            model: 'openai/o1',
+            context_length: 200000,
+        },
+        'o1-mini': {
+            provider: 'openrouter',
+            model: 'openai/o1-mini',
+            context_length: 128000,
+        },
+        o3: {
+            provider: 'openrouter',
+            model: 'openai/o3',
+            context_length: 200000,
+        },
+        'o3-mini': {
+            provider: 'openrouter',
+            model: 'openai/o3-mini',
+            context_length: 200000,
+        },
+        chatgpt: {
+            provider: 'openrouter',
+            model: 'openai/chatgpt-4o-latest',
+            context_length: 128000,
+        },
+        // ── NVIDIA NIM Models ──────────────────────────────────────────
+        'nvidia-deepseek': {
+            provider: 'nvidia',
+            model: 'deepseek-ai/deepseek-r1',
+            context_length: 131072,
+        },
+        'nvidia-deepseek-v3': {
+            provider: 'nvidia',
+            model: 'deepseek-ai/deepseek-v3',
+            context_length: 131072,
+        },
+        'nvidia-llama': {
+            provider: 'nvidia',
+            model: 'meta/llama-3.3-70b-instruct',
+            context_length: 131072,
+        },
+        'nvidia-llama-405b': {
+            provider: 'nvidia',
+            model: 'meta/llama-3.1-405b-instruct',
+            context_length: 131072,
+        },
+        'nvidia-nemotron': {
+            provider: 'nvidia',
+            model: 'nvidia/llama-3.1-nemotron-70b-instruct',
+            context_length: 131072,
+        },
+        'nvidia-nemotron-51b': {
+            provider: 'nvidia',
+            model: 'nvidia/llama-3.1-nemotron-51b-instruct',
+            context_length: 131072,
+        },
+        'nvidia-qwen': {
+            provider: 'nvidia',
+            model: 'qwen/qwen2.5-coder-32b-instruct',
+            context_length: 131072,
+        },
+        'nvidia-codestral': {
+            provider: 'nvidia',
+            model: 'mistralai/codestral-22b-instruct-v0.1',
+            context_length: 32768,
+        },
+        'nvidia-mistral': {
+            provider: 'nvidia',
+            model: 'mistralai/mistral-large-2-instruct',
+            context_length: 128000,
+        },
+        // ── OpenRouter ────────────────────────────────────────────────
+        openrouter: {
+            provider: 'openrouter',
+            model: 'anthropic/claude-3.7-sonnet',
+            context_length: 200000,
+        },
+        'openrouter-r1': {
+            provider: 'openrouter',
+            model: 'deepseek/deepseek-r1',
+            context_length: 163840,
+        },
+        'openrouter-v3': {
+            provider: 'openrouter',
+            model: 'deepseek/deepseek-chat',
+            context_length: 131072,
+        },
     }),
     providers: z.object({
         openrouter: ProviderConfigSchema.default({

@@ -52,19 +52,38 @@ export class OpenRouterProvider implements Provider {
       const data = (await res.json()) as any;
       if (!data.data || !Array.isArray(data.data)) return this.getDefaultModels();
 
-      return data.data.map((m: any) => ({
-        id: m.id,
-        name: m.name || m.id,
-        provider: 'openrouter',
-        context_length: m.context_length || 128000,
-        description: m.description,
-        capabilities: {
-          streaming: true,
-          tool_calling: m.description?.toLowerCase().includes('tools') || true,
-          vision: m.architecture?.modality?.includes('image') || false,
-          reasoning: m.id.includes('r1') || m.id.includes('reasoning'),
-        },
-      }));
+      return data.data.map((m: any) => {
+        const idLower = (m.id || '').toLowerCase();
+        const descLower = (m.description || '').toLowerCase();
+        const isReasoning =
+          idLower.includes('r1') ||
+          idLower.includes('reasoning') ||
+          idLower.includes('o1') ||
+          idLower.includes('o3') ||
+          idLower.includes('thinking');
+        const isVision = Boolean(
+          m.architecture?.modality?.includes('image') ||
+            idLower.includes('vision') ||
+            idLower.includes('vl') ||
+            idLower.includes('4o') ||
+            idLower.includes('claude-3') ||
+            idLower.includes('gemini')
+        );
+
+        return {
+          id: m.id,
+          name: m.name || m.id,
+          provider: 'openrouter',
+          context_length: m.context_length || 128000,
+          description: m.description,
+          capabilities: {
+            streaming: true,
+            tool_calling: true,
+            vision: isVision,
+            reasoning: isReasoning,
+          },
+        };
+      });
     } catch {
       return this.getDefaultModels();
     }
@@ -72,13 +91,54 @@ export class OpenRouterProvider implements Provider {
 
   public getDefaultModels(): ModelInfo[] {
     return [
+      // ── Anthropic Claude ──────────────────────────────────────────
+      {
+        id: 'anthropic/claude-3.7-sonnet',
+        name: 'Claude 3.7 Sonnet',
+        provider: 'openrouter',
+        context_length: 200000,
+        capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
+        description: 'Anthropic Claude 3.7 Sonnet — flagship hybrid reasoning and agentic software engineering',
+      },
+      {
+        id: 'anthropic/claude-3.7-sonnet:thinking',
+        name: 'Claude 3.7 Sonnet (Thinking)',
+        provider: 'openrouter',
+        context_length: 200000,
+        capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
+        description: 'Anthropic Claude 3.7 Sonnet with extended thinking mode for complex architecture and debugging',
+      },
+      {
+        id: 'anthropic/claude-3.5-sonnet',
+        name: 'Claude 3.5 Sonnet',
+        provider: 'openrouter',
+        context_length: 200000,
+        capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
+        description: 'Anthropic Claude 3.5 Sonnet — industry standard frontier agentic coding model',
+      },
+      {
+        id: 'anthropic/claude-3.5-haiku',
+        name: 'Claude 3.5 Haiku',
+        provider: 'openrouter',
+        context_length: 200000,
+        capabilities: { streaming: true, tool_calling: true, vision: true },
+        description: 'Anthropic Claude 3.5 Haiku — blazing-fast, cost-effective coding and triage',
+      },
+      {
+        id: 'anthropic/claude-3-opus',
+        name: 'Claude 3 Opus',
+        provider: 'openrouter',
+        context_length: 200000,
+        capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
+        description: 'Anthropic Claude 3 Opus — deep analytical comprehension and synthesis',
+      },
       {
         id: 'anthropic/claude-sonnet-4-5',
         name: 'Claude Sonnet 4.5',
         provider: 'openrouter',
         context_length: 200000,
         capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
-        description: 'Anthropic Claude Sonnet 4.5 — latest hybrid reasoning & coding powerhouse',
+        description: 'Anthropic Claude Sonnet 4.5 — next-generation hybrid reasoning & coding',
       },
       {
         id: 'anthropic/claude-opus-4-5',
@@ -86,23 +146,101 @@ export class OpenRouterProvider implements Provider {
         provider: 'openrouter',
         context_length: 200000,
         capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
-        description: 'Anthropic Claude Opus 4.5 — flagship intelligence for the hardest tasks',
+        description: 'Anthropic Claude Opus 4.5 — pinnacle frontier intelligence for difficult engineering tasks',
       },
+
+      // ── OpenAI ────────────────────────────────────────────────────
+      {
+        id: 'openai/gpt-4o',
+        name: 'OpenAI GPT-4o',
+        provider: 'openrouter',
+        context_length: 128000,
+        capabilities: { streaming: true, tool_calling: true, vision: true },
+        description: 'OpenAI GPT-4o — multimodal flagship with high throughput and dependable tool execution',
+      },
+      {
+        id: 'openai/gpt-4o-mini',
+        name: 'OpenAI GPT-4o Mini',
+        provider: 'openrouter',
+        context_length: 128000,
+        capabilities: { streaming: true, tool_calling: true, vision: true },
+        description: 'OpenAI GPT-4o Mini — ultra-fast, affordable multimodal workhorse for continuous agent loops',
+      },
+      {
+        id: 'openai/o3-mini',
+        name: 'OpenAI o3-mini',
+        provider: 'openrouter',
+        context_length: 200000,
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'OpenAI o3-mini — high-speed frontier reasoning optimized for coding, mathematics, and STEM',
+      },
+      {
+        id: 'openai/o3',
+        name: 'OpenAI o3',
+        provider: 'openrouter',
+        context_length: 200000,
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'OpenAI o3 — frontier reasoning powerhouse for complex algorithmic tasks and architecture',
+      },
+      {
+        id: 'openai/o1',
+        name: 'OpenAI o1',
+        provider: 'openrouter',
+        context_length: 200000,
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'OpenAI o1 — deliberate reasoning model designed for hard engineering and scientific problems',
+      },
+      {
+        id: 'openai/o1-mini',
+        name: 'OpenAI o1-mini',
+        provider: 'openrouter',
+        context_length: 128000,
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'OpenAI o1-mini — fast reasoning model for STEM and mathematical deduction',
+      },
+      {
+        id: 'openai/chatgpt-4o-latest',
+        name: 'ChatGPT-4o Latest',
+        provider: 'openrouter',
+        context_length: 128000,
+        capabilities: { streaming: true, tool_calling: true, vision: true },
+        description: 'OpenAI ChatGPT-4o Latest — continuously updated dynamic research checkpoint',
+      },
+
+      // ── DeepSeek ──────────────────────────────────────────────────
+      {
+        id: 'deepseek/deepseek-r1',
+        name: 'DeepSeek R1',
+        provider: 'openrouter',
+        context_length: 163840,
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'DeepSeek R1 — frontier open reasoning model with transparent chain-of-thought',
+      },
+      {
+        id: 'deepseek/deepseek-chat',
+        name: 'DeepSeek V3',
+        provider: 'openrouter',
+        context_length: 131072,
+        capabilities: { streaming: true, tool_calling: true, vision: false },
+        description: 'DeepSeek V3 (Chat) — 671B MoE frontier coding and general software engineering workhorse',
+      },
+      {
+        id: 'deepseek/deepseek-r1-0528',
+        name: 'DeepSeek R1 (0528)',
+        provider: 'openrouter',
+        context_length: 163840,
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'DeepSeek R1 0528 — updated reasoning checkpoint with enhanced verification',
+      },
+
+      // ── Google Gemini (via OpenRouter) ────────────────────────────
       {
         id: 'google/gemini-3.8-flash',
         name: 'Gemini 3.8 Flash',
         provider: 'openrouter',
         context_length: 1048576,
         capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
-        description: '🆕 Google Gemini 3.8 Flash — newest stable, long-horizon agentic engineering',
-      },
-      {
-        id: 'google/gemini-3.1-pro-preview',
-        name: 'Gemini 3.1 Pro (Preview)',
-        provider: 'openrouter',
-        context_length: 2097152,
-        capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
-        description: 'Google Gemini 3.1 Pro — advanced intelligence, 2M context, vibe coding',
+        description: 'Google Gemini 3.8 Flash — 1M context, high-throughput agentic engineering',
       },
       {
         id: 'google/gemini-3.7-flash',
@@ -113,44 +251,30 @@ export class OpenRouterProvider implements Provider {
         description: 'Google Gemini 3.7 Flash — complex coding and reliable agentic execution',
       },
       {
-        id: 'deepseek/deepseek-r1-0528',
-        name: 'DeepSeek R1 (0528)',
+        id: 'google/gemini-3.1-pro-preview',
+        name: 'Gemini 3.1 Pro (Preview)',
         provider: 'openrouter',
-        context_length: 163840,
-        capabilities: { streaming: true, tool_calling: true, reasoning: true },
-        description: 'DeepSeek R1 0528 — latest frontier open reasoning model',
+        context_length: 2097152,
+        capabilities: { streaming: true, tool_calling: true, vision: true, reasoning: true },
+        description: 'Google Gemini 3.1 Pro — advanced intelligence, 2M context, deep repository comprehension',
       },
-      {
-        id: 'deepseek/deepseek-chat',
-        name: 'DeepSeek V3',
-        provider: 'openrouter',
-        context_length: 131072,
-        capabilities: { streaming: true, tool_calling: true, vision: false },
-        description: 'DeepSeek V3 flagship general & coding powerhouse',
-      },
-      {
-        id: 'openai/o3',
-        name: 'OpenAI o3',
-        provider: 'openrouter',
-        context_length: 200000,
-        capabilities: { streaming: true, tool_calling: true, reasoning: true },
-        description: 'OpenAI o3 — top-tier frontier reasoning for STEM and code',
-      },
-      {
-        id: 'openai/gpt-4o',
-        name: 'OpenAI GPT-4o',
-        provider: 'openrouter',
-        context_length: 128000,
-        capabilities: { streaming: true, tool_calling: true, vision: true },
-        description: 'OpenAI multimodal flagship — fast, vision-capable, strong tools',
-      },
+
+      // ── Open Weights & Coding Models ──────────────────────────────
       {
         id: 'meta-llama/llama-3.3-70b-instruct',
         name: 'Llama 3.3 70B Instruct',
         provider: 'openrouter',
         context_length: 131072,
         capabilities: { streaming: true, tool_calling: true },
-        description: 'Meta latest 70B open weights instruction model',
+        description: 'Meta Llama 3.3 70B — robust open weights instruction model',
+      },
+      {
+        id: 'qwen/qwen-2.5-coder-32b-instruct',
+        name: 'Qwen 2.5 Coder 32B Instruct',
+        provider: 'openrouter',
+        context_length: 131072,
+        capabilities: { streaming: true, tool_calling: true },
+        description: 'Qwen 2.5 Coder 32B — dedicated code generation, debugging, and terminal tool execution',
       },
     ];
   }

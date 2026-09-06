@@ -54,36 +54,136 @@ export class ModelPicker {
             });
         }
         // Cloud items
-        items.push({
-            id: 'gemini-3.6-flash',
-            name: 'Gemini (Google DeepMind)',
+        items.push(
+        // ── Google DeepMind ──────────────────────────────────────────
+        {
+            id: 'gemini-3.8-flash',
+            name: 'Gemini 3.8 Flash (Google DeepMind)',
             category: 'CLOUD',
-            details: 'Gemini 3.6 Flash · 1M context · Multimodal',
+            details: '🆕 Long-Horizon Agentic · 1M context · Multimodal',
+            target: 'cloud/gemini/gemini-3.8-flash',
+        }, {
+            id: 'gemini-3.6-flash',
+            name: 'Gemini 3.6 Flash (Google DeepMind)',
+            category: 'CLOUD',
+            details: 'High-Throughput Coding · 1M context · Multimodal',
             target: 'cloud/gemini/gemini-3.6-flash',
         }, {
-            id: 'claude-3-7-sonnet',
-            name: 'Anthropic (Claude)',
+            id: 'gemini-3.1-pro-preview',
+            name: 'Gemini 3.1 Pro (Google DeepMind)',
             category: 'CLOUD',
-            details: 'Claude 3.7 Sonnet · Hybrid Reasoning · 200K',
+            details: 'Advanced Intelligence · 2M context · Vibe Coding',
+            target: 'cloud/gemini/gemini-3.1-pro-preview',
+        }, 
+        // ── Anthropic Claude (via OpenRouter) ────────────────────────
+        {
+            id: 'claude-3-7-sonnet',
+            name: 'Claude 3.7 Sonnet (Anthropic)',
+            category: 'CLOUD',
+            details: 'Hybrid Reasoning & Software Engineering · 200K',
             target: 'cloud/openrouter/anthropic/claude-3.7-sonnet',
         }, {
-            id: 'gpt-4o',
-            name: 'OpenAI',
+            id: 'claude-3-7-sonnet-thinking',
+            name: 'Claude 3.7 Sonnet Thinking (Anthropic)',
             category: 'CLOUD',
-            details: 'GPT-4o · 128K context · High Throughput',
+            details: 'Extended Deliberation Mode · 200K',
+            target: 'cloud/openrouter/anthropic/claude-3.7-sonnet:thinking',
+        }, {
+            id: 'claude-3-5-sonnet',
+            name: 'Claude 3.5 Sonnet (Anthropic)',
+            category: 'CLOUD',
+            details: 'Industry Standard Coding Agent · 200K',
+            target: 'cloud/openrouter/anthropic/claude-3.5-sonnet',
+        }, {
+            id: 'claude-3-5-haiku',
+            name: 'Claude 3.5 Haiku (Anthropic)',
+            category: 'CLOUD',
+            details: 'Ultra-Fast Triage & High-Speed Edits · 200K',
+            target: 'cloud/openrouter/anthropic/claude-3.5-haiku',
+        }, 
+        // ── OpenAI (via OpenRouter) ──────────────────────────────────
+        {
+            id: 'gpt-4o',
+            name: 'OpenAI GPT-4o',
+            category: 'CLOUD',
+            details: 'Multimodal Flagship · High Throughput · 128K',
             target: 'cloud/openrouter/openai/gpt-4o',
         }, {
-            id: 'deepseek-r1',
-            name: 'DeepSeek R1 (Groq LPU)',
+            id: 'o3-mini',
+            name: 'OpenAI o3-mini',
             category: 'CLOUD',
-            details: 'DeepSeek R1 Distill · Ultra-Low Latency',
+            details: 'Frontier STEM & Code Reasoning · 200K',
+            target: 'cloud/openrouter/openai/o3-mini',
+        }, {
+            id: 'o1',
+            name: 'OpenAI o1',
+            category: 'CLOUD',
+            details: 'Deliberate Architectural Reasoning · 200K',
+            target: 'cloud/openrouter/openai/o1',
+        }, {
+            id: 'gpt-4o-mini',
+            name: 'OpenAI GPT-4o Mini',
+            category: 'CLOUD',
+            details: 'Fast Multimodal Loops · 128K',
+            target: 'cloud/openrouter/openai/gpt-4o-mini',
+        }, 
+        // ── NVIDIA NIM ───────────────────────────────────────────────
+        {
+            id: 'nvidia-deepseek-r1',
+            name: 'DeepSeek R1 (NVIDIA NIM)',
+            category: 'CLOUD',
+            details: '671B Frontier Reasoning · Accelerated on NIM · 128K',
+            target: 'cloud/nvidia/deepseek-ai/deepseek-r1',
+        }, {
+            id: 'nvidia-deepseek-v3',
+            name: 'DeepSeek V3 (NVIDIA NIM)',
+            category: 'CLOUD',
+            details: '671B MoE Coding & Agentic Workhorse · 128K',
+            target: 'cloud/nvidia/deepseek-ai/deepseek-v3',
+        }, {
+            id: 'nvidia-llama-3.3-70b',
+            name: 'Llama 3.3 70B Instruct (NVIDIA NIM)',
+            category: 'CLOUD',
+            details: 'Meta 70B Instruction · TensorRT-LLM · 128K',
+            target: 'cloud/nvidia/meta/llama-3.3-70b-instruct',
+        }, {
+            id: 'nvidia-llama-3.1-405b',
+            name: 'Llama 3.1 405B Instruct (NVIDIA NIM)',
+            category: 'CLOUD',
+            details: 'Pinnacle Open Frontier Model · 128K',
+            target: 'cloud/nvidia/meta/llama-3.1-405b-instruct',
+        }, {
+            id: 'nvidia-nemotron-70b',
+            name: 'Llama 3.1 Nemotron 70B (NVIDIA NIM)',
+            category: 'CLOUD',
+            details: 'NVIDIA Aligned Enterprise Intelligence · 128K',
+            target: 'cloud/nvidia/nvidia/llama-3.1-nemotron-70b-instruct',
+        }, {
+            id: 'nvidia-qwen-coder',
+            name: 'Qwen 2.5 Coder 32B (NVIDIA NIM)',
+            category: 'CLOUD',
+            details: 'Premier Open Coding Engine · 128K',
+            target: 'cloud/nvidia/qwen/qwen2.5-coder-32b-instruct',
+        }, {
+            id: 'nvidia-codestral',
+            name: 'Codestral 22B (NVIDIA NIM)',
+            category: 'CLOUD',
+            details: 'Mistral Code Generation Engine · 32K',
+            target: 'cloud/nvidia/mistralai/codestral-22b-instruct-v0.1',
+        }, 
+        // ── Groq LPU ─────────────────────────────────────────────────
+        {
+            id: 'deepseek-r1-groq',
+            name: 'DeepSeek R1 Distill (Groq LPU)',
+            category: 'CLOUD',
+            details: 'Ultra-Low Latency Reasoning · 128K',
             target: 'cloud/groq/deepseek-r1-distill-llama-70b',
         }, {
-            id: 'meta/llama-3.3-70b',
-            name: 'NVIDIA NIM',
+            id: 'llama-3.3-70b-groq',
+            name: 'Llama 3.3 70B Versatile (Groq LPU)',
             category: 'CLOUD',
-            details: 'Llama 3.3 70B Instruct · Enterprise NIM',
-            target: 'cloud/nvidia/meta/llama-3.3-70b-instruct',
+            details: 'Ultra-Fast Token Generation · 128K',
+            target: 'cloud/groq/llama-3.3-70b-versatile',
         });
         this.items = items;
     }

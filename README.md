@@ -216,21 +216,88 @@ LOCAL RUNTIME ENGINES
 
 ## Cloud Models
 
-Berkelium connects to major cloud model providers through provider-agnostic adapters. Credentials are isolated in the macOS Keychain or an encrypted local vault.
+Berkelium connects to major cloud model providers through provider-agnostic adapters with native streaming, function/tool calling, and capability routing. Credentials are isolated in the macOS Keychain or an encrypted local vault.
 
 ### Provider Support Matrix
 
-| Provider | Integration Type | Status | Supported Capabilities |
+| Provider | Integration Type | Status | Supported Models & Capabilities |
 | :--- | :--- | :--- | :--- |
-| **Google Gemini** | Direct Adapter | Supported | Text, Streaming, Tool Calling, Multimodal |
-| **Groq LPU** | Direct Adapter | Supported | Low-latency inference, Streaming, Tool Calling |
-| **OpenRouter** | Direct Adapter | Supported | Claude, GPT-4o, DeepSeek R1, Llama 3 |
-| **NVIDIA NIM** | Direct Adapter | Supported | Enterprise NIM endpoints, Streaming |
-| **Hugging Face** | Direct Adapter | Supported | Serverless Inference API, Streaming |
-| **Ollama** | Local Service | Supported | Local models, Tool Calling |
-| **LM Studio** | Local Service | Supported | Local models, OpenAI-compatible SSE |
-| **Direct OpenAI API** | Native Adapter | Planned | Available today via OpenRouter adapter |
-| **Direct Anthropic API** | Native Adapter | Planned | Available today via OpenRouter adapter |
+| **OpenRouter** | Direct Adapter | Supported | **Anthropic**: Claude 3.7 Sonnet, Claude 3.7 Thinking, Claude 3.5 Sonnet, Claude 3.5 Haiku, Claude 3 Opus<br>**OpenAI**: GPT-4o, GPT-4o Mini, o3-mini, o3, o1, o1-mini, ChatGPT-4o<br>**DeepSeek**: DeepSeek R1, DeepSeek V3 |
+| **NVIDIA NIM** | Direct Adapter | Supported | **DeepSeek**: DeepSeek R1, DeepSeek V3<br>**Meta**: Llama 3.3 70B, Llama 3.1 405B, Llama 3.1 8B<br>**NVIDIA**: Nemotron 70B, Nemotron 51B, Mistral NeMo 12B<br>**Qwen & Mistral**: Qwen 2.5 Coder 32B, Codestral 22B, Mistral Large 2 |
+| **Google Gemini** | Direct Adapter | Supported | Gemini 3.8 Flash, Gemini 3.6 Flash, Gemini 3.1 Pro (Preview), Gemini 2.5 Pro |
+| **Groq LPU** | Direct Adapter | Supported | DeepSeek R1 Distill (70B), Llama 3.3 70B Versatile, Llama 4 Maverick/Scout |
+| **Hugging Face** | Direct Adapter | Supported | Meta Llama 3.3 70B, DeepSeek R1, Qwen 2.5 Coder 32B |
+| **Ollama** | Local Service | Supported | Local models via `localhost:11434` with tool calling |
+| **LM Studio** | Local Service | Supported | Local models via `localhost:1234/v1` with SSE streaming |
+
+### Synced Model Options & Quick Switch
+
+You can switch models instantly via CLI flag, runtime subcommands, or the interactive TUI picker:
+
+#### Anthropic (Claude) Models
+```bash
+# Claude 3.7 Sonnet (Flagship hybrid reasoning & coding)
+berkelium --model claude
+berkelium model use claude
+
+# Claude 3.7 Sonnet with Extended Thinking
+berkelium --model claude-thinking
+berkelium model use claude-thinking
+
+# Claude 3.5 Sonnet & Claude 3.5 Haiku
+berkelium --model claude-3.5-sonnet
+berkelium --model claude-haiku
+berkelium --model claude-opus
+```
+
+#### OpenAI Models
+```bash
+# GPT-4o Multimodal Flagship
+berkelium --model gpt4o
+berkelium model use gpt4o
+
+# OpenAI o3-mini & o1 Frontier Reasoning
+berkelium --model o3-mini
+berkelium --model o1
+berkelium --model gpt4o-mini
+```
+
+#### NVIDIA NIM Models
+```bash
+# DeepSeek R1 & DeepSeek V3 on NVIDIA NIM
+berkelium --model nvidia-deepseek
+berkelium --model nvidia-deepseek-v3
+
+# Meta Llama 3.3 70B & Llama 3.1 405B on NVIDIA NIM
+berkelium --model nvidia-llama
+berkelium --model nvidia-llama-405b
+
+# NVIDIA Nemotron 70B & 51B Aligned Enterprise Models
+berkelium --model nvidia-nemotron
+berkelium --model nvidia-nemotron-51b
+
+# Qwen 2.5 Coder 32B & Codestral 22B on NVIDIA NIM
+berkelium --model nvidia-qwen
+berkelium --model nvidia-codestral
+berkelium --model nvidia-mistral
+```
+
+#### Google Gemini & Groq LPU Models
+```bash
+berkelium --model gemini           # Gemini 3.6 Flash
+berkelium --model gemini-pro       # Gemini 2.5 Pro
+berkelium --model groq             # Llama 3.3 70B on Groq LPU
+```
+
+### Interactive Model Picker
+
+```bash
+# Launch interactive TUI model selector
+berkelium model select
+
+# Or in an active terminal session
+/model
+```
 
 ### Managing Cloud Credentials
 
@@ -238,16 +305,17 @@ Berkelium connects to major cloud model providers through provider-agnostic adap
 # View authentication status
 berkelium cloud status
 
-# Authenticate with a provider (stored securely in macOS Keychain / Vault)
+# Authenticate with providers (stored securely in macOS Keychain / Vault)
 berkelium cloud login openrouter
+berkelium cloud login nvidia
 berkelium cloud login gemini
 berkelium cloud login groq
 
-# Switch active cloud model
-berkelium cloud use openrouter/anthropic/claude-3.7-sonnet
+# Inspect available models across all providers
+berkelium models
 ```
 
-> **Security Invariant**: Berkelium uses official provider authentication mechanisms. It never accesses browser cookies, extracts tokens from other CLIs, or bypasses quotas.
+> **Security Invariant**: Berkelium uses official provider authentication mechanisms. It never accesses browser cookies, extracts tokens from other CLIs, or bypasses quotas. Raw API keys are never passed into model prompt contexts.
 
 ---
 

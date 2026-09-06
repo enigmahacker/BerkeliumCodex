@@ -31,12 +31,126 @@ const KNOWN_MODELS = {
         speedTier: 'thoughtful',
         recommendedUse: 'Complex cross-repository refactoring and architectural planning',
     },
+    // Anthropic Claude
+    'anthropic/claude-3.7-sonnet': {
+        id: 'anthropic/claude-3.7-sonnet',
+        name: 'Claude 3.7 Sonnet',
+        contextWindow: 200_000,
+        capabilities: ['chat', 'code', 'reasoning', 'vision', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'thoughtful',
+        recommendedUse: 'Flagship hybrid reasoning and agentic software engineering',
+    },
+    'anthropic/claude-3.7-sonnet:thinking': {
+        id: 'anthropic/claude-3.7-sonnet:thinking',
+        name: 'Claude 3.7 Sonnet (Thinking)',
+        contextWindow: 200_000,
+        capabilities: ['chat', 'code', 'reasoning', 'vision', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'thoughtful',
+        recommendedUse: 'Extended thinking mode for complex architectures, formal verification, and deep debugging',
+    },
+    'anthropic/claude-3.5-sonnet': {
+        id: 'anthropic/claude-3.5-sonnet',
+        name: 'Claude 3.5 Sonnet',
+        contextWindow: 200_000,
+        capabilities: ['chat', 'code', 'reasoning', 'vision', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'balanced',
+        recommendedUse: 'Industry standard frontier coding and tool execution',
+    },
+    'anthropic/claude-3.5-haiku': {
+        id: 'anthropic/claude-3.5-haiku',
+        name: 'Claude 3.5 Haiku',
+        contextWindow: 200_000,
+        capabilities: ['chat', 'code', 'vision', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'ultra-fast',
+        recommendedUse: 'Ultra-fast, cost-effective coding, triage, and rapid terminal execution',
+    },
+    'anthropic/claude-3-opus': {
+        id: 'anthropic/claude-3-opus',
+        name: 'Claude 3 Opus',
+        contextWindow: 200_000,
+        capabilities: ['chat', 'code', 'reasoning', 'vision', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'thoughtful',
+        recommendedUse: 'Deep analysis and architectural synthesis',
+    },
+    'anthropic/claude-sonnet-4-5': {
+        id: 'anthropic/claude-sonnet-4-5',
+        name: 'Claude Sonnet 4.5',
+        contextWindow: 200_000,
+        capabilities: ['chat', 'code', 'reasoning', 'vision', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'balanced',
+        recommendedUse: 'Next-generation hybrid reasoning & coding',
+    },
+    'anthropic/claude-opus-4-5': {
+        id: 'anthropic/claude-opus-4-5',
+        name: 'Claude Opus 4.5',
+        contextWindow: 200_000,
+        capabilities: ['chat', 'code', 'reasoning', 'vision', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'thoughtful',
+        recommendedUse: 'Pinnacle frontier intelligence for difficult engineering tasks',
+    },
+    // OpenAI
+    'openai/gpt-4o': {
+        id: 'openai/gpt-4o',
+        name: 'OpenAI GPT-4o',
+        contextWindow: 128_000,
+        capabilities: ['chat', 'code', 'vision', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'fast',
+        recommendedUse: 'Multimodal flagship with high throughput and dependable tool execution',
+    },
+    'openai/gpt-4o-mini': {
+        id: 'openai/gpt-4o-mini',
+        name: 'OpenAI GPT-4o Mini',
+        contextWindow: 128_000,
+        capabilities: ['chat', 'code', 'vision', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'ultra-fast',
+        recommendedUse: 'Ultra-fast, affordable multimodal workhorse for continuous agent loops',
+    },
+    'openai/o3-mini': {
+        id: 'openai/o3-mini',
+        name: 'OpenAI o3-mini',
+        contextWindow: 200_000,
+        capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'fast',
+        recommendedUse: 'High-speed frontier reasoning optimized for coding, mathematics, and STEM',
+    },
+    'openai/o3': {
+        id: 'openai/o3',
+        name: 'OpenAI o3',
+        contextWindow: 200_000,
+        capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'thoughtful',
+        recommendedUse: 'Frontier reasoning powerhouse for complex algorithmic tasks and architecture',
+    },
+    'openai/o1': {
+        id: 'openai/o1',
+        name: 'OpenAI o1',
+        contextWindow: 200_000,
+        capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'thoughtful',
+        recommendedUse: 'Deliberate reasoning for hard engineering and scientific problems',
+    },
+    'openai/o1-mini': {
+        id: 'openai/o1-mini',
+        name: 'OpenAI o1-mini',
+        contextWindow: 128_000,
+        capabilities: ['chat', 'code', 'reasoning', 'streaming'],
+        speedTier: 'fast',
+        recommendedUse: 'Fast reasoning model for STEM and mathematical deduction',
+    },
+    'openai/chatgpt-4o-latest': {
+        id: 'openai/chatgpt-4o-latest',
+        name: 'ChatGPT-4o Latest',
+        contextWindow: 128_000,
+        capabilities: ['chat', 'code', 'vision', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'fast',
+        recommendedUse: 'Dynamic, continuously updated research checkpoint',
+    },
     // DeepSeek
     'deepseek/deepseek-chat': {
         id: 'deepseek/deepseek-chat',
         name: 'DeepSeek Chat (V3)',
-        contextWindow: 65_536,
-        capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'streaming'],
+        contextWindow: 131_072,
+        capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
         speedTier: 'fast',
         recommendedUse: 'Agentic coding, bug fixing, and test authoring',
     },
@@ -44,9 +158,25 @@ const KNOWN_MODELS = {
         id: 'deepseek/deepseek-r1',
         name: 'DeepSeek R1',
         contextWindow: 163_840,
-        capabilities: ['chat', 'code', 'reasoning', 'streaming'],
+        capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
         speedTier: 'thoughtful',
         recommendedUse: 'Deep mathematical, algorithmic, and architectural reasoning',
+    },
+    'deepseek-ai/deepseek-r1': {
+        id: 'deepseek-ai/deepseek-r1',
+        name: 'DeepSeek R1 (NVIDIA NIM)',
+        contextWindow: 131_072,
+        capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'thoughtful',
+        recommendedUse: 'DeepSeek R1 frontier reasoning accelerated on NVIDIA NIM',
+    },
+    'deepseek-ai/deepseek-v3': {
+        id: 'deepseek-ai/deepseek-v3',
+        name: 'DeepSeek V3 (NVIDIA NIM)',
+        contextWindow: 131_072,
+        capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'fast',
+        recommendedUse: 'DeepSeek V3 671B MoE flagship coding on NVIDIA NIM',
     },
     'deepseek-coder-v2': {
         id: 'deepseek-coder-v2',
@@ -65,6 +195,22 @@ const KNOWN_MODELS = {
         speedTier: 'balanced',
         recommendedUse: 'General-purpose agentic coding and file editing',
     },
+    'meta/llama-3.3-70b-instruct': {
+        id: 'meta/llama-3.3-70b-instruct',
+        name: 'Llama 3.3 70B Instruct (NVIDIA NIM)',
+        contextWindow: 131_072,
+        capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'fast',
+        recommendedUse: 'Meta latest 70B instruction model on NVIDIA NIM',
+    },
+    'meta/llama-3.1-405b-instruct': {
+        id: 'meta/llama-3.1-405b-instruct',
+        name: 'Llama 3.1 405B Instruct (NVIDIA NIM)',
+        contextWindow: 131_072,
+        capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'balanced',
+        recommendedUse: 'Meta 405B premier open frontier model on NVIDIA NIM',
+    },
     'llama-3.3-70b-versatile': {
         id: 'llama-3.3-70b-versatile',
         name: 'Groq Llama 3.3 70B Versatile',
@@ -72,6 +218,47 @@ const KNOWN_MODELS = {
         capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
         speedTier: 'ultra-fast',
         recommendedUse: 'Ultra-low-latency code editing and verification',
+    },
+    // NVIDIA Aligned & Custom NIM Models
+    'nvidia/llama-3.1-nemotron-70b-instruct': {
+        id: 'nvidia/llama-3.1-nemotron-70b-instruct',
+        name: 'Llama 3.1 Nemotron 70B (NVIDIA NIM)',
+        contextWindow: 131_072,
+        capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'balanced',
+        recommendedUse: 'NVIDIA custom aligned high-accuracy enterprise reasoning model',
+    },
+    'nvidia/llama-3.1-nemotron-51b-instruct': {
+        id: 'nvidia/llama-3.1-nemotron-51b-instruct',
+        name: 'Llama 3.1 Nemotron 51B (NVIDIA NIM)',
+        contextWindow: 131_072,
+        capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'fast',
+        recommendedUse: 'NVIDIA 51B ultra-efficient aligned model for coding and agent loops',
+    },
+    'qwen/qwen2.5-coder-32b-instruct': {
+        id: 'qwen/qwen2.5-coder-32b-instruct',
+        name: 'Qwen 2.5 Coder 32B (NVIDIA NIM)',
+        contextWindow: 131_072,
+        capabilities: ['chat', 'code', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'fast',
+        recommendedUse: 'Qwen coding powerhouse on NVIDIA NIM',
+    },
+    'mistralai/mistral-large-2-instruct': {
+        id: 'mistralai/mistral-large-2-instruct',
+        name: 'Mistral Large 2 (NVIDIA NIM)',
+        contextWindow: 128_000,
+        capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+        speedTier: 'fast',
+        recommendedUse: 'Mistral flagship frontier model on NVIDIA NIM',
+    },
+    'mistralai/codestral-22b-instruct-v0.1': {
+        id: 'mistralai/codestral-22b-instruct-v0.1',
+        name: 'Codestral 22B (NVIDIA NIM)',
+        contextWindow: 32_768,
+        capabilities: ['chat', 'code', 'tool_calling', 'structured_output', 'streaming'],
+        speedTier: 'fast',
+        recommendedUse: 'Mistral dedicated software engineering and code generation on NVIDIA NIM',
     },
     // Local / Open Models
     'qwen3-coder:30b': {
@@ -156,20 +343,49 @@ export class CapabilityMatrix {
 function inferCapabilitiesFromName(name) {
     const lower = name.toLowerCase();
     const caps = ['chat', 'streaming'];
-    if (lower.includes('code') || lower.includes('coder') || lower.includes('qwen') || lower.includes('llama')) {
+    if (lower.includes('code') ||
+        lower.includes('coder') ||
+        lower.includes('qwen') ||
+        lower.includes('llama') ||
+        lower.includes('codestral') ||
+        lower.includes('claude') ||
+        lower.includes('gpt')) {
         caps.push('code');
     }
-    if (lower.includes('r1') || lower.includes('o1') || lower.includes('reason') || lower.includes('pro')) {
+    if (lower.includes('r1') ||
+        lower.includes('o1') ||
+        lower.includes('o3') ||
+        lower.includes('reason') ||
+        lower.includes('pro') ||
+        lower.includes('thinking') ||
+        lower.includes('nemotron')) {
         caps.push('reasoning');
     }
-    if (lower.includes('flash') || lower.includes('pro') || lower.includes('instruct') || lower.includes('v3')) {
+    if (lower.includes('flash') ||
+        lower.includes('pro') ||
+        lower.includes('instruct') ||
+        lower.includes('v3') ||
+        lower.includes('claude') ||
+        lower.includes('gpt') ||
+        lower.includes('nemotron')) {
         caps.push('tool_calling');
         caps.push('structured_output');
     }
-    if (lower.includes('vision') || lower.includes('vl') || lower.includes('gemini') || lower.includes('scout')) {
+    if (lower.includes('vision') ||
+        lower.includes('vl') ||
+        lower.includes('gemini') ||
+        lower.includes('scout') ||
+        lower.includes('4o') ||
+        lower.includes('claude')) {
         caps.push('vision');
     }
-    if (lower.includes('1m') || lower.includes('flash') || lower.includes('pro')) {
+    if (lower.includes('1m') ||
+        lower.includes('2m') ||
+        lower.includes('flash') ||
+        lower.includes('pro') ||
+        lower.includes('claude') ||
+        lower.includes('128k') ||
+        lower.includes('200k')) {
         caps.push('long_context');
     }
     return caps;

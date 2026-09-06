@@ -50,16 +50,24 @@ export class NVIDIAProvider implements Provider {
       const data = (await res.json()) as any;
       if (!data.data || !Array.isArray(data.data)) return this.getDefaultModels();
 
-      return data.data.map((m: any) => ({
-        id: m.id,
-        name: m.id.split('/').pop() || m.id,
-        provider: 'nvidia',
-        context_length: m.context_length || 131072,
-        capabilities: {
-          streaming: true,
-          tool_calling: true,
-        },
-      }));
+      return data.data.map((m: any) => {
+        const idLower = (m.id || '').toLowerCase();
+        const isReasoning =
+          idLower.includes('r1') || idLower.includes('nemotron') || idLower.includes('reason');
+        const isVision = idLower.includes('vision') || idLower.includes('vl');
+        return {
+          id: m.id,
+          name: m.id.split('/').pop() || m.id,
+          provider: 'nvidia',
+          context_length: m.context_length || 131072,
+          capabilities: {
+            streaming: true,
+            tool_calling: true,
+            reasoning: isReasoning,
+            vision: isVision,
+          },
+        };
+      });
     } catch {
       return this.getDefaultModels();
     }
@@ -67,45 +75,136 @@ export class NVIDIAProvider implements Provider {
 
   public getDefaultModels(): ModelInfo[] {
     return [
+      // ── DeepSeek on NVIDIA NIM ────────────────────────────────────
       {
         id: 'deepseek-ai/deepseek-r1',
         name: 'DeepSeek R1',
         provider: 'nvidia',
         context_length: 131072,
         capabilities: { streaming: true, tool_calling: true, reasoning: true },
-        description: 'DeepSeek R1 frontier reasoning model accelerated on NVIDIA NIM',
+        description: 'DeepSeek R1 frontier reasoning model accelerated on NVIDIA NIM Hopper/Blackwell architecture',
       },
+      {
+        id: 'deepseek-ai/deepseek-v3',
+        name: 'DeepSeek V3',
+        provider: 'nvidia',
+        context_length: 131072,
+        capabilities: { streaming: true, tool_calling: true, vision: false },
+        description: 'DeepSeek V3 671B MoE flagship coding and general reasoning model on NVIDIA NIM',
+      },
+
+      // ── Meta Llama on NVIDIA NIM ──────────────────────────────────
       {
         id: 'meta/llama-3.3-70b-instruct',
         name: 'Llama 3.3 70B Instruct',
         provider: 'nvidia',
         context_length: 131072,
         capabilities: { streaming: true, tool_calling: true },
-        description: 'Meta latest 70B instruction model on NVIDIA NIM',
+        description: 'Meta latest 70B instruction model running with TensorRT-LLM on NVIDIA NIM',
       },
+      {
+        id: 'meta/llama-3.1-405b-instruct',
+        name: 'Llama 3.1 405B Instruct',
+        provider: 'nvidia',
+        context_length: 131072,
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'Meta 405B premier open frontier model — pinnacle open-weights capability on NVIDIA NIM',
+      },
+      {
+        id: 'meta/llama-3.1-70b-instruct',
+        name: 'Llama 3.1 70B Instruct',
+        provider: 'nvidia',
+        context_length: 131072,
+        capabilities: { streaming: true, tool_calling: true },
+        description: 'Meta 70B instruction-tuned model on NVIDIA NIM',
+      },
+      {
+        id: 'meta/llama-3.1-8b-instruct',
+        name: 'Llama 3.1 8B Instruct',
+        provider: 'nvidia',
+        context_length: 131072,
+        capabilities: { streaming: true, tool_calling: true },
+        description: 'Meta 8B ultra-fast model for rapid terminal edits, diffs, and classification',
+      },
+
+      // ── NVIDIA Aligned & Custom Models ───────────────────────────
       {
         id: 'nvidia/llama-3.1-nemotron-70b-instruct',
         name: 'Llama 3.1 Nemotron 70B',
         provider: 'nvidia',
         context_length: 131072,
-        capabilities: { streaming: true, tool_calling: true },
-        description: 'NVIDIA custom aligned high-accuracy enterprise model',
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'NVIDIA custom aligned high-accuracy enterprise model for complex engineering and reasoning',
       },
+      {
+        id: 'nvidia/llama-3.1-nemotron-51b-instruct',
+        name: 'Llama 3.1 Nemotron 51B',
+        provider: 'nvidia',
+        context_length: 131072,
+        capabilities: { streaming: true, tool_calling: true },
+        description: 'NVIDIA ultra-efficient 51B aligned enterprise model optimized for low-latency inference',
+      },
+      {
+        id: 'nvidia/mistral-nemo-12b-instruct',
+        name: 'Mistral NeMo 12B Instruct',
+        provider: 'nvidia',
+        context_length: 131072,
+        capabilities: { streaming: true, tool_calling: true },
+        description: 'Joint NVIDIA and Mistral AI 12B model with 128K context window',
+      },
+
+      // ── Qwen & Coding on NVIDIA NIM ───────────────────────────────
       {
         id: 'qwen/qwen2.5-coder-32b-instruct',
         name: 'Qwen 2.5 Coder 32B',
         provider: 'nvidia',
         context_length: 131072,
         capabilities: { streaming: true, tool_calling: true },
-        description: 'Qwen coding powerhouse on NVIDIA NIM',
+        description: 'Qwen 2.5 Coder 32B — premier code generation and terminal agent workhorse on NVIDIA NIM',
       },
+      {
+        id: 'qwen/qwen2.5-72b-instruct',
+        name: 'Qwen 2.5 72B Instruct',
+        provider: 'nvidia',
+        context_length: 131072,
+        capabilities: { streaming: true, tool_calling: true },
+        description: 'Qwen 2.5 72B multilingual coding and reasoning flagship on NVIDIA NIM',
+      },
+
+      // ── Mistral on NVIDIA NIM ─────────────────────────────────────
       {
         id: 'mistralai/mistral-large-2-instruct',
         name: 'Mistral Large 2',
         provider: 'nvidia',
         context_length: 128000,
         capabilities: { streaming: true, tool_calling: true },
-        description: 'Mistral flagship frontier model on NVIDIA NIM',
+        description: 'Mistral flagship frontier model with 128K context and strong multilingual coding on NVIDIA NIM',
+      },
+      {
+        id: 'mistralai/codestral-22b-instruct-v0.1',
+        name: 'Codestral 22B',
+        provider: 'nvidia',
+        context_length: 32768,
+        capabilities: { streaming: true, tool_calling: true },
+        description: 'Mistral dedicated software engineering, code generation, and test completion model',
+      },
+
+      // ── Google & Microsoft on NVIDIA NIM ──────────────────────────
+      {
+        id: 'google/gemma-2-27b-it',
+        name: 'Gemma 2 27B Instruct',
+        provider: 'nvidia',
+        context_length: 8192,
+        capabilities: { streaming: true, tool_calling: true },
+        description: 'Google Gemma 2 27B high-efficiency open model running on NVIDIA NIM',
+      },
+      {
+        id: 'microsoft/phi-3.5-moe-instruct',
+        name: 'Phi 3.5 MoE Instruct',
+        provider: 'nvidia',
+        context_length: 131072,
+        capabilities: { streaming: true, tool_calling: true },
+        description: 'Microsoft mixture-of-experts 128K context model on NVIDIA NIM',
       },
     ];
   }
