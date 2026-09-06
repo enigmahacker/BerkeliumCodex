@@ -75,6 +75,80 @@ export class NVIDIAProvider implements Provider {
 
   public getDefaultModels(): ModelInfo[] {
     return [
+      // ── NVIDIA NIM Catalog (1,000 Free API Credits upon Sign-up) ───
+      {
+        id: 'nvidia/nemotron-3.5-lightning-30b-a3b',
+        name: 'Nemotron 3.5 Lightning 30B (A3B)',
+        provider: 'nvidia',
+        context_length: 131072,
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'NVIDIA high-efficiency 30B MoE model optimized for enterprise code intelligence & tool orchestration',
+      },
+      {
+        id: 'nvidia/nemotron-3-embed-1b',
+        name: 'Nemotron 3 Embed 1B',
+        provider: 'nvidia',
+        context_length: 8192,
+        capabilities: { streaming: false, tool_calling: false, vision: false },
+        description: 'NVIDIA 1B embedding model for dense retrieval, code indexing, and RAG',
+      },
+      {
+        id: 'nvidia/nemotron-ocr-v2',
+        name: 'Nemotron OCR v2',
+        provider: 'nvidia',
+        context_length: 16384,
+        capabilities: { streaming: false, tool_calling: false, vision: true },
+        description: 'NVIDIA document and code OCR microservice for extracting text from terminal screenshots and diagrams',
+      },
+      {
+        id: 'deepseek-ai/deepseek-v4-pro-0813',
+        name: 'DeepSeek V4 Pro (0813)',
+        provider: 'nvidia',
+        context_length: 163840,
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'DeepSeek V4 Pro frontier reasoning and software engineering checkpoint accelerated on NVIDIA NIM',
+      },
+      {
+        id: 'deepseek-ai/deepseek-v4-flash-0731',
+        name: 'DeepSeek V4 Flash (0731)',
+        provider: 'nvidia',
+        context_length: 131072,
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'DeepSeek V4 Flash ultra-fast agentic coding checkpoint on NVIDIA NIM',
+      },
+      {
+        id: 'moonshotai/kimi-k3',
+        name: 'Kimi K3 (Moonshot AI)',
+        provider: 'nvidia',
+        context_length: 200000,
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'Moonshot AI Kimi K3 long-context reasoning model hosted on NVIDIA NIM',
+      },
+      {
+        id: 'meta/muse-glimmer-30b',
+        name: 'Muse Glimmer 30B (Meta)',
+        provider: 'nvidia',
+        context_length: 131072,
+        capabilities: { streaming: true, tool_calling: true, vision: true },
+        description: 'Meta Muse Glimmer 30B multimodal creative and code generation model on NIM',
+      },
+      {
+        id: 'poolside/laguna-xs-2.1',
+        name: 'Laguna XS 2.1 (Poolside)',
+        provider: 'nvidia',
+        context_length: 65536,
+        capabilities: { streaming: true, tool_calling: true },
+        description: 'Poolside Laguna XS 2.1 ultra-compact code generation engine on NVIDIA NIM',
+      },
+      {
+        id: 'minimax/minimax-m3',
+        name: 'MiniMax M3',
+        provider: 'nvidia',
+        context_length: 1048576,
+        capabilities: { streaming: true, tool_calling: true, reasoning: true },
+        description: 'MiniMax M3 1M context MoE model on NVIDIA NIM',
+      },
+
       // ── DeepSeek on NVIDIA NIM ────────────────────────────────────
       {
         id: 'deepseek-ai/deepseek-r1',
