@@ -6,10 +6,14 @@ import { ThemeManager } from '@berkelium/themes';
 import { ConfigManager, PromptEngine, pickFileWithFinder } from '@berkelium/config';
 import { ProviderRouter } from '@berkelium/providers';
 import { ToolOrchestrator } from '@berkelium/tools';
-import { ContextEngine } from '@berkelium/context';
+import { ContextEngine, RepoMapper } from '@berkelium/context';
 import { AuthStore, AuthProviderId } from '@berkelium/auth';
 import { TUIOverlays } from './overlays.js';
 import { BkMatrix } from './bk-matrix.js';
+import { ModelPicker } from './model-picker.js';
+import { ModeCommand } from '../commands/mode.js';
+import { PrivacyCommand } from '../commands/privacy.js';
+import { CloudCommand } from '../commands/cloud.js';
 import { CommandRegistry } from '../commands/registry.js';
 import { CommandDefinition, CommandCategory } from '../commands/types.js';
 
@@ -502,11 +506,11 @@ export class SlashCommandHandler {
             console.log(fmt.dimmed('  Type /models or /model list to inspect all discovered models & aliases.'));
           }
         } else {
-          console.log();
-          console.log(`  Active Model: ${fmt.bold(fmt.assistant(this.runtime.getActiveModel()))}`);
-          console.log(fmt.dimmed('  To switch models: /model <name> (e.g. /model local, /model coding)'));
-          console.log(fmt.dimmed('  To list all available models: /models'));
-          console.log();
+          const picker = new ModelPicker(this.themeManager, this.configManager, this.router);
+          const selected = await picker.promptInteractive();
+          if (selected) {
+            this.runtime.setActiveModel(selected.id);
+          }
         }
         return true;
 
@@ -514,6 +518,83 @@ export class SlashCommandHandler {
         const conf = this.configManager.getConfig();
         const discovered = await this.router.listAllAvailableModels();
         TUIOverlays.renderModels(this.themeManager, conf.models, discovered);
+        return true;
+      }
+
+      case 'mode': {
+        await ModeCommand.run(this.themeManager, this.configManager, subArgs[0]);
+        return true;
+      }
+
+      case 'privacy': {
+        await PrivacyCommand.run(this.themeManager, this.configManager, subArgs[0]);
+        return true;
+      }
+
+      case 'cloud': {
+        await CloudCommand.run(
+          this.themeManager,
+          this.configManager,
+          this.authStore,
+          this.router,
+          subArgs[0],
+          subArgs[1],
+          subArgs[2]
+        );
+        return true;
+      }
+
+      case 'search':
+      case 'find': {
+        if (!arg) {
+          console.log(fmt.error('Usage: /search <query>'));
+          return true;
+        }
+        const wsRoot = this.configManager.getWorkspaceRoot();
+        const repoMapper = new RepoMapper(wsRoot);
+        const files = await repoMapper.scan();
+        const matches: Array<{ file: string; symbols: string[] }> = [];
+        const lowerQ = arg.toLowerCase();
+        for (const f of files) {
+          const matchingSymbols = f.symbols
+            .filter((s) => s.name.toLowerCase().includes(lowerQ))
+            .map((s) => s.name);
+          if (matchingSymbols.length > 0 || f.path.toLowerCase().includes(lowerQ)) {
+            matches.push({ file: f.path, symbols: matchingSymbols });
+          }
+        }
+        console.log();
+        console.log(fmt.bold(fmt.primary(`SEARCH RESULTS FOR "${arg}"`)));
+        if (matches.length === 0) {
+          console.log(fmt.dimmed('  No matching symbols or files found.'));
+        } else {
+          for (const m of matches.slice(0, 15)) {
+            const symStr = m.symbols.length > 0 ? ` (${m.symbols.join(', ')})` : '';
+            console.log(`  • ${fmt.accent(m.file)}${fmt.dimmed(symStr)}`);
+          }
+          if (matches.length > 15) {
+            console.log(fmt.dimmed(`  ... and ${matches.length - 15} more matches.`));
+          }
+        }
+        console.log();
+        return true;
+      }
+
+      case 'plan': {
+        if (!arg) {
+          console.log(fmt.error('Usage: /plan <task or feature description>'));
+          return true;
+        }
+        await this.runtime.executeTask(`Create a detailed, step-by-step implementation plan for: ${arg}`);
+        return true;
+      }
+
+      case 'debug': {
+        await this.runtime.executeTask(
+          arg
+            ? `Debug and identify root cause for: ${arg}`
+            : 'Inspect the codebase, run tests and diagnostics, and identify any issues or failures.'
+        );
         return true;
       }
 

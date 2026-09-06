@@ -8,4 +8,5 @@ export * from './adapters/groq.js';
 export * from './adapters/ollama.js';
 export * from './adapters/lmstudio.js';
 export * from './router.js';
+export * from './capability-matrix.js';
 //# sourceMappingURL=index.d.ts.map

@@ -53,6 +53,40 @@ export class DoctorCommand {
             passed: keychainAvailable,
             message: keychainAvailable ? 'Available' : 'Fallback to encrypted local vault',
         });
+        // Local runtime checks
+        try {
+            const { HardwareDetector, RuntimeManager } = await import('@berkelium/runtime');
+            const hw = new HardwareDetector().detect();
+            const budget = new HardwareDetector().calculateBudget();
+            if (hw.is_apple_silicon) {
+                checks.push({
+                    category: 'Platform',
+                    name: `Apple Silicon Chip (${hw.chip})`,
+                    passed: true,
+                    message: `${hw.performance_cores}P + ${hw.efficiency_cores}E cores, ${hw.gpu_cores} GPU cores`,
+                });
+                checks.push({
+                    category: 'Platform',
+                    name: 'Model Memory Budget',
+                    passed: true,
+                    message: `${(budget.total_available_bytes / 1024 ** 3).toFixed(1)} GB allocatable for local models`,
+                });
+            }
+            const rm = new RuntimeManager();
+            await rm.initialize();
+            const statuses = await rm.getStatuses();
+            for (const s of statuses) {
+                checks.push({
+                    category: 'Runtime',
+                    name: `${s.name} Inference Engine`,
+                    passed: s.available,
+                    message: s.available ? `Ready (v${s.version})` : 'Not installed / unavailable',
+                });
+            }
+        }
+        catch {
+            // Runtime package optional in minimal test environments
+        }
         // 3. Provider checks
         const openrouterProv = router.getProvider('openrouter');
         const openrouterOk = openrouterProv ? await openrouterProv.isAvailable() : false;

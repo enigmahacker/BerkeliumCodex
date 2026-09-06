@@ -1,0 +1,1 @@
+{"version":3,"file":"rm.d.ts","sourceRoot":"","sources":["../../src/commands/rm.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,YAAY,EAAE,MAAM,mBAAmB,CAAC;AAGjD,qBAAa,SAAS;WACA,GAAG,CACrB,YAAY,EAAE,YAAY,EAC1B,OAAO,CAAC,EAAE,MAAM,EAChB,SAAS,CAAC,EAAE,MAAM,GACjB,OAAO,CAAC,IAAI,CAAC;CAejB"}

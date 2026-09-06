@@ -16,6 +16,7 @@
     { "path": "../../packages/tools" },
     { "path": "../../packages/context" },
     { "path": "../../packages/plugins" },
+    { "path": "../../packages/runtime" },
     { "path": "../../packages/agent" }
   ],
   "include": ["src/**/*"]

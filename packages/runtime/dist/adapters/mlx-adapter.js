@@ -247,14 +247,30 @@ export class MLXAdapter {
         }));
     }
     // ── Detection ──────────────────────────────────────────────────────────
-    isMLXInstalled() {
+    static mlxCheckDone = false;
+    static mlxInstalled = false;
+    static mlxVersion = 'not installed';
+    checkMLX() {
+        if (MLXAdapter.mlxCheckDone)
+            return;
+        MLXAdapter.mlxCheckDone = true;
         try {
-            execSync(`${this.pythonPath} -c "import mlx_lm"`, { stdio: 'pipe' });
-            return true;
+            const ver = execSync(`${this.pythonPath} -c "import mlx_lm; print(mlx_lm.__version__)"`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 4000 }).trim();
+            MLXAdapter.mlxInstalled = true;
+            MLXAdapter.mlxVersion = ver || 'installed';
         }
         catch {
-            return false;
+            MLXAdapter.mlxInstalled = false;
+            MLXAdapter.mlxVersion = 'not installed';
         }
+    }
+    isMLXInstalled() {
+        this.checkMLX();
+        return MLXAdapter.mlxInstalled;
+    }
+    getMLXVersion() {
+        this.checkMLX();
+        return MLXAdapter.mlxVersion;
     }
     // ── Private Methods ────────────────────────────────────────────────────
     getLoadedModelOrThrow() {
@@ -343,14 +359,6 @@ export class MLXAdapter {
         }
         finally {
             reader.releaseLock();
-        }
-    }
-    getMLXVersion() {
-        try {
-            return execSync(`${this.pythonPath} -c "import mlx_lm; print(mlx_lm.__version__)"`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
-        }
-        catch {
-            return 'unknown';
         }
     }
 }

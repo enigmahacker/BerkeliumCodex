@@ -206,24 +206,14 @@ export class HardwareDetector {
   }
 
   private detectGPUCores(): number {
-    try {
-      const output = execSync(
-        'system_profiler SPDisplaysDataType 2>/dev/null | grep "Total Number of Cores"',
-        { encoding: 'utf-8' }
-      ).trim();
-      const match = output.match(/(\d+)/);
-      return match ? parseInt(match[1], 10) : 0;
-    } catch {
-      // Fallback: estimate from chip model
-      const chip = this.detectAppleChip();
-      const gpuEstimates: Partial<Record<AppleSiliconChip, number>> = {
-        'M1': 8, 'M1 Pro': 16, 'M1 Max': 32, 'M1 Ultra': 64,
-        'M2': 10, 'M2 Pro': 19, 'M2 Max': 38, 'M2 Ultra': 76,
-        'M3': 10, 'M3 Pro': 18, 'M3 Max': 40, 'M3 Ultra': 80,
-        'M4': 10, 'M4 Pro': 20, 'M4 Max': 40, 'M4 Ultra': 80,
-      };
-      return gpuEstimates[chip] || 0;
-    }
+    const chip = this.detectAppleChip();
+    const gpuEstimates: Partial<Record<AppleSiliconChip, number>> = {
+      'M1': 8, 'M1 Pro': 16, 'M1 Max': 32, 'M1 Ultra': 64,
+      'M2': 10, 'M2 Pro': 19, 'M2 Max': 38, 'M2 Ultra': 76,
+      'M3': 10, 'M3 Pro': 18, 'M3 Max': 40, 'M3 Ultra': 80,
+      'M4': 10, 'M4 Pro': 20, 'M4 Max': 40, 'M4 Ultra': 80,
+    };
+    return gpuEstimates[chip] || (chip !== 'unknown' ? 8 : 0);
   }
 
   private detectCoreTopology(): { performance: number; efficiency: number } {

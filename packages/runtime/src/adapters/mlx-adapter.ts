@@ -302,13 +302,34 @@ export class MLXAdapter implements RuntimeAdapter {
 
   // ── Detection ──────────────────────────────────────────────────────────
 
-  public isMLXInstalled(): boolean {
+  private static mlxCheckDone = false;
+  private static mlxInstalled = false;
+  private static mlxVersion = 'not installed';
+
+  private checkMLX(): void {
+    if (MLXAdapter.mlxCheckDone) return;
+    MLXAdapter.mlxCheckDone = true;
     try {
-      execSync(`${this.pythonPath} -c "import mlx_lm"`, { stdio: 'pipe' });
-      return true;
+      const ver = execSync(
+        `${this.pythonPath} -c "import mlx_lm; print(mlx_lm.__version__)"`,
+        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 4000 }
+      ).trim();
+      MLXAdapter.mlxInstalled = true;
+      MLXAdapter.mlxVersion = ver || 'installed';
     } catch {
-      return false;
+      MLXAdapter.mlxInstalled = false;
+      MLXAdapter.mlxVersion = 'not installed';
     }
+  }
+
+  public isMLXInstalled(): boolean {
+    this.checkMLX();
+    return MLXAdapter.mlxInstalled;
+  }
+
+  private getMLXVersion(): string {
+    this.checkMLX();
+    return MLXAdapter.mlxVersion;
   }
 
   // ── Private Methods ────────────────────────────────────────────────────
@@ -396,17 +417,6 @@ export class MLXAdapter implements RuntimeAdapter {
       }
     } finally {
       reader.releaseLock();
-    }
-  }
-
-  private getMLXVersion(): string {
-    try {
-      return execSync(
-        `${this.pythonPath} -c "import mlx_lm; print(mlx_lm.__version__)"`,
-        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
-      ).trim();
-    } catch {
-      return 'unknown';
     }
   }
 }

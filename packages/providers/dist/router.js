@@ -1,10 +1,15 @@
+import { CapabilityMatrix } from './capability-matrix.js';
 export class ProviderRouter {
     providers = new Map();
     config;
     logger;
+    capabilityMatrix = new CapabilityMatrix();
     constructor(config, logger) {
         this.config = config;
         this.logger = logger.child('router');
+    }
+    getCapabilityMatrix() {
+        return this.capabilityMatrix;
     }
     registerProvider(provider) {
         this.providers.set(provider.id, provider);
@@ -16,8 +21,16 @@ export class ProviderRouter {
         this.config = config;
     }
     resolveTarget(input) {
-        const trimmed = input.trim();
-        const lower = trimmed.toLowerCase();
+        let trimmed = input.trim();
+        let lower = trimmed.toLowerCase();
+        let category;
+        // Handle unified category prefixes: cloud/..., local/..., custom/...
+        if (lower.startsWith('cloud/') || lower.startsWith('local/') || lower.startsWith('custom/')) {
+            const firstSlash = trimmed.indexOf('/');
+            category = trimmed.slice(0, firstSlash).toLowerCase();
+            trimmed = trimmed.slice(firstSlash + 1).trim();
+            lower = trimmed.toLowerCase();
+        }
         // 1. Check if it matches a configured model alias (e.g. 'coding', 'local', 'workstation', 'cloud', 'fast', 'reasoning', 'lmstudio', etc.)
         if (this.config.models[trimmed]) {
             const aliasConfig = this.config.models[trimmed];
@@ -31,6 +44,7 @@ export class ProviderRouter {
                 modelId: aliasConfig.model,
                 alias: trimmed,
                 config: aliasConfig,
+                category,
             };
         }
         // 2. Direct provider identifier lookup (e.g. user selected "/model lmstudio" or "/model ollama" or "/model groq")
@@ -60,6 +74,7 @@ export class ProviderRouter {
                 provider: directProvider,
                 providerId: directProvider.id,
                 modelId: modelId || 'default',
+                category,
             };
         }
         // 3. Check if it matches 'provider/model' notation (e.g. 'lmstudio/deepseek-coder-v2', 'ollama/qwen2.5-coder:7b', 'hf/meta-llama/...')
@@ -76,8 +91,10 @@ export class ProviderRouter {
                     provider,
                     providerId,
                     modelId,
+                    category,
                 };
             }
+            throw new Error(`Provider "${providerId}" is not registered or supported.`);
         }
         // 4. Model ID lookup across all registered providers:
         // If the user entered an unqualified model name like 'deepseek-coder-v2', 'qwen2.5-coder:7b', or 'llama-3.3-70b-versatile',

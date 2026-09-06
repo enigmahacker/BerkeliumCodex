@@ -1,0 +1,1 @@
+{"version":3,"file":"map-cmd.d.ts","sourceRoot":"","sources":["../../src/commands/map-cmd.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,YAAY,EAAE,MAAM,mBAAmB,CAAC;AAGjD,qBAAa,UAAU;WACD,GAAG,CACrB,YAAY,EAAE,YAAY,EAC1B,aAAa,GAAE,MAAsB,EACrC,SAAS,GAAE,MAAa,GACvB,OAAO,CAAC,IAAI,CAAC;CAiBjB"}

@@ -93,6 +93,9 @@ importers:
       '@berkelium/providers':
         specifier: workspace:*
         version: link:../../packages/providers
+      '@berkelium/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
       '@berkelium/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry

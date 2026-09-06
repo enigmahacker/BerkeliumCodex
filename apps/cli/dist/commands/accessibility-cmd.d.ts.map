@@ -1,0 +1,1 @@
+{"version":3,"file":"accessibility-cmd.d.ts","sourceRoot":"","sources":["../../src/commands/accessibility-cmd.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,YAAY,EAAE,MAAM,mBAAmB,CAAC;AACjD,OAAO,EAAE,aAAa,EAAE,MAAM,mBAAmB,CAAC;AAElD,qBAAa,oBAAoB;WACX,GAAG,CACrB,YAAY,EAAE,YAAY,EAC1B,aAAa,EAAE,aAAa,EAC5B,MAAM,CAAC,EAAE,MAAM,GACd,OAAO,CAAC,IAAI,CAAC;CA8DjB"}

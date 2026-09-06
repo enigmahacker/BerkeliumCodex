@@ -1,2 +1,2 @@
-export * from './adapters/mlx-adapter.js';
-export * from './adapters/gguf-adapter.js';
+export * from './mlx-adapter.js';
+export * from './gguf-adapter.js';

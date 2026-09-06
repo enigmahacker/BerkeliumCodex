@@ -75,4 +75,37 @@ export class SessionManager {
     if (list.length === 0) return null;
     return this.loadSession(list[0].id);
   }
+
+  public async deleteSession(sessionId: string): Promise<boolean> {
+    try {
+      const filePath = path.join(this.sessionsDir, `${sessionId}.json`);
+      await fs.unlink(filePath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  public createSession(
+    model: string,
+    provider: string,
+    workspaceRoot: string
+  ): SessionData {
+    const id = `session_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    return {
+      id,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      model,
+      provider,
+      workspaceRoot,
+      messages: [],
+      tokenUsage: {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+      },
+      toolsExecutedCount: 0,
+    };
+  }
 }

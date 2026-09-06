@@ -6,7 +6,7 @@
  *
  * Supports any platform (macOS, Linux, Windows) where llama-server is available.
  */
-import type { RuntimeAdapter, RuntimeType, ModelDescriptor, GenerateRequest, GenerateResponse, StreamChunk, ChatMessage, ChatOptions, TokenizeResult, RuntimeHealth, RuntimeMetadata, RuntimeCapabilities, LoadedModel } from './types.js';
+import type { RuntimeAdapter, RuntimeType, ModelDescriptor, GenerateRequest, GenerateResponse, StreamChunk, ChatMessage, ChatOptions, TokenizeResult, RuntimeHealth, RuntimeMetadata, RuntimeCapabilities, LoadedModel } from '../types.js';
 export declare class GGUFAdapter implements RuntimeAdapter {
     readonly id = "gguf";
     readonly name = "GGUF (llama.cpp)";
@@ -31,6 +31,11 @@ export declare class GGUFAdapter implements RuntimeAdapter {
     capabilities(): RuntimeCapabilities;
     cancel(_requestId: string): void;
     listLoaded(): LoadedModel[];
+    private static llamaCheckDone;
+    private static llamaInstalled;
+    private static llamaVersion;
+    private static cachedServerPath;
+    private checkLlama;
     isLlamaServerInstalled(): boolean;
     private findLlamaServer;
     private getLoadedModelOrThrow;

@@ -19,6 +19,7 @@ export default defineConfig({
       '@berkelium/context': path.resolve(__dirname, 'packages/context/src/index.ts'),
       '@berkelium/plugins': path.resolve(__dirname, 'packages/plugins/src/index.ts'),
       '@berkelium/agent': path.resolve(__dirname, 'packages/agent/src/index.ts'),
+      '@berkelium/runtime': path.resolve(__dirname, 'packages/runtime/src/index.ts'),
       '@berkelium/cli': path.resolve(__dirname, 'apps/cli/src/index.ts'),
     },
   },

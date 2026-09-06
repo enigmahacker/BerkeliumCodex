@@ -296,33 +296,53 @@ export class GGUFAdapter implements RuntimeAdapter {
 
   // ── Detection ──────────────────────────────────────────────────────────
 
-  public isLlamaServerInstalled(): boolean {
+  private static llamaCheckDone = false;
+  private static llamaInstalled = false;
+  private static llamaVersion = 'not installed';
+  private static cachedServerPath: string | null = null;
+
+  private checkLlama(): void {
+    if (GGUFAdapter.llamaCheckDone) return;
+    GGUFAdapter.llamaCheckDone = true;
     try {
-      execSync(`${this.serverPath} --version`, { stdio: 'pipe' });
-      return true;
+      const ver = execSync(`${this.serverPath} --version`, {
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 1000,
+      }).trim().split('\n')[0];
+      GGUFAdapter.llamaInstalled = true;
+      GGUFAdapter.llamaVersion = ver || 'installed';
     } catch {
-      return false;
+      GGUFAdapter.llamaInstalled = false;
+      GGUFAdapter.llamaVersion = 'not installed';
     }
+  }
+
+  public isLlamaServerInstalled(): boolean {
+    this.checkLlama();
+    return GGUFAdapter.llamaInstalled;
   }
 
   // ── Private ────────────────────────────────────────────────────────────
 
   private findLlamaServer(): string {
-    // Check env var first
+    if (GGUFAdapter.cachedServerPath) return GGUFAdapter.cachedServerPath;
     if (process.env.BERKELIUM_LLAMA_SERVER_PATH) {
-      return process.env.BERKELIUM_LLAMA_SERVER_PATH;
+      GGUFAdapter.cachedServerPath = process.env.BERKELIUM_LLAMA_SERVER_PATH;
+      return GGUFAdapter.cachedServerPath;
     }
-    // Check common paths
     const candidates = ['llama-server', 'llama-cpp-server', '/usr/local/bin/llama-server'];
     for (const cmd of candidates) {
       try {
-        execSync(`which ${cmd}`, { stdio: 'pipe' });
+        execSync(`which ${cmd}`, { stdio: 'pipe', timeout: 500 });
+        GGUFAdapter.cachedServerPath = cmd;
         return cmd;
       } catch {
         continue;
       }
     }
-    return 'llama-server'; // Default, will fail gracefully if not found
+    GGUFAdapter.cachedServerPath = 'llama-server';
+    return 'llama-server';
   }
 
   private getLoadedModelOrThrow(): LoadedGGUFModel {
@@ -400,10 +420,7 @@ export class GGUFAdapter implements RuntimeAdapter {
   }
 
   private getLlamaVersion(): string {
-    try {
-      return execSync(`${this.serverPath} --version`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim().split('\n')[0];
-    } catch {
-      return 'unknown';
-    }
+    this.checkLlama();
+    return GGUFAdapter.llamaVersion;
   }
 }

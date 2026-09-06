@@ -1,9 +1,10 @@
-import { PromptEngine } from '@berkelium/config';
+import { PromptEngine, PrivacyEngine, CostController } from '@berkelium/config';
 import { ResponseNormalizer } from '@berkelium/providers';
 import { TelemetryTracker } from '@berkelium/telemetry';
 import { HookManager } from '@berkelium/plugins';
 import { AgentStateMachine } from './state-machine.js';
 import { SessionManager } from './session.js';
+import { ProjectMemory } from './memory.js';
 import { Verifier } from './verifier.js';
 import { SubagentManager } from './subagents.js';
 export class AgentRuntime {
@@ -21,6 +22,9 @@ export class AgentRuntime {
     stateMachine;
     verifier;
     subagents;
+    privacyEngine;
+    costController;
+    memory;
     conversationMessages = [];
     activeModelTarget;
     abortController = null;
@@ -40,9 +44,21 @@ export class AgentRuntime {
         this.stateMachine = new AgentStateMachine(this.sessionId, this.eventBus);
         this.verifier = new Verifier(this.orchestrator, this.eventBus);
         this.subagents = new SubagentManager(this.orchestrator, this.router, this.logger, this.eventBus);
+        this.privacyEngine = new PrivacyEngine(this.configManager.getConfig().privacy);
+        this.costController = new CostController(this.configManager.getConfig().cost);
+        this.memory = new ProjectMemory(this.workspaceRoot);
         this.activeModelTarget = this.configManager.getConfig().default_model;
         // Register all default tools into orchestrator
         this.orchestrator.registerDefaultTools();
+    }
+    getMemory() {
+        return this.memory;
+    }
+    getPrivacyEngine() {
+        return this.privacyEngine;
+    }
+    getCostController() {
+        return this.costController;
     }
     getSessionId() {
         return this.sessionId;
@@ -128,14 +144,33 @@ export class AgentRuntime {
                         reductionPercentage: Math.round((tokensSaved / Math.max(1, compaction.tokensBefore)) * 100),
                     });
                 }
-                // 2. Build Layered System Prompt with Workspace Context
+                // 2. Build Layered System Prompt with Workspace Context & Project Memory
                 const promptLayers = PromptEngine.loadCustomPrompts(this.workspaceRoot);
                 const repoMap = await this.contextEngine.getRepoMap(800);
-                promptLayers.workspace = `Active Workspace: ${this.workspaceRoot}\n\n${repoMap}`;
+                const memPrompt = this.memory.getContextPrompt(400);
+                promptLayers.workspace = `Active Workspace: ${this.workspaceRoot}\n\n${repoMap}${memPrompt ? '\n\n' + memPrompt : ''}`;
                 const systemPrompt = PromptEngine.compose(promptLayers, this.workspaceRoot);
-                // 3. Resolve Active Model Target
-                const target = this.router.resolveTarget(this.activeModelTarget);
+                // 3. Resolve Active Model Target & Mode Execution
+                const mode = config.runtime?.mode || 'local';
+                let target = this.router.resolveTarget(this.activeModelTarget);
+                if (mode === 'hybrid') {
+                    this.logger.debug('Hybrid execution: Local context prepared → Reasoning target: ' +
+                        target.providerId +
+                        '/' +
+                        target.modelId);
+                }
                 const toolDefinitions = this.orchestrator.getRegistry().getDefinitions();
+                // 3b. Enforce Privacy & Cost Policies
+                const isLocal = ['mlx', 'gguf', 'cpu', 'ollama', 'lmstudio'].includes(target.providerId.toLowerCase());
+                const lastUserMessage = this.conversationMessages.slice().reverse().find(m => m.role === 'user');
+                const privacyCheck = this.privacyEngine.evaluate(target.providerId, isLocal, lastUserMessage?.content);
+                if (!privacyCheck.allowed) {
+                    throw new Error(`Privacy policy violation: ${privacyCheck.reason}`);
+                }
+                const budgetCheck = this.costController.checkBudget();
+                if (!budgetCheck.allowed) {
+                    throw new Error(`Cost budget exceeded: ${budgetCheck.reason}`);
+                }
                 // 4. Stream LLM Completion
                 this.stateMachine.transition('WAITING_FOR_MODEL');
                 await this.hookManager.trigger('before_model', {
@@ -194,6 +229,7 @@ export class AgentRuntime {
                 }
                 const normalizedResponse = acc.toNormalizedResponse();
                 this.telemetry.recordTokenUsage(normalizedResponse.usage);
+                this.costController.recordUsage(target.providerId, target.modelId, normalizedResponse.usage.promptTokens, normalizedResponse.usage.completionTokens);
                 await this.hookManager.trigger('after_model', { response: normalizedResponse });
                 // Add assistant response to history
                 this.conversationMessages.push({

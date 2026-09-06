@@ -102,7 +102,7 @@ describe('InputStateMachine (Slash Mode, Tab Complete, Keyboard Nav)', () => {
     expect(sm.getMode()).toBe('SlashCommand');
 
     const res = await sm.handleKeypress(undefined, { name: 'tab' });
-    expect(res.buffer).toBe('/model ');
+    expect(res.buffer).toBe('/mode ');
     expect(res.submittedInput).toBeUndefined(); // Must NOT execute!
   });
 

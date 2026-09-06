@@ -1,0 +1,1 @@
+{"version":3,"file":"inspect-cmd.d.ts","sourceRoot":"","sources":["../../src/commands/inspect-cmd.ts"],"names":[],"mappings":"AAEA,OAAO,EAAE,YAAY,EAAE,MAAM,mBAAmB,CAAC;AAIjD,qBAAa,cAAc;WACL,GAAG,CACrB,YAAY,EAAE,YAAY,EAC1B,QAAQ,CAAC,EAAE,MAAM,EACjB,aAAa,GAAE,MAAsB,GACpC,OAAO,CAAC,IAAI,CAAC;CAgEjB"}

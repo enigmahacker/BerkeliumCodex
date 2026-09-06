@@ -24,5 +24,7 @@ export declare class SessionManager {
         workspaceRoot: string;
     }>>;
     getLatestSession(): Promise<SessionData | null>;
+    deleteSession(sessionId: string): Promise<boolean>;
+    createSession(model: string, provider: string, workspaceRoot: string): SessionData;
 }
 //# sourceMappingURL=session.d.ts.map

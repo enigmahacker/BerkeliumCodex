@@ -1,0 +1,222 @@
+/**
+ * @berkelium/providers — Capability Matrix
+ *
+ * Maps model IDs and architectures to supported capabilities.
+ * Used by the model router to select the optimal model for a given task
+ * (e.g. requires tool calling, vision, complex reasoning, or long context).
+ */
+
+export type ModelCapabilityType =
+  | 'chat'
+  | 'code'
+  | 'reasoning'
+  | 'vision'
+  | 'tool_calling'
+  | 'structured_output'
+  | 'embeddings'
+  | 'long_context'
+  | 'streaming';
+
+export interface ModelCapabilityProfile {
+  id: string;
+  name: string;
+  contextWindow: number;
+  capabilities: ModelCapabilityType[];
+  speedTier: 'ultra-fast' | 'fast' | 'balanced' | 'thoughtful';
+  recommendedUse: string;
+}
+
+const KNOWN_MODELS: Record<string, ModelCapabilityProfile> = {
+  // Google Gemini
+  'gemini-3.6-flash': {
+    id: 'gemini-3.6-flash',
+    name: 'Gemini 3.6 Flash',
+    contextWindow: 1_048_576,
+    capabilities: ['chat', 'code', 'reasoning', 'vision', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+    speedTier: 'ultra-fast',
+    recommendedUse: 'Default high-throughput coding and tool calling',
+  },
+  'gemini-3.8-flash': {
+    id: 'gemini-3.8-flash',
+    name: 'Gemini 3.8 Flash',
+    contextWindow: 1_048_576,
+    capabilities: ['chat', 'code', 'reasoning', 'vision', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+    speedTier: 'ultra-fast',
+    recommendedUse: 'High-speed reasoning and deep tool automation',
+  },
+  'gemini-2.5-pro': {
+    id: 'gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
+    contextWindow: 2_097_152,
+    capabilities: ['chat', 'code', 'reasoning', 'vision', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+    speedTier: 'thoughtful',
+    recommendedUse: 'Complex cross-repository refactoring and architectural planning',
+  },
+
+  // DeepSeek
+  'deepseek/deepseek-chat': {
+    id: 'deepseek/deepseek-chat',
+    name: 'DeepSeek Chat (V3)',
+    contextWindow: 65_536,
+    capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'streaming'],
+    speedTier: 'fast',
+    recommendedUse: 'Agentic coding, bug fixing, and test authoring',
+  },
+  'deepseek/deepseek-r1': {
+    id: 'deepseek/deepseek-r1',
+    name: 'DeepSeek R1',
+    contextWindow: 163_840,
+    capabilities: ['chat', 'code', 'reasoning', 'streaming'],
+    speedTier: 'thoughtful',
+    recommendedUse: 'Deep mathematical, algorithmic, and architectural reasoning',
+  },
+  'deepseek-coder-v2': {
+    id: 'deepseek-coder-v2',
+    name: 'DeepSeek Coder V2',
+    contextWindow: 65_536,
+    capabilities: ['chat', 'code', 'tool_calling', 'structured_output', 'streaming'],
+    speedTier: 'fast',
+    recommendedUse: 'Local workstation coding via LM Studio or Ollama',
+  },
+
+  // Meta Llama
+  'meta-llama/Llama-3.3-70B-Instruct': {
+    id: 'meta-llama/Llama-3.3-70B-Instruct',
+    name: 'Llama 3.3 70B Instruct',
+    contextWindow: 131_072,
+    capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+    speedTier: 'balanced',
+    recommendedUse: 'General-purpose agentic coding and file editing',
+  },
+  'llama-3.3-70b-versatile': {
+    id: 'llama-3.3-70b-versatile',
+    name: 'Groq Llama 3.3 70B Versatile',
+    contextWindow: 128_000,
+    capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'long_context', 'streaming'],
+    speedTier: 'ultra-fast',
+    recommendedUse: 'Ultra-low-latency code editing and verification',
+  },
+
+  // Local / Open Models
+  'qwen3-coder:30b': {
+    id: 'qwen3-coder:30b',
+    name: 'Qwen3 Coder 30B',
+    contextWindow: 131_072,
+    capabilities: ['chat', 'code', 'reasoning', 'tool_calling', 'structured_output', 'streaming'],
+    speedTier: 'fast',
+    recommendedUse: 'Apple Silicon MLX local coding agent',
+  },
+  'qwen2.5:14b-instruct-q4_K_M': {
+    id: 'qwen2.5:14b-instruct-q4_K_M',
+    name: 'Qwen 2.5 14B Instruct',
+    contextWindow: 32_768,
+    capabilities: ['chat', 'code', 'tool_calling', 'streaming'],
+    speedTier: 'fast',
+    recommendedUse: 'Local Ollama coding assistant',
+  },
+  'phi-4-mini': {
+    id: 'phi-4-mini',
+    name: 'Phi-4 Mini',
+    contextWindow: 131_072,
+    capabilities: ['chat', 'code', 'tool_calling', 'streaming'],
+    speedTier: 'ultra-fast',
+    recommendedUse: 'Compact low-resource local execution',
+  },
+};
+
+export class CapabilityMatrix {
+  private profiles: Map<string, ModelCapabilityProfile> = new Map();
+
+  constructor() {
+    for (const [id, profile] of Object.entries(KNOWN_MODELS)) {
+      this.profiles.set(id.toLowerCase(), profile);
+    }
+  }
+
+  public registerProfile(profile: ModelCapabilityProfile): void {
+    this.profiles.set(profile.id.toLowerCase(), profile);
+  }
+
+  public getProfile(modelId: string): ModelCapabilityProfile | undefined {
+    const lower = modelId.toLowerCase();
+    if (this.profiles.has(lower)) {
+      return this.profiles.get(lower);
+    }
+
+    // Try finding by suffix (e.g. 'gemini-3.6-flash' matches 'google/gemini-3.6-flash')
+    for (const [key, profile] of this.profiles.entries()) {
+      if (lower.endsWith(key) || key.endsWith(lower)) {
+        return profile;
+      }
+    }
+
+    // Infer basic profile from name heuristics
+    return {
+      id: modelId,
+      name: modelId,
+      contextWindow: 32_768,
+      capabilities: inferCapabilitiesFromName(modelId),
+      speedTier: 'balanced',
+      recommendedUse: 'General inference',
+    };
+  }
+
+  public hasCapability(modelId: string, capability: ModelCapabilityType): boolean {
+    const profile = this.getProfile(modelId);
+    return profile ? profile.capabilities.includes(capability) : false;
+  }
+
+  public recommendModel(requirements: {
+    code?: boolean;
+    reasoning?: boolean;
+    toolCalling?: boolean;
+    vision?: boolean;
+    longContext?: boolean;
+    preferLocal?: boolean;
+  }): string {
+    if (requirements.preferLocal) {
+      if (requirements.toolCalling || requirements.code) {
+        return 'qwen3-coder:30b';
+      }
+      return 'phi-4-mini';
+    }
+
+    if (requirements.reasoning && !requirements.toolCalling) {
+      return 'deepseek/deepseek-r1';
+    }
+
+    if (requirements.vision || requirements.longContext) {
+      return 'gemini-3.6-flash';
+    }
+
+    if (requirements.code || requirements.toolCalling) {
+      return 'coding'; // default configured alias
+    }
+
+    return 'gemini-3.6-flash';
+  }
+}
+
+function inferCapabilitiesFromName(name: string): ModelCapabilityType[] {
+  const lower = name.toLowerCase();
+  const caps: ModelCapabilityType[] = ['chat', 'streaming'];
+
+  if (lower.includes('code') || lower.includes('coder') || lower.includes('qwen') || lower.includes('llama')) {
+    caps.push('code');
+  }
+  if (lower.includes('r1') || lower.includes('o1') || lower.includes('reason') || lower.includes('pro')) {
+    caps.push('reasoning');
+  }
+  if (lower.includes('flash') || lower.includes('pro') || lower.includes('instruct') || lower.includes('v3')) {
+    caps.push('tool_calling');
+    caps.push('structured_output');
+  }
+  if (lower.includes('vision') || lower.includes('vl') || lower.includes('gemini') || lower.includes('scout')) {
+    caps.push('vision');
+  }
+  if (lower.includes('1m') || lower.includes('flash') || lower.includes('pro')) {
+    caps.push('long_context');
+  }
+
+  return caps;
+}

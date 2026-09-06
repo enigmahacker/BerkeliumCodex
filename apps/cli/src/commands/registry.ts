@@ -246,6 +246,22 @@ export class CommandRegistry {
       ],
     });
 
+    this.register({
+      name: 'cloud',
+      description: 'Manage cloud providers, login credentials, and usage',
+      category: 'PROVIDERS',
+      usage: '/cloud [providers|models|login|logout|status|usage|use]',
+      examples: ['/cloud providers', '/cloud login openrouter', '/cloud status'],
+      arguments: [
+        {
+          name: 'action',
+          description: 'Cloud action',
+          required: false,
+          staticOptions: ['providers', 'models', 'login', 'logout', 'status', 'usage', 'use'],
+        },
+      ],
+    });
+
     // 4. CONTEXT
     this.register({
       name: 'context',
@@ -271,6 +287,22 @@ export class CommandRegistry {
       category: 'CONTEXT',
       usage: '/tokens',
       examples: ['/tokens', '/cost'],
+    });
+
+    this.register({
+      name: 'search',
+      aliases: ['find'],
+      description: 'Search codebase symbols, functions, and text',
+      category: 'CONTEXT',
+      usage: '/search <query>',
+      examples: ['/search AuthStore', '/search "handleKeypress"'],
+      arguments: [
+        {
+          name: 'query',
+          description: 'Symbol or search query',
+          required: true,
+        },
+      ],
     });
 
 
@@ -318,6 +350,38 @@ export class CommandRegistry {
       category: 'CONFIGURATION',
       usage: '/config',
       examples: ['/config'],
+    });
+
+    this.register({
+      name: 'mode',
+      description: 'Change runtime execution mode (local, cloud, hybrid, auto)',
+      category: 'CONFIGURATION',
+      usage: '/mode [local|cloud|hybrid|auto]',
+      examples: ['/mode', '/mode hybrid', '/mode local'],
+      arguments: [
+        {
+          name: 'target_mode',
+          description: 'Runtime execution mode',
+          required: false,
+          staticOptions: ['local', 'cloud', 'hybrid', 'auto'],
+        },
+      ],
+    });
+
+    this.register({
+      name: 'privacy',
+      description: 'Inspect or change data privacy policy tier',
+      category: 'CONFIGURATION',
+      usage: '/privacy [local|balanced|hybrid|cloud]',
+      examples: ['/privacy', '/privacy local', '/privacy balanced'],
+      arguments: [
+        {
+          name: 'policy_tier',
+          description: 'Privacy policy tier',
+          required: false,
+          staticOptions: ['local', 'balanced', 'hybrid', 'cloud'],
+        },
+      ],
     });
 
     this.register({
@@ -495,6 +559,36 @@ export class CommandRegistry {
       category: 'DEVELOPMENT',
       usage: '/review',
       examples: ['/review'],
+    });
+
+    this.register({
+      name: 'plan',
+      description: 'Create an architectural implementation plan for a task',
+      category: 'DEVELOPMENT',
+      usage: '/plan <task>',
+      examples: ['/plan "Implement caching layer"', '/plan "Refactor auth middleware"'],
+      arguments: [
+        {
+          name: 'task',
+          description: 'Task or feature to plan',
+          required: true,
+        },
+      ],
+    });
+
+    this.register({
+      name: 'debug',
+      description: 'Debug an issue or inspect failure',
+      category: 'DEVELOPMENT',
+      usage: '/debug [issue]',
+      examples: ['/debug "test failure in router"', '/debug'],
+      arguments: [
+        {
+          name: 'issue',
+          description: 'Failure description or error log',
+          required: false,
+        },
+      ],
     });
 
     this.register({

@@ -1,6 +1,6 @@
 import { EventBus } from '@berkelium/events';
 import { Logger } from '@berkelium/logging';
-import { ConfigManager } from '@berkelium/config';
+import { ConfigManager, PrivacyEngine, CostController } from '@berkelium/config';
 import { ContextEngine } from '@berkelium/context';
 import { ToolOrchestrator } from '@berkelium/tools';
 import { ProviderRouter, Message } from '@berkelium/providers';
@@ -8,6 +8,7 @@ import { TelemetryTracker } from '@berkelium/telemetry';
 import { HookManager } from '@berkelium/plugins';
 import { AgentState } from './state-machine.js';
 import { SessionManager, SessionData } from './session.js';
+import { ProjectMemory } from './memory.js';
 export interface RuntimeInitOptions {
     workspaceRoot?: string;
     configManager: ConfigManager;
@@ -34,11 +35,17 @@ export declare class AgentRuntime {
     private stateMachine;
     private verifier;
     private subagents;
+    private privacyEngine;
+    private costController;
+    private memory;
     private conversationMessages;
     private activeModelTarget;
     private abortController;
     private isRunning;
     constructor(options: RuntimeInitOptions);
+    getMemory(): ProjectMemory;
+    getPrivacyEngine(): PrivacyEngine;
+    getCostController(): CostController;
     getSessionId(): string;
     getState(): AgentState;
     getActiveModel(): string;

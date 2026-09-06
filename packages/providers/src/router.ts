@@ -1,6 +1,7 @@
 import { BerkeliumConfig, ModelAlias } from '@berkelium/config';
 import { Logger } from '@berkelium/logging';
 import { ModelInfo, NormalizedChunk, NormalizedResponse, Provider, ProviderRequestOptions, Message } from './types.js';
+import { CapabilityMatrix } from './capability-matrix.js';
 
 export interface ResolvedModelTarget {
   provider: Provider;
@@ -8,16 +9,22 @@ export interface ResolvedModelTarget {
   modelId: string;
   alias?: string;
   config?: ModelAlias;
+  category?: 'cloud' | 'local' | 'custom';
 }
 
 export class ProviderRouter {
   private providers: Map<string, Provider> = new Map();
   private config: BerkeliumConfig;
   private logger: Logger;
+  private capabilityMatrix = new CapabilityMatrix();
 
   constructor(config: BerkeliumConfig, logger: Logger) {
     this.config = config;
     this.logger = logger.child('router');
+  }
+
+  public getCapabilityMatrix(): CapabilityMatrix {
+    return this.capabilityMatrix;
   }
 
   public registerProvider(provider: Provider): void {
@@ -33,8 +40,17 @@ export class ProviderRouter {
   }
 
   public resolveTarget(input: string): ResolvedModelTarget {
-    const trimmed = input.trim();
-    const lower = trimmed.toLowerCase();
+    let trimmed = input.trim();
+    let lower = trimmed.toLowerCase();
+    let category: 'cloud' | 'local' | 'custom' | undefined;
+
+    // Handle unified category prefixes: cloud/..., local/..., custom/...
+    if (lower.startsWith('cloud/') || lower.startsWith('local/') || lower.startsWith('custom/')) {
+      const firstSlash = trimmed.indexOf('/');
+      category = trimmed.slice(0, firstSlash).toLowerCase() as 'cloud' | 'local' | 'custom';
+      trimmed = trimmed.slice(firstSlash + 1).trim();
+      lower = trimmed.toLowerCase();
+    }
 
     // 1. Check if it matches a configured model alias (e.g. 'coding', 'local', 'workstation', 'cloud', 'fast', 'reasoning', 'lmstudio', etc.)
     if (this.config.models[trimmed]) {
@@ -51,6 +67,7 @@ export class ProviderRouter {
         modelId: aliasConfig.model,
         alias: trimmed,
         config: aliasConfig,
+        category,
       };
     }
 
@@ -84,6 +101,7 @@ export class ProviderRouter {
         provider: directProvider,
         providerId: directProvider.id,
         modelId: modelId || 'default',
+        category,
       };
     }
 
@@ -101,8 +119,10 @@ export class ProviderRouter {
           provider,
           providerId,
           modelId,
+          category,
         };
       }
+      throw new Error(`Provider "${providerId}" is not registered or supported.`);
     }
 
     // 4. Model ID lookup across all registered providers:

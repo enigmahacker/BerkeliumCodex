@@ -10,7 +10,7 @@
  * 3. Memory cleanup is reliable (kill process)
  * 4. MLX upgrades don't require Berkelium rebuilds
  */
-import type { RuntimeAdapter, RuntimeType, ModelDescriptor, GenerateRequest, GenerateResponse, StreamChunk, ChatMessage, ChatOptions, TokenizeResult, RuntimeHealth, RuntimeMetadata, RuntimeCapabilities, LoadedModel } from './types.js';
+import type { RuntimeAdapter, RuntimeType, ModelDescriptor, GenerateRequest, GenerateResponse, StreamChunk, ChatMessage, ChatOptions, TokenizeResult, RuntimeHealth, RuntimeMetadata, RuntimeCapabilities, LoadedModel } from '../types.js';
 export declare class MLXAdapter implements RuntimeAdapter {
     readonly id = "mlx";
     readonly name = "Apple MLX";
@@ -35,10 +35,14 @@ export declare class MLXAdapter implements RuntimeAdapter {
     capabilities(): RuntimeCapabilities;
     cancel(requestId: string): void;
     listLoaded(): LoadedModel[];
+    private static mlxCheckDone;
+    private static mlxInstalled;
+    private static mlxVersion;
+    private checkMLX;
     isMLXInstalled(): boolean;
+    private getMLXVersion;
     private getLoadedModelOrThrow;
     private waitForServer;
     private parseSSEStream;
-    private getMLXVersion;
 }
 //# sourceMappingURL=mlx-adapter.d.ts.map

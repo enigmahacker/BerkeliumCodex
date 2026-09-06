@@ -17,6 +17,24 @@ import { DoctorCommand } from './commands/doctor.js';
 import { InitCommand } from './commands/init.js';
 import { AuthCommand } from './commands/auth.js';
 import { ModelsCommand } from './commands/models.js';
+import { ListCommand } from './commands/list.js';
+import { PullCommand } from './commands/pull.js';
+import { ShowCommand } from './commands/show.js';
+import { RmCommand } from './commands/rm.js';
+import { PsCommand } from './commands/ps.js';
+import { RuntimeCommand } from './commands/runtime.js';
+import { CloudCommand } from './commands/cloud.js';
+import { ModeCommand } from './commands/mode.js';
+import { PrivacyCommand } from './commands/privacy.js';
+import { ModelSubcommand } from './commands/model-cmd.js';
+import { StatusCommand } from './commands/status.js';
+import { GitCommand } from './commands/git-cmd.js';
+import { SessionCommand } from './commands/session-cmd.js';
+import { MapCommand } from './commands/map-cmd.js';
+import { SearchCommand } from './commands/search-cmd.js';
+import { InspectCommand } from './commands/inspect-cmd.js';
+import { AccessibilityCommand } from './commands/accessibility-cmd.js';
+import { ConfigCommand } from './commands/config-cmd.js';
 export async function main(argv = process.argv.slice(2)) {
     const logger = new Logger({ subsystem: 'berkelium' });
     const eventBus = new EventBus();
@@ -59,7 +77,12 @@ export async function main(argv = process.argv.slice(2)) {
             console.log('Berkelium CLI v1.0.0 (darwin-arm64 native)');
             return;
         }
-        if (arg === '--no-animation') {
+        if (arg === '--plain') {
+            customTheme = 'plain';
+            noAnimation = true;
+            matrixMode = false;
+        }
+        else if (arg === '--no-animation') {
             noAnimation = true;
         }
         else if (arg === '--no-matrix') {
@@ -110,12 +133,85 @@ export async function main(argv = process.argv.slice(2)) {
         await ModelsCommand.run(themeManager, configManager, router);
         return;
     }
+    if (firstArg === 'list') {
+        await ListCommand.run(themeManager);
+        return;
+    }
+    if (firstArg === 'pull') {
+        await PullCommand.run(themeManager, positionalArgs[1]);
+        return;
+    }
+    if (firstArg === 'show') {
+        await ShowCommand.run(themeManager, positionalArgs[1]);
+        return;
+    }
+    if (firstArg === 'rm') {
+        await RmCommand.run(themeManager, positionalArgs[1]);
+        return;
+    }
+    if (firstArg === 'ps') {
+        await PsCommand.run(themeManager);
+        return;
+    }
+    if (firstArg === 'runtime') {
+        await RuntimeCommand.run(themeManager, positionalArgs[1]);
+        return;
+    }
+    if (firstArg === 'cloud') {
+        await CloudCommand.run(themeManager, configManager, authStore, router, positionalArgs[1], positionalArgs[2], positionalArgs[3]);
+        return;
+    }
+    if (firstArg === 'mode') {
+        await ModeCommand.run(themeManager, configManager, positionalArgs[1]);
+        return;
+    }
+    if (firstArg === 'privacy') {
+        await PrivacyCommand.run(themeManager, configManager, positionalArgs[1]);
+        return;
+    }
+    if (firstArg === 'model') {
+        await ModelSubcommand.run(themeManager, configManager, router, positionalArgs[1], positionalArgs[2]);
+        return;
+    }
+    if (firstArg === 'status') {
+        const isJson = argv.includes('--json');
+        await StatusCommand.run(themeManager, configManager, router, isJson);
+        return;
+    }
     if (firstArg === 'matrix') {
         await BkMatrix.playMatrixRain(themeManager, { durationMs: 2000 });
         return;
     }
     if (firstArg === 'codex' || firstArg === 'bk') {
         BkMatrix.renderCodexEmblem(themeManager);
+        return;
+    }
+    if (firstArg === 'git') {
+        await GitCommand.run(themeManager, positionalArgs[1], positionalArgs.slice(2), configManager.getWorkspaceRoot());
+        return;
+    }
+    if (firstArg === 'session') {
+        await SessionCommand.run(themeManager, configManager, positionalArgs[1], positionalArgs[2], sessionManager);
+        return;
+    }
+    if (firstArg === 'map') {
+        await MapCommand.run(themeManager, configManager.getWorkspaceRoot());
+        return;
+    }
+    if (firstArg === 'search') {
+        await SearchCommand.run(themeManager, positionalArgs[1], configManager.getWorkspaceRoot());
+        return;
+    }
+    if (firstArg === 'inspect') {
+        await InspectCommand.run(themeManager, positionalArgs[1], configManager.getWorkspaceRoot());
+        return;
+    }
+    if (firstArg === 'accessibility') {
+        await AccessibilityCommand.run(themeManager, configManager, positionalArgs[1]);
+        return;
+    }
+    if (firstArg === 'config') {
+        await ConfigCommand.run(themeManager, configManager, positionalArgs[1], positionalArgs[2], positionalArgs[3]);
         return;
     }
     // Initialize Agent Runtime
