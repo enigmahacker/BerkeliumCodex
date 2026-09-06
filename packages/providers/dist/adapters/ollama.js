@@ -59,28 +59,36 @@ export class OllamaProvider {
     getDefaultModels() {
         return [
             {
-                id: 'qwen2.5:14b-instruct-q4_K_M',
-                name: 'Qwen 2.5 14B Instruct (Ollama)',
+                id: 'qwen2.5-coder:14b',
+                name: 'Qwen 2.5 Coder 14B (Ollama)',
                 provider: 'ollama',
-                context_length: 32768,
+                context_length: 65536,
                 capabilities: { streaming: true, tool_calling: true },
-                description: 'Qwen 2.5 14B running locally on Ollama',
+                description: 'Qwen 2.5 Coder 14B instruction tuned model running locally on Ollama',
             },
             {
-                id: 'qwen2.5-coder:7b',
-                name: 'Qwen 2.5 Coder 7B (Ollama)',
+                id: 'qwen2.5-coder:32b',
+                name: 'Qwen 2.5 Coder 32B (Ollama)',
                 provider: 'ollama',
-                context_length: 32768,
+                context_length: 65536,
                 capabilities: { streaming: true, tool_calling: true },
-                description: 'Qwen 2.5 Coder 7B running locally on Ollama',
+                description: 'Qwen 2.5 Coder 32B powerhouse local coding model',
             },
             {
-                id: 'llama3.2:latest',
-                name: 'Llama 3.2 (Ollama)',
+                id: 'deepseek-r1:14b',
+                name: 'DeepSeek R1 14B (Ollama)',
+                provider: 'ollama',
+                context_length: 65536,
+                capabilities: { streaming: true, tool_calling: true, reasoning: true },
+                description: 'DeepSeek R1 reasoning model running locally on Ollama',
+            },
+            {
+                id: 'llama3.3:70b',
+                name: 'Llama 3.3 70B (Ollama)',
                 provider: 'ollama',
                 context_length: 128000,
                 capabilities: { streaming: true, tool_calling: true },
-                description: 'Meta Llama 3.2 running locally on Ollama',
+                description: 'Meta Llama 3.3 70B running locally on Ollama',
             },
         ];
     }

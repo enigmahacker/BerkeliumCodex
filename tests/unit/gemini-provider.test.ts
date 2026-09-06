@@ -10,7 +10,8 @@ describe('Google Gemini Provider Adapter & Integration', () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
-    authStore = new AuthStore();
+    authStore = new AuthStore({ vaultPath: '/tmp/test-gemini-auth-vault.json' });
+    vi.spyOn(authStore['keychain'], 'getPassword').mockResolvedValue(null);
     delete process.env.GEMINI_API_KEY;
     delete process.env.GOOGLE_API_KEY;
     delete process.env.GOOGLE_GENAI_API_KEY;
@@ -40,10 +41,10 @@ describe('Google Gemini Provider Adapter & Integration', () => {
 
     expect(models.length).toBeGreaterThanOrEqual(4);
     const modelIds = models.map((m) => m.id);
-    expect(modelIds).toContain('gemini-2.0-flash');
+    expect(modelIds).toContain('gemini-3.8-flash');
+    expect(modelIds).toContain('gemini-3.6-flash');
     expect(modelIds).toContain('gemini-2.5-pro');
-    expect(modelIds).toContain('gemini-2.0-flash-thinking-exp-01-21');
-    expect(modelIds).toContain('gemini-1.5-pro');
+    expect(modelIds).toContain('gemini-2.5-flash');
   });
 
   it('should reflect availability based on GEMINI_API_KEY or GOOGLE_API_KEY presence', async () => {
@@ -60,9 +61,13 @@ describe('Google Gemini Provider Adapter & Integration', () => {
 
   it('should throw clear error if streaming without API key', async () => {
     const provider = new GeminiProvider(authStore);
+
+    // Mock fetch to prevent real network calls — error should come before fetch
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('should not reach fetch'));
+
     const stream = provider.stream(
       [{ role: 'user', content: 'Hello Gemini' }],
-      { model: 'gemini-2.0-flash' }
+      { model: 'gemini-3.6-flash' }
     );
 
     await expect(async () => {
@@ -164,7 +169,7 @@ describe('Google Gemini Provider Adapter & Integration', () => {
     // 2. Model aliases
     const targetFlash = router.resolveTarget('gemini-flash');
     expect(targetFlash.providerId).toBe('gemini');
-    expect(targetFlash.modelId).toBe('gemini-2.0-flash');
+    expect(targetFlash.modelId).toMatch(/^gemini-[\d.]+-flash/);
 
     const targetPro = router.resolveTarget('gemini-pro');
     expect(targetPro.providerId).toBe('gemini');

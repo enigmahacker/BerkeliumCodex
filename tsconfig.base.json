@@ -28,6 +28,7 @@
       "@berkelium/context": ["./packages/context/src/index.ts"],
       "@berkelium/plugins": ["./packages/plugins/src/index.ts"],
       "@berkelium/agent": ["./packages/agent/src/index.ts"],
+      "@berkelium/runtime": ["./packages/runtime/src/index.ts"],
       "@berkelium/cli": ["./apps/cli/src/index.ts"]
     }
   }

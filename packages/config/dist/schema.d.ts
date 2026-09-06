@@ -1,4 +1,130 @@
 import { z } from 'zod';
+export declare const RuntimeModeSchema: z.ZodDefault<z.ZodEnum<["local", "cloud", "hybrid", "auto"]>>;
+export declare const PrivacyModeSchema: z.ZodDefault<z.ZodEnum<["local", "balanced", "hybrid", "cloud"]>>;
+export declare const RuntimeConfigSchema: z.ZodDefault<z.ZodObject<{
+    default: z.ZodDefault<z.ZodEnum<["mlx", "gguf", "cpu", "auto"]>>;
+    mlx: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+        python_path: z.ZodOptional<z.ZodString>;
+        server_port: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        server_port: number;
+        python_path?: string | undefined;
+    }, {
+        enabled?: boolean | undefined;
+        python_path?: string | undefined;
+        server_port?: number | undefined;
+    }>>;
+    gguf: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+        llama_server_path: z.ZodOptional<z.ZodString>;
+        server_port: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        server_port: number;
+        llama_server_path?: string | undefined;
+    }, {
+        enabled?: boolean | undefined;
+        server_port?: number | undefined;
+        llama_server_path?: string | undefined;
+    }>>;
+    cpu: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+    }, {
+        enabled?: boolean | undefined;
+    }>>;
+}, "strip", z.ZodTypeAny, {
+    mlx: {
+        enabled: boolean;
+        server_port: number;
+        python_path?: string | undefined;
+    };
+    gguf: {
+        enabled: boolean;
+        server_port: number;
+        llama_server_path?: string | undefined;
+    };
+    cpu: {
+        enabled: boolean;
+    };
+    default: "auto" | "mlx" | "gguf" | "cpu";
+}, {
+    mlx?: {
+        enabled?: boolean | undefined;
+        python_path?: string | undefined;
+        server_port?: number | undefined;
+    } | undefined;
+    gguf?: {
+        enabled?: boolean | undefined;
+        server_port?: number | undefined;
+        llama_server_path?: string | undefined;
+    } | undefined;
+    cpu?: {
+        enabled?: boolean | undefined;
+    } | undefined;
+    default?: "auto" | "mlx" | "gguf" | "cpu" | undefined;
+}>>;
+export declare const ModelStorageConfigSchema: z.ZodDefault<z.ZodObject<{
+    models_dir: z.ZodOptional<z.ZodString>;
+    max_storage_gb: z.ZodOptional<z.ZodNumber>;
+    auto_prune: z.ZodDefault<z.ZodBoolean>;
+}, "strip", z.ZodTypeAny, {
+    auto_prune: boolean;
+    models_dir?: string | undefined;
+    max_storage_gb?: number | undefined;
+}, {
+    models_dir?: string | undefined;
+    max_storage_gb?: number | undefined;
+    auto_prune?: boolean | undefined;
+}>>;
+export declare const CostControlConfigSchema: z.ZodDefault<z.ZodObject<{
+    enabled: z.ZodDefault<z.ZodBoolean>;
+    session_budget_usd: z.ZodOptional<z.ZodNumber>;
+    daily_budget_usd: z.ZodOptional<z.ZodNumber>;
+    monthly_budget_usd: z.ZodOptional<z.ZodNumber>;
+    max_tokens_per_request: z.ZodOptional<z.ZodNumber>;
+    warn_threshold_percent: z.ZodDefault<z.ZodNumber>;
+}, "strip", z.ZodTypeAny, {
+    enabled: boolean;
+    warn_threshold_percent: number;
+    session_budget_usd?: number | undefined;
+    daily_budget_usd?: number | undefined;
+    monthly_budget_usd?: number | undefined;
+    max_tokens_per_request?: number | undefined;
+}, {
+    enabled?: boolean | undefined;
+    session_budget_usd?: number | undefined;
+    daily_budget_usd?: number | undefined;
+    monthly_budget_usd?: number | undefined;
+    max_tokens_per_request?: number | undefined;
+    warn_threshold_percent?: number | undefined;
+}>>;
+export declare const PrivacyConfigSchema: z.ZodDefault<z.ZodObject<{
+    mode: z.ZodDefault<z.ZodEnum<["local", "balanced", "hybrid", "cloud"]>>;
+    cloud_escalation_prompt: z.ZodDefault<z.ZodBoolean>;
+    sensitive_patterns: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+}, "strip", z.ZodTypeAny, {
+    mode: "local" | "cloud" | "hybrid" | "balanced";
+    cloud_escalation_prompt: boolean;
+    sensitive_patterns: string[];
+}, {
+    mode?: "local" | "cloud" | "hybrid" | "balanced" | undefined;
+    cloud_escalation_prompt?: boolean | undefined;
+    sensitive_patterns?: string[] | undefined;
+}>>;
+export declare const CloudConfigSchema: z.ZodDefault<z.ZodObject<{
+    enabled: z.ZodDefault<z.ZodBoolean>;
+    default_provider: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    enabled: boolean;
+    default_provider?: string | undefined;
+}, {
+    enabled?: boolean | undefined;
+    default_provider?: string | undefined;
+}>>;
 export declare const ModelAliasSchema: z.ZodObject<{
     provider: z.ZodString;
     model: z.ZodString;
@@ -611,7 +737,137 @@ export declare const BerkeliumConfigSchema: z.ZodObject<{
         identity?: string | undefined;
         behavior?: string | undefined;
     }>>;
+    runtime: z.ZodDefault<z.ZodObject<{
+        default: z.ZodDefault<z.ZodEnum<["mlx", "gguf", "cpu", "auto"]>>;
+        mlx: z.ZodDefault<z.ZodObject<{
+            enabled: z.ZodDefault<z.ZodBoolean>;
+            python_path: z.ZodOptional<z.ZodString>;
+            server_port: z.ZodDefault<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            enabled: boolean;
+            server_port: number;
+            python_path?: string | undefined;
+        }, {
+            enabled?: boolean | undefined;
+            python_path?: string | undefined;
+            server_port?: number | undefined;
+        }>>;
+        gguf: z.ZodDefault<z.ZodObject<{
+            enabled: z.ZodDefault<z.ZodBoolean>;
+            llama_server_path: z.ZodOptional<z.ZodString>;
+            server_port: z.ZodDefault<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            enabled: boolean;
+            server_port: number;
+            llama_server_path?: string | undefined;
+        }, {
+            enabled?: boolean | undefined;
+            server_port?: number | undefined;
+            llama_server_path?: string | undefined;
+        }>>;
+        cpu: z.ZodDefault<z.ZodObject<{
+            enabled: z.ZodDefault<z.ZodBoolean>;
+        }, "strip", z.ZodTypeAny, {
+            enabled: boolean;
+        }, {
+            enabled?: boolean | undefined;
+        }>>;
+    }, "strip", z.ZodTypeAny, {
+        mlx: {
+            enabled: boolean;
+            server_port: number;
+            python_path?: string | undefined;
+        };
+        gguf: {
+            enabled: boolean;
+            server_port: number;
+            llama_server_path?: string | undefined;
+        };
+        cpu: {
+            enabled: boolean;
+        };
+        default: "auto" | "mlx" | "gguf" | "cpu";
+    }, {
+        mlx?: {
+            enabled?: boolean | undefined;
+            python_path?: string | undefined;
+            server_port?: number | undefined;
+        } | undefined;
+        gguf?: {
+            enabled?: boolean | undefined;
+            server_port?: number | undefined;
+            llama_server_path?: string | undefined;
+        } | undefined;
+        cpu?: {
+            enabled?: boolean | undefined;
+        } | undefined;
+        default?: "auto" | "mlx" | "gguf" | "cpu" | undefined;
+    }>>;
+    model_storage: z.ZodDefault<z.ZodObject<{
+        models_dir: z.ZodOptional<z.ZodString>;
+        max_storage_gb: z.ZodOptional<z.ZodNumber>;
+        auto_prune: z.ZodDefault<z.ZodBoolean>;
+    }, "strip", z.ZodTypeAny, {
+        auto_prune: boolean;
+        models_dir?: string | undefined;
+        max_storage_gb?: number | undefined;
+    }, {
+        models_dir?: string | undefined;
+        max_storage_gb?: number | undefined;
+        auto_prune?: boolean | undefined;
+    }>>;
+    privacy: z.ZodDefault<z.ZodObject<{
+        mode: z.ZodDefault<z.ZodEnum<["local", "balanced", "hybrid", "cloud"]>>;
+        cloud_escalation_prompt: z.ZodDefault<z.ZodBoolean>;
+        sensitive_patterns: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+    }, "strip", z.ZodTypeAny, {
+        mode: "local" | "cloud" | "hybrid" | "balanced";
+        cloud_escalation_prompt: boolean;
+        sensitive_patterns: string[];
+    }, {
+        mode?: "local" | "cloud" | "hybrid" | "balanced" | undefined;
+        cloud_escalation_prompt?: boolean | undefined;
+        sensitive_patterns?: string[] | undefined;
+    }>>;
+    cost: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+        session_budget_usd: z.ZodOptional<z.ZodNumber>;
+        daily_budget_usd: z.ZodOptional<z.ZodNumber>;
+        monthly_budget_usd: z.ZodOptional<z.ZodNumber>;
+        max_tokens_per_request: z.ZodOptional<z.ZodNumber>;
+        warn_threshold_percent: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        warn_threshold_percent: number;
+        session_budget_usd?: number | undefined;
+        daily_budget_usd?: number | undefined;
+        monthly_budget_usd?: number | undefined;
+        max_tokens_per_request?: number | undefined;
+    }, {
+        enabled?: boolean | undefined;
+        session_budget_usd?: number | undefined;
+        daily_budget_usd?: number | undefined;
+        monthly_budget_usd?: number | undefined;
+        max_tokens_per_request?: number | undefined;
+        warn_threshold_percent?: number | undefined;
+    }>>;
+    cloud: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+        default_provider: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        default_provider?: string | undefined;
+    }, {
+        enabled?: boolean | undefined;
+        default_provider?: string | undefined;
+    }>>;
+    mode: z.ZodDefault<z.ZodEnum<["local", "cloud", "hybrid", "auto"]>>;
 }, "strip", z.ZodTypeAny, {
+    cloud: {
+        enabled: boolean;
+        default_provider?: string | undefined;
+    };
+    mode: "local" | "cloud" | "hybrid" | "auto";
     models: Record<string, {
         provider: string;
         model: string;
@@ -730,7 +986,46 @@ export declare const BerkeliumConfigSchema: z.ZodObject<{
         identity?: string | undefined;
         behavior?: string | undefined;
     };
+    runtime: {
+        mlx: {
+            enabled: boolean;
+            server_port: number;
+            python_path?: string | undefined;
+        };
+        gguf: {
+            enabled: boolean;
+            server_port: number;
+            llama_server_path?: string | undefined;
+        };
+        cpu: {
+            enabled: boolean;
+        };
+        default: "auto" | "mlx" | "gguf" | "cpu";
+    };
+    model_storage: {
+        auto_prune: boolean;
+        models_dir?: string | undefined;
+        max_storage_gb?: number | undefined;
+    };
+    privacy: {
+        mode: "local" | "cloud" | "hybrid" | "balanced";
+        cloud_escalation_prompt: boolean;
+        sensitive_patterns: string[];
+    };
+    cost: {
+        enabled: boolean;
+        warn_threshold_percent: number;
+        session_budget_usd?: number | undefined;
+        daily_budget_usd?: number | undefined;
+        monthly_budget_usd?: number | undefined;
+        max_tokens_per_request?: number | undefined;
+    };
 }, {
+    cloud?: {
+        enabled?: boolean | undefined;
+        default_provider?: string | undefined;
+    } | undefined;
+    mode?: "local" | "cloud" | "hybrid" | "auto" | undefined;
     models?: Record<string, {
         provider: string;
         model: string;
@@ -849,9 +1144,50 @@ export declare const BerkeliumConfigSchema: z.ZodObject<{
         identity?: string | undefined;
         behavior?: string | undefined;
     } | undefined;
+    runtime?: {
+        mlx?: {
+            enabled?: boolean | undefined;
+            python_path?: string | undefined;
+            server_port?: number | undefined;
+        } | undefined;
+        gguf?: {
+            enabled?: boolean | undefined;
+            server_port?: number | undefined;
+            llama_server_path?: string | undefined;
+        } | undefined;
+        cpu?: {
+            enabled?: boolean | undefined;
+        } | undefined;
+        default?: "auto" | "mlx" | "gguf" | "cpu" | undefined;
+    } | undefined;
+    model_storage?: {
+        models_dir?: string | undefined;
+        max_storage_gb?: number | undefined;
+        auto_prune?: boolean | undefined;
+    } | undefined;
+    privacy?: {
+        mode?: "local" | "cloud" | "hybrid" | "balanced" | undefined;
+        cloud_escalation_prompt?: boolean | undefined;
+        sensitive_patterns?: string[] | undefined;
+    } | undefined;
+    cost?: {
+        enabled?: boolean | undefined;
+        session_budget_usd?: number | undefined;
+        daily_budget_usd?: number | undefined;
+        monthly_budget_usd?: number | undefined;
+        max_tokens_per_request?: number | undefined;
+        warn_threshold_percent?: number | undefined;
+    } | undefined;
 }>;
 export type BerkeliumConfig = z.infer<typeof BerkeliumConfigSchema>;
 export type ModelAlias = z.infer<typeof ModelAliasSchema>;
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 export type PermissionPolicy = z.infer<typeof PermissionPolicySchema>;
+export type RuntimeConfig = z.infer<typeof RuntimeConfigSchema>;
+export type ModelStorageConfig = z.infer<typeof ModelStorageConfigSchema>;
+export type CostControlConfig = z.infer<typeof CostControlConfigSchema>;
+export type PrivacyConfig = z.infer<typeof PrivacyConfigSchema>;
+export type CloudConfig = z.infer<typeof CloudConfigSchema>;
+export type RuntimeMode = z.infer<typeof RuntimeModeSchema>;
+export type PrivacyMode = z.infer<typeof PrivacyModeSchema>;
 //# sourceMappingURL=schema.d.ts.map

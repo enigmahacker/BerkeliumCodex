@@ -1,5 +1,70 @@
 import { z } from 'zod';
 
+// ── Runtime & Model Storage ──────────────────────────────────────────────
+
+export const RuntimeModeSchema = z.enum(['local', 'cloud', 'hybrid', 'auto']).default('auto');
+
+export const PrivacyModeSchema = z.enum(['local', 'balanced', 'hybrid', 'cloud']).default('balanced');
+
+export const RuntimeConfigSchema = z.object({
+  default: z.enum(['mlx', 'gguf', 'cpu', 'auto']).default('auto'),
+  mlx: z.object({
+    enabled: z.boolean().default(true),
+    python_path: z.string().optional(),
+    server_port: z.number().default(8321),
+  }).default({ enabled: true, server_port: 8321 }),
+  gguf: z.object({
+    enabled: z.boolean().default(true),
+    llama_server_path: z.string().optional(),
+    server_port: z.number().default(8322),
+  }).default({ enabled: true, server_port: 8322 }),
+  cpu: z.object({
+    enabled: z.boolean().default(true),
+  }).default({ enabled: true }),
+}).default({
+  default: 'auto',
+  mlx: { enabled: true, server_port: 8321 },
+  gguf: { enabled: true, server_port: 8322 },
+  cpu: { enabled: true },
+});
+
+export const ModelStorageConfigSchema = z.object({
+  models_dir: z.string().optional(),
+  max_storage_gb: z.number().optional(),
+  auto_prune: z.boolean().default(false),
+}).default({
+  auto_prune: false,
+});
+
+export const CostControlConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  session_budget_usd: z.number().optional(),
+  daily_budget_usd: z.number().optional(),
+  monthly_budget_usd: z.number().optional(),
+  max_tokens_per_request: z.number().optional(),
+  warn_threshold_percent: z.number().default(80),
+}).default({
+  enabled: false,
+  warn_threshold_percent: 80,
+});
+
+export const PrivacyConfigSchema = z.object({
+  mode: PrivacyModeSchema,
+  cloud_escalation_prompt: z.boolean().default(true),
+  sensitive_patterns: z.array(z.string()).default([]),
+}).default({
+  mode: 'balanced',
+  cloud_escalation_prompt: true,
+  sensitive_patterns: [],
+});
+
+export const CloudConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  default_provider: z.string().optional(),
+}).default({
+  enabled: true,
+});
+
 export const ModelAliasSchema = z.object({
   provider: z.string(),
   model: z.string(),
@@ -115,17 +180,17 @@ export const BerkeliumConfigSchema = z.object({
     },
     gemini: {
       provider: 'gemini',
-      model: 'gemini-2.0-flash',
+      model: 'gemini-3.6-flash',
       context_length: 1048576,
     },
     google: {
       provider: 'gemini',
-      model: 'gemini-2.0-flash',
+      model: 'gemini-3.6-flash',
       context_length: 1048576,
     },
     'gemini-flash': {
       provider: 'gemini',
-      model: 'gemini-2.0-flash',
+      model: 'gemini-3.6-flash',
       context_length: 1048576,
     },
     'gemini-pro': {
@@ -135,7 +200,7 @@ export const BerkeliumConfigSchema = z.object({
     },
     'gemini-flash-thinking': {
       provider: 'gemini',
-      model: 'gemini-2.0-flash-thinking-exp-01-21',
+      model: 'gemini-3.7-flash',
       context_length: 1048576,
     },
     huggingface: {
@@ -247,9 +312,24 @@ export const BerkeliumConfigSchema = z.object({
     coding: z.string().optional(),
     tools: z.string().optional(),
   }).default({}),
+
+  // ── New: Runtime, Privacy, Cost, Model Storage, Cloud ──────────────
+  runtime: RuntimeConfigSchema,
+  model_storage: ModelStorageConfigSchema,
+  privacy: PrivacyConfigSchema,
+  cost: CostControlConfigSchema,
+  cloud: CloudConfigSchema,
+  mode: RuntimeModeSchema,
 });
 
 export type BerkeliumConfig = z.infer<typeof BerkeliumConfigSchema>;
 export type ModelAlias = z.infer<typeof ModelAliasSchema>;
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 export type PermissionPolicy = z.infer<typeof PermissionPolicySchema>;
+export type RuntimeConfig = z.infer<typeof RuntimeConfigSchema>;
+export type ModelStorageConfig = z.infer<typeof ModelStorageConfigSchema>;
+export type CostControlConfig = z.infer<typeof CostControlConfigSchema>;
+export type PrivacyConfig = z.infer<typeof PrivacyConfigSchema>;
+export type CloudConfig = z.infer<typeof CloudConfigSchema>;
+export type RuntimeMode = z.infer<typeof RuntimeModeSchema>;
+export type PrivacyMode = z.infer<typeof PrivacyModeSchema>;

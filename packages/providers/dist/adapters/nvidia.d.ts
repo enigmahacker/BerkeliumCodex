@@ -9,7 +9,7 @@ export declare class NVIDIAProvider implements Provider {
     capabilities(): ProviderCapabilities;
     isAvailable(): Promise<boolean>;
     listModels(): Promise<ModelInfo[]>;
-    private getDefaultModels;
+    getDefaultModels(): ModelInfo[];
     stream(messages: Message[], options: ProviderRequestOptions): AsyncIterable<NormalizedChunk>;
     generate(messages: Message[], options: ProviderRequestOptions): Promise<NormalizedResponse>;
     private formatMessages;

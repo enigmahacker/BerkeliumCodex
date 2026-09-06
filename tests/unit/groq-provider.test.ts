@@ -47,7 +47,7 @@ describe('Groq Provider Adapter & Integration', () => {
     expect(modelIds).toContain('llama-3.3-70b-versatile');
     expect(modelIds).toContain('llama-3.1-8b-instant');
     expect(modelIds).toContain('deepseek-r1-distill-llama-70b');
-    expect(modelIds).toContain('mixtral-8x7b-32768');
+    expect(modelIds).toContain('qwen-qwq-32b');
   });
 
   it('should stream response chunks from Groq chat completions endpoint', async () => {

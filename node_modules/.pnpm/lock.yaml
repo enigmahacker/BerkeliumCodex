@@ -190,6 +190,25 @@ importers:
         specifier: workspace:*
         version: link:../logging
 
+  packages/runtime:
+    dependencies:
+      '@berkelium/config':
+        specifier: workspace:*
+        version: link:../config
+      '@berkelium/events':
+        specifier: workspace:*
+        version: link:../events
+      '@berkelium/logging':
+        specifier: workspace:*
+        version: link:../logging
+    devDependencies:
+      tsup:
+        specifier: ^8.3.6
+        version: 8.5.1(postcss@8.5.28)(tsx@4.23.13)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
   packages/telemetry: {}
 
   packages/themes:

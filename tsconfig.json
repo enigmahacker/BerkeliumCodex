@@ -13,6 +13,7 @@
     { "path": "packages/context" },
     { "path": "packages/agent" },
     { "path": "packages/plugins" },
+    { "path": "packages/runtime" },
     { "path": "apps/cli" }
   ]
 }
