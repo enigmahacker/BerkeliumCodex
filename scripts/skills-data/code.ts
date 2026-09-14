@@ -1,0 +1,280 @@
+import { SkillDefinition } from './types.js';
+
+export const codeSkills: SkillDefinition[] = [
+  {
+    name: 'code-code-search',
+    version: '1.0.0',
+    description: 'Searches codebase for text patterns, function calls, or error codes using ripgrep semantics.',
+    category: 'code',
+    dir: 'code-search',
+    risk: 'safe',
+    requires_permission: false,
+    required_tools: ['search_files'],
+    optional_tools: ['read_file'],
+    fallbacks: 'Execute git grep or grep -rn via shell_execute.',
+    title: 'Codebase Pattern & Text Search',
+    purpose: 'Rapidly locate code patterns, imports, error strings, or API usages across the workspace.',
+    when_to_activate: 'Activate when investigating bug reports, tracing variable usages, or auditing callsites.',
+    inputs: 'Search query string, file glob filter, case-sensitivity flag, regex flag.',
+    preconditions: 'Workspace must be indexed or readable.',
+    procedure: `1. Formulate search query (literal string or regex).
+2. Apply file extension filters (e.g. *.ts, *.py) to eliminate noise.
+3. Exclude build directories and package managers.
+4. Execute search_files.
+5. Group matches by file and line number.`,
+    tool_usage: 'Invoke search_files with query, filePattern, and regex parameters.',
+    safety: 'Avoid unbounded regexes that cause catastrophic backtracking.',
+    permissions: 'Safe read-only operation.',
+    verification: 'Check that returned matches correspond to actual lines in the source files.',
+    failure_handling: 'If no matches found, try case-insensitive or partial keyword search.',
+    output_contract: 'Array of CodeMatch objects with file, line, and matchedText.',
+    examples: 'Finding all occurrences of AgentRuntime in the repository.',
+    related_skills: ['code-symbol-search', 'filesystem-read-file'],
+  },
+  {
+    name: 'code-symbol-search',
+    version: '1.0.0',
+    description: 'Locates functions, classes, interfaces, and exported types across the project.',
+    category: 'code',
+    dir: 'symbol-search',
+    risk: 'safe',
+    requires_permission: false,
+    required_tools: ['search_files'],
+    optional_tools: ['read_file'],
+    fallbacks: 'Use regex-based definition searches (e.g. class Foo, function bar, export interface).',
+    title: 'AST & Symbol Definition Search',
+    purpose: 'Find declarations and definitions of classes, interfaces, types, and functions.',
+    when_to_activate: 'Activate when exploring code architecture, extending interfaces, or refactoring symbols.',
+    inputs: 'Symbol name, symbol kind (class, function, interface, type).',
+    preconditions: 'Source files must be accessible.',
+    procedure: `1. Construct targeted search patterns for symbol declaration in the project language.
+2. Search through source directories using search_files.
+3. Locate exact declaration file and line range.
+4. Read declaration context via read_file to inspect exported signatures.
+5. Return symbol definition location and signature.`,
+    tool_usage: 'Call search_files with declaration regex, then read_file for signature extraction.',
+    safety: 'Read-only search.',
+    permissions: 'Safe read-only operation.',
+    verification: 'Confirm matching file contains the symbol declaration at the specified line.',
+    failure_handling: 'If symbol not found in workspace, check node_modules/@types or external imports.',
+    output_contract: 'SymbolDeclaration with name, kind, file, line, and signature.',
+    examples: 'Locating the declaration of PermissionEngine across all packages.',
+    related_skills: ['code-code-search', 'code-architecture-analysis'],
+  },
+  {
+    name: 'code-dependency-analysis',
+    version: '1.0.0',
+    description: 'Analyzes package manifests, import graphs, circular dependencies, and module coupling.',
+    category: 'code',
+    dir: 'dependency-analysis',
+    risk: 'safe',
+    requires_permission: false,
+    required_tools: ['read_file'],
+    optional_tools: ['list_directory', 'shell_execute'],
+    fallbacks: 'Parse package.json or pyproject.toml directly.',
+    title: 'Module & Dependency Graph Analysis',
+    purpose: 'Map dependencies between packages in monorepos and detect dependency cycles.',
+    when_to_activate: 'Activate during project scans, monorepo restructuring, or version conflict resolution.',
+    inputs: 'Package manifest paths (package.json, cargo.toml, pyproject.toml).',
+    preconditions: 'Workspace manifests must be readable.',
+    procedure: `1. Locate all package.json files in packages/ and apps/.
+2. Parse declared dependencies and workspace:* protocols.
+3. Construct directed dependency graph.
+4. Check for circular dependency cycles.
+5. Identify outdated, unused, or mismatched package versions.`,
+    tool_usage: 'Use read_file to load manifests; invoke shell_execute for dependency audit tools if present.',
+    safety: 'Read-only analysis.',
+    permissions: 'Safe operation.',
+    verification: 'Verify that dependency graph nodes and edges accurately reflect manifest contents.',
+    failure_handling: 'If a manifest has syntax errors, report JSON parse error with line number.',
+    output_contract: 'DependencyAnalysisReport with graph, circular_dependencies, and external_packages.',
+    examples: 'Detecting if @berkelium/agent depends on apps/cli (violating invariant).',
+    related_skills: ['project-dependencies', 'security-dependency-security'],
+  },
+  {
+    name: 'code-code-editing',
+    version: '1.0.0',
+    description: 'Applies surgical, convention-preserving modifications to source code following the 8-step edit loop.',
+    category: 'code',
+    dir: 'code-editing',
+    risk: 'medium',
+    requires_permission: true,
+    required_tools: ['edit_file', 'read_file'],
+    optional_tools: ['git_diff'],
+    fallbacks: 'Use write_file after staging modification in memory.',
+    title: 'Precision Code Modification',
+    purpose: 'Implement code changes following the canonical loop: INSPECT -> UNDERSTAND -> PLAN -> EDIT -> FORMAT -> TEST -> DIFF -> VERIFY.',
+    when_to_activate: 'Activate whenever editing source code to fix bugs, add features, or update interfaces.',
+    inputs: 'Target file path, problem explanation, proposed code change.',
+    preconditions: 'File must be read first to understand local context, naming conventions, and style.',
+    procedure: `1. INSPECT: Read the target file and surrounding context using read_file.
+2. UNDERSTAND: Identify naming conventions, typing invariants, and existing comments.
+3. PLAN: Determine the minimum diff required to achieve the goal.
+4. EDIT: Apply surgical edit using edit_file.
+5. FORMAT: Ensure indentation matches file standards.
+6. TEST: Run tests covering the edited component.
+7. DIFF: Review git diff to verify no unintended changes or extra whitespace.
+8. VERIFY: Confirm compilation and typecheck pass cleanly.`,
+    tool_usage: 'Call read_file to inspect, edit_file to patch, git_diff to review.',
+    safety: 'NEVER rewrite an entire file when a targeted edit is sufficient. Preserve existing comments and style.',
+    permissions: 'Requires filesystem edit capability.',
+    verification: 'Verify test suite and typechecker pass with exit code 0.',
+    failure_handling: 'If edit fails to apply or breaks tests, revert changes via git checkout and retry.',
+    output_contract: 'CodeEditResult with file, diffSummary, and verificationStatus.',
+    examples: 'Adding a new case handler inside a state machine switch statement.',
+    related_skills: ['filesystem-edit-file', 'core-verification', 'code-refactoring'],
+  },
+  {
+    name: 'code-refactoring',
+    version: '1.0.0',
+    description: 'Improves code structure, readability, and performance without altering external behavior.',
+    category: 'code',
+    dir: 'refactoring',
+    risk: 'medium',
+    requires_permission: true,
+    required_tools: ['read_file', 'edit_file', 'shell_execute'],
+    optional_tools: ['git_diff'],
+    fallbacks: 'Apply refactoring step-by-step with intermediate test executions.',
+    title: 'Behavior-Preserving Code Refactoring',
+    purpose: 'Refactor code safely by maintaining test passing status at every intermediate transformation.',
+    when_to_activate: 'Activate when eliminating code duplication, decomposing large functions, or modernizing syntax.',
+    inputs: 'Target file(s), refactoring goal (extract method, rename symbol, decompose module).',
+    preconditions: 'Existing test suite must be passing before refactoring begins.',
+    procedure: `1. Run baseline test suite to confirm all tests currently pass.
+2. Plan atomic refactoring steps (one transformation at a time).
+3. Apply code edit via edit_file.
+4. Run test suite after each step to verify behavior is strictly preserved.
+5. Inspect git diff to ensure public API signatures remain backward compatible.
+6. Conclude when code cleanliness goal is achieved.`,
+    tool_usage: 'Use read_file, edit_file, and shell_execute to run test validation.',
+    safety: 'Never alter external function signatures or breaking public contracts during refactoring.',
+    permissions: 'Requires filesystem edit capability.',
+    verification: 'All existing tests must continue to pass with 0 regressions.',
+    failure_handling: 'If any test breaks, revert the immediate transformation step and re-evaluate.',
+    output_contract: 'RefactoringSummary with steps_taken, files_modified, and test_verification.',
+    examples: 'Extracting redundant error formatting logic into a shared helper function.',
+    related_skills: ['code-code-editing', 'testing-regression-testing'],
+  },
+  {
+    name: 'code-debugging',
+    version: '1.0.0',
+    description: 'Diagnoses root causes of failures, stack traces, race conditions, and unhandled rejections.',
+    category: 'code',
+    dir: 'debugging',
+    risk: 'safe',
+    requires_permission: false,
+    required_tools: ['read_file', 'search_files'],
+    optional_tools: ['shell_execute'],
+    fallbacks: 'Analyze stack trace patterns and error messages statically.',
+    title: 'Root-Cause Localization & Debugging',
+    purpose: 'Isolate the defect origin from logs, stack traces, and failing tests, formulating reproduction tests.',
+    when_to_activate: 'Activate upon test failures, exceptions, unexpected outputs, or customer bug reports.',
+    inputs: 'Error message, stack trace, failing test output, reproduction steps.',
+    preconditions: 'Failing logs or reproduction steps must be provided.',
+    procedure: `1. Parse stack trace to isolate the failing file and line number.
+2. Read the failing line and surrounding execution scope via read_file.
+3. Trace data flow leading to the invalid state or undefined reference.
+4. Formulate an atomic reproduction test case replicating the defect.
+5. Pinpoint root cause (e.g. off-by-one, race condition, missing null check, wrong type assumption).
+6. Provide diagnosis and handover to code-editing.`,
+    tool_usage: 'Use search_files to find error symbols; read_file to inspect failing functions.',
+    safety: 'Do not modify production code while investigating; keep diagnostics read-only.',
+    permissions: 'Safe read-only diagnosis.',
+    verification: 'Verify that reproduction test fails reliably before applying fixes.',
+    failure_handling: 'If stack trace is obfuscated, inspect source maps or run tests with source map support.',
+    output_contract: 'DebugReport with error_classification, root_cause_analysis, and failing_line.',
+    examples: 'Debugging InvalidStateTransitionError: illegal transition from EXECUTING to IDLE.',
+    related_skills: ['core-error-recovery', 'code-code-editing', 'testing-test-execution'],
+  },
+  {
+    name: 'code-code-review',
+    version: '1.0.0',
+    description: 'Audits code changes for security flaws, architectural invariants, performance bottlenecks, and style.',
+    category: 'code',
+    dir: 'code-review',
+    risk: 'safe',
+    requires_permission: false,
+    required_tools: ['git_diff', 'read_file'],
+    optional_tools: ['search_files'],
+    fallbacks: 'Inspect modified files directly using read_file.',
+    title: 'Automated Code Review & Invariant Audit',
+    purpose: 'Review proposed diffs against AGENTS.md architectural boundaries and security requirements.',
+    when_to_activate: 'Activate prior to creating pull requests, committing code, or completing tasks.',
+    inputs: 'Git diff or branch comparison.',
+    preconditions: 'Changes must be staged or present in the working tree.',
+    procedure: `1. Generate diff using git_diff.
+2. Check for security red flags (hardcoded secrets, unescaped shell inputs, path traversal).
+3. Check for architectural invariant violations (provider coupling, direct UI execution).
+4. Verify error handling and null safety on all new code paths.
+5. Check that tests are included for new features or bug fixes.
+6. Produce itemized review comments with line references.`,
+    tool_usage: 'Invoke git_diff to view unstaged and staged changes.',
+    safety: 'Read-only analysis.',
+    permissions: 'Safe operation.',
+    verification: 'Confirm all review checklist items are explicitly evaluated.',
+    failure_handling: 'If diff is too large, review file-by-file in chunks.',
+    output_contract: 'CodeReviewReport with status (approved/changes_requested), issues list, and suggestions.',
+    examples: 'Reviewing a PR adding LM Studio provider adapter for provider neutrality compliance.',
+    related_skills: ['git-diff', 'security-security-audit', 'core-verification'],
+  },
+  {
+    name: 'code-architecture-analysis',
+    version: '1.0.0',
+    description: 'Maps system architecture, subsystem boundaries, data flow pipelines, and design patterns.',
+    category: 'code',
+    dir: 'architecture-analysis',
+    risk: 'safe',
+    requires_permission: false,
+    required_tools: ['list_directory', 'read_file'],
+    optional_tools: ['search_files'],
+    fallbacks: 'Read ARCHITECTURE.md and AGENTS.md in repository root.',
+    title: 'System Architecture & Subsystem Mapping',
+    purpose: 'Evaluate structural boundaries, layering rules, and event communication flows.',
+    when_to_activate: 'Activate when onboarding to a new codebase, designing new subsystems, or refactoring monorepos.',
+    inputs: 'Workspace root, project documentation, package structure.',
+    preconditions: 'Project documentation and source trees must exist.',
+    procedure: `1. Read ARCHITECTURE.md and AGENTS.md to understand core design invariants.
+2. Inspect package boundaries and export maps across packages/.
+3. Trace data flow: UI -> EventBus -> AgentRuntime -> ToolOrchestrator -> PermissionEngine.
+4. Verify decoupling: ensure UI never directly imports provider clients or executes shell commands.
+5. Document architecture map and identify any boundary violations.`,
+    tool_usage: 'Use list_directory and read_file to inspect package definitions.',
+    safety: 'Read-only analysis.',
+    permissions: 'Safe operation.',
+    verification: 'Confirm identified components align with the documented architectural rules.',
+    failure_handling: 'If architectural docs are missing, synthesize architecture from package dependencies.',
+    output_contract: 'ArchitectureMap with layers, components, data flows, and invariant compliance status.',
+    examples: 'Verifying that @berkelium/providers does not depend on @berkelium/cli.',
+    related_skills: ['code-dependency-analysis', 'core-reasoning'],
+  },
+  {
+    name: 'code-documentation',
+    version: '1.0.0',
+    description: 'Generates and maintains API documentation, developer guides, READMEs, and changelogs.',
+    category: 'code',
+    dir: 'documentation',
+    risk: 'low',
+    requires_permission: true,
+    required_tools: ['read_file', 'write_file', 'edit_file'],
+    optional_tools: ['search_files'],
+    fallbacks: 'Generate markdown text and output to terminal console.',
+    title: 'Technical Documentation Authoring',
+    purpose: 'Produce accurate, repository-grounded documentation for developers, contributors, and users.',
+    when_to_activate: 'Activate when releasing new features, documenting skills, updating APIs, or writing guides.',
+    inputs: 'Source file paths, feature overview, audience (user, developer, contributor).',
+    preconditions: 'Target codebase components must be implemented and tested.',
+    procedure: `1. Inspect code interfaces and exported types to understand API surface.
+2. Read existing documentation (README.md, docs/) to match voice and formatting.
+3. Author markdown documentation with clear headers, code snippets, and usage examples.
+4. Verify all code snippets in the documentation compile and work.
+5. Update CHANGELOG.md with summary of changes under current version.`,
+    tool_usage: 'Use read_file to inspect APIs, write_file/edit_file to save documentation.',
+    safety: 'Do not leak sensitive internal credentials, machine paths, or private host details.',
+    permissions: 'Requires filesystem edit permission.',
+    verification: 'Check that all markdown links and code snippet examples are valid.',
+    failure_handling: 'If document formatting is inconsistent, reformat following standard GFM syntax.',
+    output_contract: 'Markdown document file path and generated section summary.',
+    examples: 'Authoring docs/PROVIDER_GUIDE.md for custom LLM provider authors.',
+    related_skills: ['filesystem-write-file', 'code-code-review'],
+  },
+];
