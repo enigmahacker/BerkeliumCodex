@@ -5,6 +5,10 @@ theme:
 ui:
   launch_animation: true
   hackathon_mode: false
+  launch_animation_duration_ms: 1200
+  launch_matrix: true
+  density: compact
+  unicode: true
 permissions:
   filesystem:
     read: allow
@@ -17,3 +21,333 @@ permissions:
   shell:
     safe: allow
     destructive: ask
+    privileged: deny
+  level: auto
+  network:
+    default: ask
+    allowed_domains: []
+effort: max
+routing:
+  primary: openrouter/coding
+  fallback:
+    - nvidia/coding
+    - ollama/local
+    - lmstudio/workstation
+models:
+  coding:
+    provider: openrouter
+    model: deepseek/deepseek-chat
+    context_length: 65536
+    max_tokens: 2048
+  local:
+    provider: ollama
+    model: qwen2.5:14b-instruct-q4_K_M
+    context_length: 32768
+  workstation:
+    provider: lmstudio
+    model: deepseek-coder-v2
+    context_length: 65536
+  cloud:
+    provider: nvidia
+    model: meta/llama-3.3-70b-instruct
+    context_length: 131072
+  fast:
+    provider: openrouter
+    model: google/gemini-2.0-flash-001
+    context_length: 1048576
+  reasoning:
+    provider: openrouter
+    model: deepseek/deepseek-r1
+    context_length: 163840
+  lmstudio:
+    provider: lmstudio
+    model: deepseek-coder-v2
+    context_length: 65536
+  ollama:
+    provider: ollama
+    model: qwen2.5:14b-instruct-q4_K_M
+    context_length: 32768
+  groq:
+    provider: groq
+    model: llama-3.3-70b-versatile
+    context_length: 128000
+  groq-vision:
+    provider: groq
+    model: llama-3.2-11b-vision-preview
+    context_length: 128000
+  groq-qwen:
+    provider: groq
+    model: qwen-2.5-72b
+    context_length: 131072
+  gemini:
+    provider: gemini
+    model: gemini-3-flash
+    context_length: 1048576
+  google:
+    provider: gemini
+    model: gemini-3-flash
+    context_length: 1048576
+  gemini-flash:
+    provider: gemini
+    model: gemini-3-flash
+    context_length: 1048576
+  gemini-3-flash:
+    provider: gemini
+    model: gemini-3-flash
+    context_length: 1048576
+  gemini-free:
+    provider: gemini
+    model: gemini-3-flash
+    context_length: 1048576
+  gemini-flash-lite:
+    provider: gemini
+    model: gemini-3.1-flash-lite
+    context_length: 1048576
+  gemini-2.0-flash:
+    provider: gemini
+    model: gemini-2.0-flash
+    context_length: 1048576
+  gemini-2.5-flash:
+    provider: gemini
+    model: gemini-2.5-flash
+    context_length: 1048576
+  gemini-pro:
+    provider: gemini
+    model: gemini-2.5-pro
+    context_length: 2097152
+  gemini-flash-thinking:
+    provider: gemini
+    model: gemini-3.7-flash
+    context_length: 1048576
+  huggingface:
+    provider: huggingface
+    model: meta-llama/Llama-3.1-8B-Instruct
+    context_length: 131072
+  hf:
+    provider: huggingface
+    model: meta-llama/Llama-3.1-8B-Instruct
+    context_length: 131072
+  hf-llama-8b:
+    provider: huggingface
+    model: meta-llama/Llama-3.1-8B-Instruct
+    context_length: 131072
+  hf-gemma-9b:
+    provider: huggingface
+    model: google/gemma-2-9b-it
+    context_length: 8192
+  hf-qwen-coder:
+    provider: huggingface
+    model: Qwen/Qwen2.5-Coder-7B
+    context_length: 32768
+  nvidia:
+    provider: nvidia
+    model: meta/llama-3.3-70b-instruct
+    context_length: 131072
+  nvidia-nemotron-lightning:
+    provider: nvidia
+    model: nvidia/nemotron-3.5-lightning-30b-a3b
+    context_length: 131072
+  nvidia-deepseek-v4:
+    provider: nvidia
+    model: deepseek-ai/deepseek-v4-pro-0813
+    context_length: 163840
+  nvidia-kimi-k3:
+    provider: nvidia
+    model: moonshotai/kimi-k3
+    context_length: 200000
+  free-llama4:
+    provider: openrouter
+    model: meta-llama/llama-4-scout:free
+    context_length: 131072
+  free-llama3:
+    provider: openrouter
+    model: meta-llama/llama-3.3-70b-instruct:free
+    context_length: 131072
+  free-qwen:
+    provider: openrouter
+    model: qwen/qwen-2.5-72b-instruct:free
+    context_length: 131072
+  free-nemotron:
+    provider: openrouter
+    model: nvidia/nemotron-3.5-lightning:free
+    context_length: 131072
+  free-minimax:
+    provider: openrouter
+    model: minimax/minimax-m3:free
+    context_length: 1048576
+  anthropic:
+    provider: openrouter
+    model: anthropic/claude-3.7-sonnet
+    context_length: 200000
+  claude:
+    provider: openrouter
+    model: anthropic/claude-3.7-sonnet
+    context_length: 200000
+  claude-thinking:
+    provider: openrouter
+    model: anthropic/claude-3.7-sonnet:thinking
+    context_length: 200000
+  claude-3.5-sonnet:
+    provider: openrouter
+    model: anthropic/claude-3.5-sonnet
+    context_length: 200000
+  claude-haiku:
+    provider: openrouter
+    model: anthropic/claude-3.5-haiku
+    context_length: 200000
+  claude-opus:
+    provider: openrouter
+    model: anthropic/claude-3-opus
+    context_length: 200000
+  claude-4.5:
+    provider: openrouter
+    model: anthropic/claude-sonnet-4-5
+    context_length: 200000
+  claude-opus-4.5:
+    provider: openrouter
+    model: anthropic/claude-opus-4-5
+    context_length: 200000
+  openai:
+    provider: openrouter
+    model: openai/gpt-4o
+    context_length: 128000
+  gpt4o:
+    provider: openrouter
+    model: openai/gpt-4o
+    context_length: 128000
+  gpt4o-mini:
+    provider: openrouter
+    model: openai/gpt-4o-mini
+    context_length: 128000
+  o1:
+    provider: openrouter
+    model: openai/o1
+    context_length: 200000
+  o1-mini:
+    provider: openrouter
+    model: openai/o1-mini
+    context_length: 128000
+  o3:
+    provider: openrouter
+    model: openai/o3
+    context_length: 200000
+  o3-mini:
+    provider: openrouter
+    model: openai/o3-mini
+    context_length: 200000
+  chatgpt:
+    provider: openrouter
+    model: openai/chatgpt-4o-latest
+    context_length: 128000
+  nvidia-deepseek:
+    provider: nvidia
+    model: deepseek-ai/deepseek-r1
+    context_length: 131072
+  nvidia-deepseek-v3:
+    provider: nvidia
+    model: deepseek-ai/deepseek-v3
+    context_length: 131072
+  nvidia-llama:
+    provider: nvidia
+    model: meta/llama-3.3-70b-instruct
+    context_length: 131072
+  nvidia-llama-405b:
+    provider: nvidia
+    model: meta/llama-3.1-405b-instruct
+    context_length: 131072
+  nvidia-nemotron:
+    provider: nvidia
+    model: nvidia/llama-3.1-nemotron-70b-instruct
+    context_length: 131072
+  nvidia-nemotron-51b:
+    provider: nvidia
+    model: nvidia/llama-3.1-nemotron-51b-instruct
+    context_length: 131072
+  nvidia-qwen:
+    provider: nvidia
+    model: qwen/qwen2.5-coder-32b-instruct
+    context_length: 131072
+  nvidia-codestral:
+    provider: nvidia
+    model: mistralai/codestral-22b-instruct-v0.1
+    context_length: 32768
+  nvidia-mistral:
+    provider: nvidia
+    model: mistralai/mistral-large-2-instruct
+    context_length: 128000
+  openrouter:
+    provider: openrouter
+    model: anthropic/claude-3.7-sonnet
+    context_length: 200000
+  openrouter-r1:
+    provider: openrouter
+    model: deepseek/deepseek-r1
+    context_length: 163840
+  openrouter-v3:
+    provider: openrouter
+    model: deepseek/deepseek-chat
+    context_length: 131072
+providers:
+  openrouter:
+    enabled: true
+    base_url: https://openrouter.ai/api/v1
+    timeout_ms: 60000
+  nvidia:
+    enabled: true
+    base_url: https://integrate.api.nvidia.com/v1
+    timeout_ms: 60000
+  gemini:
+    enabled: true
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai
+    timeout_ms: 60000
+  huggingface:
+    enabled: true
+    base_url: https://router.huggingface.co/hf-inference/v1
+    timeout_ms: 60000
+  groq:
+    enabled: true
+    base_url: https://api.groq.com/openai/v1
+    timeout_ms: 60000
+  ollama:
+    enabled: true
+    base_url: http://127.0.0.1:11434
+    timeout_ms: 60000
+  lmstudio:
+    enabled: true
+    base_url: http://127.0.0.1:1234/v1
+    timeout_ms: 60000
+agent:
+  max_iterations: 40
+  max_tool_retries: 3
+  auto_compact: true
+  verify_changes: true
+  timeout_seconds: 300
+tools:
+  shell: true
+  filesystem: true
+  git: true
+  web: true
+  diagnostics: true
+prompt: {}
+runtime:
+  default: auto
+  mlx:
+    enabled: true
+    server_port: 8321
+  gguf:
+    enabled: true
+    server_port: 8322
+  cpu:
+    enabled: true
+model_storage:
+  auto_prune: false
+privacy:
+  mode: balanced
+  cloud_escalation_prompt: true
+  sensitive_patterns: []
+cost:
+  enabled: false
+  warn_threshold_percent: 80
+cloud:
+  enabled: true
+mode: auto

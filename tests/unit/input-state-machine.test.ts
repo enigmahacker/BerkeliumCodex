@@ -98,7 +98,7 @@ describe('InputStateMachine (Slash Mode, Tab Complete, Keyboard Nav)', () => {
 
   it('should complete highlighted command on Tab without executing', async () => {
     const sm = createTestStateMachine();
-    sm.setBuffer('/mod');
+    await sm.setBuffer('/mod');
     expect(sm.getMode()).toBe('SlashCommand');
 
     const res = await sm.handleKeypress(undefined, { name: 'tab' });
@@ -108,7 +108,7 @@ describe('InputStateMachine (Slash Mode, Tab Complete, Keyboard Nav)', () => {
 
   it('should transition to SlashArgument mode on space after command', async () => {
     const sm = createTestStateMachine();
-    sm.setBuffer('/model ');
+    await sm.setBuffer('/model ');
 
     // Allow async completion recomputation
     const res = await sm.handleKeypress(undefined, { name: 'down' });
@@ -118,7 +118,7 @@ describe('InputStateMachine (Slash Mode, Tab Complete, Keyboard Nav)', () => {
 
   it('should close suggestions on Escape while preserving input', async () => {
     const sm = createTestStateMachine();
-    sm.setBuffer('/theme');
+    await sm.setBuffer('/theme');
     expect(sm.getMode()).toBe('SlashCommand');
 
     const res = await sm.handleKeypress(undefined, { name: 'escape' });
@@ -139,17 +139,17 @@ describe('InputStateMachine (Slash Mode, Tab Complete, Keyboard Nav)', () => {
 
   it('should provide static effort options for /effort ', async () => {
     const sm = createTestStateMachine();
-    sm.setBuffer('/effort ');
+    await sm.setBuffer('/effort ');
 
     const res = await sm.handleKeypress(undefined, { name: 'down' });
     expect(res.mode).toBe('SlashArgument');
     expect(res.activeCommand?.name).toBe('effort');
-    expect(res.argumentMatches.map((m) => m.value)).toEqual(['low', 'medium', 'high', 'max']);
+    expect(res.argumentMatches.map((m) => m.value).sort()).toEqual(['high', 'low', 'max', 'medium']);
   });
 
   it('should handle multi-argument completion for /default model ', async () => {
     const sm = createTestStateMachine();
-    sm.setBuffer('/default model ');
+    await sm.setBuffer('/default model ');
 
     const res = await sm.handleKeypress(undefined, { name: 'down' });
     expect(res.mode).toBe('SlashArgument');

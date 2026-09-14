@@ -89,10 +89,10 @@ export class InputStateMachine {
     return this.activeCommandDef;
   }
 
-  public setBuffer(buf: string): void {
+  public async setBuffer(buf: string): Promise<void> {
     this.buffer = buf;
     this.cursorPosition = buf.length;
-    this.recomputeState();
+    await this.recomputeState();
   }
 
   public reset(): void {
