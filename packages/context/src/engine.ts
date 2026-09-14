@@ -45,6 +45,14 @@ export class ContextEngine {
     return FileRanker.rankFiles(query, files, this.activeFiles);
   }
 
+  public needsCompaction(messages: Message[], threshold = 0.75): boolean {
+    const totalTokens = messages.reduce(
+      (sum, m) => sum + Tokenizer.countTokens(m.content || '') + 10,
+      0
+    );
+    return totalTokens > this.maxContextLimit * threshold;
+  }
+
   public compactIfNeeded(messages: Message[], threshold = 0.75): CompactionResult {
     return ContextCompactor.compact(messages, this.maxContextLimit, threshold);
   }

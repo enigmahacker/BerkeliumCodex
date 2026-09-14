@@ -120,7 +120,14 @@ export class TUIRenderer {
 
       case 'state_changed':
         if (event.description && !this.hasActiveStream) {
-          console.log(fmt.dimmed(`  ● ${event.description}`));
+          if (event.newState === 'RESPONDING' || (event.previousState === 'RESPONDING' && event.newState === 'IDLE')) {
+            break;
+          }
+          if (event.newState === 'COMPLETED') {
+            console.log(fmt.success('  ✓ Task completed successfully'));
+          } else if (event.newState !== 'VERIFYING') {
+            console.log(fmt.dimmed(`  ● ${event.description}`));
+          }
         }
         break;
 
@@ -140,7 +147,7 @@ export class TUIRenderer {
       case 'verification_completed':
         this.flushStream();
         if (event.passed) {
-          console.log(fmt.success('  ✓ TASK COMPLETE: All verification criteria satisfied.'));
+          console.log(fmt.success('  ✓ Task completed successfully'));
         } else {
           console.log(fmt.warning('  ⚠ Verification issues detected. Initiating automated remediation...'));
         }

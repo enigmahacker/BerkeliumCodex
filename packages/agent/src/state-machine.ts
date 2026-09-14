@@ -3,13 +3,16 @@ import { EventBus } from '@berkelium/events';
 export type AgentState =
   | 'IDLE'
   | 'THINKING'
+  | 'RESPONDING'
   | 'PLANNING'
   | 'WAITING_FOR_MODEL'
   | 'WAITING_FOR_PERMISSION'
+  | 'EXECUTING'
   | 'EXECUTING_TOOL'
+  | 'VERIFYING'
+  | 'REMEDIATING'
   | 'COMPACTING_CONTEXT'
   | 'RUNNING_SUBAGENT'
-  | 'VERIFYING'
   | 'COMPLETED'
   | 'FAILED'
   | 'CANCELLED';
@@ -41,42 +44,60 @@ export class InvalidStateTransitionError extends Error {
 export const VALID_TRANSITIONS: Record<AgentState, AgentState[]> = {
   IDLE: ['THINKING', 'PLANNING', 'CANCELLED'],
   THINKING: [
+    'RESPONDING',
     'PLANNING',
-    'COMPACTING_CONTEXT',
     'WAITING_FOR_MODEL',
+    'WAITING_FOR_PERMISSION',
+    'EXECUTING',
+    'EXECUTING_TOOL',
     'RUNNING_SUBAGENT',
+    'COMPACTING_CONTEXT',
     'FAILED',
     'CANCELLED',
     'IDLE',
   ],
+  RESPONDING: [
+    'IDLE',
+    'THINKING',
+    'COMPACTING_CONTEXT',
+    'FAILED',
+    'CANCELLED',
+  ],
   PLANNING: [
     'WAITING_FOR_MODEL',
-    'COMPACTING_CONTEXT',
+    'WAITING_FOR_PERMISSION',
+    'EXECUTING',
     'EXECUTING_TOOL',
     'RUNNING_SUBAGENT',
-    'WAITING_FOR_PERMISSION',
+    'COMPACTING_CONTEXT',
     'FAILED',
     'CANCELLED',
     'IDLE',
   ],
   WAITING_FOR_MODEL: [
+    'EXECUTING',
     'EXECUTING_TOOL',
     'WAITING_FOR_PERMISSION',
+    'RESPONDING',
     'VERIFYING',
+    'COMPACTING_CONTEXT',
     'COMPLETED',
     'FAILED',
     'CANCELLED',
     'IDLE',
   ],
   WAITING_FOR_PERMISSION: [
+    'EXECUTING',
     'EXECUTING_TOOL',
     'WAITING_FOR_MODEL',
+    'COMPACTING_CONTEXT',
     'CANCELLED',
     'FAILED',
     'IDLE',
   ],
-  EXECUTING_TOOL: [
+  EXECUTING: [
     'WAITING_FOR_MODEL',
+    'EXECUTING',
     'EXECUTING_TOOL',
     'VERIFYING',
     'COMPACTING_CONTEXT',
@@ -85,10 +106,35 @@ export const VALID_TRANSITIONS: Record<AgentState, AgentState[]> = {
     'CANCELLED',
     'IDLE',
   ],
-  COMPACTING_CONTEXT: [
+  EXECUTING_TOOL: [
+    'WAITING_FOR_MODEL',
+    'EXECUTING',
+    'EXECUTING_TOOL',
+    'VERIFYING',
+    'COMPACTING_CONTEXT',
+    'COMPLETED',
+    'FAILED',
+    'CANCELLED',
+    'IDLE',
+  ],
+  VERIFYING: [
+    'COMPLETED',
+    'REMEDIATING',
     'WAITING_FOR_MODEL',
     'PLANNING',
-    'THINKING',
+    'EXECUTING',
+    'EXECUTING_TOOL',
+    'COMPACTING_CONTEXT',
+    'FAILED',
+    'CANCELLED',
+    'IDLE',
+  ],
+  REMEDIATING: [
+    'EXECUTING',
+    'EXECUTING_TOOL',
+    'PLANNING',
+    'WAITING_FOR_MODEL',
+    'COMPACTING_CONTEXT',
     'FAILED',
     'CANCELLED',
     'IDLE',
@@ -97,16 +143,25 @@ export const VALID_TRANSITIONS: Record<AgentState, AgentState[]> = {
     'THINKING',
     'PLANNING',
     'WAITING_FOR_MODEL',
+    'EXECUTING',
+    'EXECUTING_TOOL',
     'VERIFYING',
+    'COMPACTING_CONTEXT',
     'FAILED',
     'CANCELLED',
     'IDLE',
   ],
-  VERIFYING: [
-    'COMPLETED',
-    'WAITING_FOR_MODEL',
+  COMPACTING_CONTEXT: [
+    'THINKING',
+    'RESPONDING',
     'PLANNING',
+    'WAITING_FOR_MODEL',
+    'WAITING_FOR_PERMISSION',
+    'EXECUTING',
     'EXECUTING_TOOL',
+    'RUNNING_SUBAGENT',
+    'VERIFYING',
+    'REMEDIATING',
     'FAILED',
     'CANCELLED',
     'IDLE',
@@ -118,6 +173,7 @@ export const VALID_TRANSITIONS: Record<AgentState, AgentState[]> = {
 
 export class AgentStateMachine {
   private currentState: AgentState = 'IDLE';
+  private interruptedState: AgentState | null = null;
   private stateEnteredAt: number = Date.now();
   private history: StateTransitionRecord[] = [];
   private eventBus?: EventBus;
@@ -132,6 +188,14 @@ export class AgentStateMachine {
 
   public getState(): AgentState {
     return this.currentState;
+  }
+
+  public get state(): AgentState {
+    return this.currentState;
+  }
+
+  public getInterruptedState(): AgentState | null {
+    return this.interruptedState;
   }
 
   public getHistory(): StateTransitionRecord[] {
@@ -159,6 +223,10 @@ export class AgentStateMachine {
     const now = Date.now();
     const durationMs = now - this.stateEnteredAt;
 
+    if (newState === 'COMPACTING_CONTEXT') {
+      this.interruptedState = previousState;
+    }
+
     const record: StateTransitionRecord = {
       from: previousState,
       to: newState,
@@ -183,6 +251,27 @@ export class AgentStateMachine {
   }
 
   /**
+   * Deterministically restores an interrupted state following context compaction.
+   */
+  public restoreState(targetState?: AgentState): void {
+    const stateToRestore = targetState || this.interruptedState;
+    if (!stateToRestore) {
+      throw new Error('No interrupted state available to restore.');
+    }
+
+    if (!this.canTransition(stateToRestore)) {
+      throw new InvalidStateTransitionError(
+        this.currentState,
+        stateToRestore,
+        `Deterministic restore rejection: Cannot transition from "${this.currentState}" to "${stateToRestore}".`
+      );
+    }
+
+    this.transition(stateToRestore, `Restored state to ${stateToRestore} after context compaction`);
+    this.interruptedState = null;
+  }
+
+  /**
    * Serializes current state machine snapshot for mission persistence or recovery.
    */
   public exportSnapshot(): {
@@ -190,12 +279,14 @@ export class AgentStateMachine {
     sessionId: string;
     enteredAt: number;
     historyLength: number;
+    interruptedState: AgentState | null;
   } {
     return {
       currentState: this.currentState,
       sessionId: this.sessionId,
       enteredAt: this.stateEnteredAt,
       historyLength: this.history.length,
+      interruptedState: this.interruptedState,
     };
   }
 }

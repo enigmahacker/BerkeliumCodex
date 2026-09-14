@@ -15,6 +15,7 @@ import { AgentMode, AGENT_MODES, isValidAgentMode } from './modes.js';
 import { MissionRunner, MissionReport, MissionOptions } from './mission.js';
 import { BackgroundTaskManager } from './background-task-manager.js';
 import { FailureLedger } from './failure-recovery.js';
+import { classifyIntent, isActionableIntent, UserIntent } from './intent.js';
 
 export interface RuntimeInitOptions {
   workspaceRoot?: string;
@@ -113,6 +114,18 @@ export class AgentRuntime {
     return this.stateMachine.getState();
   }
 
+  public get state(): AgentState {
+    return this.stateMachine.getState();
+  }
+
+  public getStateMachine(): AgentStateMachine {
+    return this.stateMachine;
+  }
+
+  public restoreState(targetState?: AgentState): void {
+    this.stateMachine.restoreState(targetState);
+  }
+
   public getActiveModel(): string {
     return this.activeModelTarget;
   }
@@ -174,10 +187,41 @@ export class AgentRuntime {
       this.abortController = null;
     }
     BackgroundTaskManager.getInstance().stopAll();
-    this.stateMachine.transition('CANCELLED', 'Operation cancelled by user');
-    setTimeout(() => {
-      this.stateMachine.transition('IDLE');
-    }, 100);
+    if (this.stateMachine.canTransition('CANCELLED')) {
+      this.stateMachine.transition('CANCELLED', 'Operation cancelled by user');
+      setTimeout(() => {
+        if (this.stateMachine.canTransition('IDLE')) {
+          this.stateMachine.transition('IDLE');
+        }
+      }, 100);
+    }
+  }
+
+  /**
+   * Compacts context under token pressure, saving interrupted active state and restoring it cleanly.
+   */
+  public async compactContext(): Promise<void> {
+    const interruptedState = this.stateMachine.getState();
+    this.stateMachine.transition('COMPACTING_CONTEXT', 'Context compaction triggered by token pressure');
+    const compaction = this.contextEngine.compactIfNeeded(this.conversationMessages);
+    if (compaction.compacted) {
+      this.conversationMessages = compaction.messages;
+      const tokensSaved = compaction.tokensSaved ?? (compaction.tokensBefore - compaction.tokensAfter);
+      this.telemetry.recordTokensSaved(tokensSaved);
+
+      this.eventBus.emit({
+        id: crypto.randomUUID(),
+        type: 'context_compacted',
+        sessionId: this.sessionId,
+        timestamp: Date.now(),
+        tokensBefore: compaction.tokensBefore,
+        tokensAfter: compaction.tokensAfter,
+        reductionPercentage: Math.round(
+          (tokensSaved / Math.max(1, compaction.tokensBefore)) * 100
+        ),
+      });
+    }
+    this.restoreState(interruptedState);
   }
 
   public async executeTask(prompt: string): Promise<void> {
@@ -189,8 +233,12 @@ export class AgentRuntime {
     this.abortController = new AbortController();
 
     try {
-      this.stateMachine.transition('THINKING', `Analyzing request: "${prompt.slice(0, 50)}..."`);
-      await this.hookManager.trigger('session_start', { sessionId: this.sessionId, prompt });
+      // 1. Classify intent before planning or verification
+      const classification = classifyIntent(prompt);
+      const intent: UserIntent = classification.intent;
+
+      this.stateMachine.transition('THINKING', `Intent classified as ${intent}: "${prompt.slice(0, 50)}..."`);
+      await this.hookManager.trigger('session_start', { sessionId: this.sessionId, prompt, intent });
 
       // Add user message
       this.conversationMessages.push({ role: 'user', content: prompt });
@@ -203,40 +251,46 @@ export class AgentRuntime {
         content: prompt,
       });
 
+      // 2. Fast-path: Pure Conversational Requests (CHAT / QUESTION)
+      // Must follow IDLE -> THINKING -> RESPONDING -> IDLE
+      if (intent === 'CHAT' || intent === 'QUESTION') {
+        this.stateMachine.transition('RESPONDING', 'Responding to conversational request');
+        await this.handleConversationalTurn();
+        this.stateMachine.transition('IDLE', 'Conversational turn completed');
+        return;
+      }
+
+      // 3. Actionable Intent Workflow (CODE_TASK, COMMAND, DEBUG, REVIEW, RESEARCH)
       const config = this.configManager.getConfig();
       const maxIterations = config.agent.max_iterations || 40;
+      const maxRemediations = 3;
       let iterations = 0;
+      let remediationCount = 0;
+      const filesModified = new Set<string>();
+      const toolsExecuted: string[] = [];
+
+      // Enter planning if actionable code task or debug or review
+      if (['CODE_TASK', 'DEBUG', 'REVIEW'].includes(intent)) {
+        this.stateMachine.transition('PLANNING', `Planning ${intent} execution`);
+      }
 
       while (iterations < maxIterations) {
         iterations++;
 
         if (this.abortController?.signal.aborted) {
-          this.stateMachine.transition('CANCELLED');
+          if (this.stateMachine.canTransition('CANCELLED')) {
+            this.stateMachine.transition('CANCELLED');
+          }
           break;
         }
 
-        // 1. Context Assembly & Compaction
-        this.stateMachine.transition('COMPACTING_CONTEXT');
-        const compaction = this.contextEngine.compactIfNeeded(this.conversationMessages);
-        if (compaction.compacted) {
-          this.conversationMessages = compaction.messages;
-          const tokensSaved = compaction.tokensSaved ?? (compaction.tokensBefore - compaction.tokensAfter);
-          this.telemetry.recordTokensSaved(tokensSaved);
-
-          this.eventBus.emit({
-            id: crypto.randomUUID(),
-            type: 'context_compacted',
-            sessionId: this.sessionId,
-            timestamp: Date.now(),
-            tokensBefore: compaction.tokensBefore,
-            tokensAfter: compaction.tokensAfter,
-            reductionPercentage: Math.round(
-              (tokensSaved / Math.max(1, compaction.tokensBefore)) * 100
-            ),
-          });
+        // Context Pressure Management:
+        // ACTIVE_STATE -> COMPACTING_CONTEXT -> PREVIOUS_ACTIVE_STATE
+        if (this.contextEngine.needsCompaction(this.conversationMessages, 0.85)) {
+          await this.compactContext();
         }
 
-        // 2. Build Layered System Prompt with Workspace Context & Project Memory
+        // Build Layered System Prompt with Workspace Context & Project Memory
         const promptLayers = PromptEngine.loadCustomPrompts(this.workspaceRoot);
         const repoMap = await this.contextEngine.getRepoMap(800);
         const memPrompt = this.memory.getContextPrompt(400);
@@ -245,7 +299,7 @@ export class AgentRuntime {
         promptLayers.workspace = `Active Workspace: ${this.workspaceRoot}\n\n${modePrompt}\n\n${repoMap}${memPrompt ? '\n\n' + memPrompt : ''}${failurePrompt ? '\n\n' + failurePrompt : ''}`;
         const systemPrompt = PromptEngine.compose(promptLayers, this.workspaceRoot);
 
-        // 3. Resolve Active Model Target & Mode Execution
+        // Resolve Active Model Target
         const mode = (config as any).runtime?.mode || 'local';
         let target = this.router.resolveTarget(this.activeModelTarget);
 
@@ -260,9 +314,9 @@ export class AgentRuntime {
 
         const toolDefinitions = this.orchestrator.getRegistry().getDefinitions();
 
-        // 3b. Enforce Privacy & Cost Policies
+        // Enforce Privacy & Cost Policies
         const isLocal = ['mlx', 'gguf', 'cpu', 'ollama', 'lmstudio'].includes(target.providerId.toLowerCase());
-        const lastUserMessage = this.conversationMessages.slice().reverse().find(m => m.role === 'user');
+        const lastUserMessage = this.conversationMessages.slice().reverse().find((m) => m.role === 'user');
         const privacyCheck = this.privacyEngine.evaluate(target.providerId, isLocal, lastUserMessage?.content);
         if (!privacyCheck.allowed) {
           throw new Error(`Privacy policy violation: ${privacyCheck.reason}`);
@@ -273,7 +327,7 @@ export class AgentRuntime {
           throw new Error(`Cost budget exceeded: ${budgetCheck.reason}`);
         }
 
-        // 4. Stream LLM Completion
+        // Stream LLM Completion
         this.stateMachine.transition('WAITING_FOR_MODEL');
         await this.hookManager.trigger('before_model', {
           messages: this.conversationMessages,
@@ -328,7 +382,9 @@ export class AgentRuntime {
           }
         } catch (streamErr: any) {
           if (this.abortController?.signal.aborted) {
-            this.stateMachine.transition('CANCELLED');
+            if (this.stateMachine.canTransition('CANCELLED')) {
+              this.stateMachine.transition('CANCELLED');
+            }
             break;
           }
           throw streamErr;
@@ -352,20 +408,45 @@ export class AgentRuntime {
           reasoning: normalizedResponse.reasoning,
         });
 
-        // 5. If no tool calls, autonomous iteration completes
+        // If no tool calls were requested, evaluate verification or complete
         if (!normalizedResponse.toolCalls || normalizedResponse.toolCalls.length === 0) {
-          // 6. Verification Phase if code was modified
-          if (config.agent.verify_changes) {
-            this.stateMachine.transition('VERIFYING', 'Executing automated verification checks');
-            const verifyReport = await this.verifier.runVerificationPipeline(this.sessionId);
+          const isActionable = isActionableIntent(intent);
+          const hasMutations = filesModified.size > 0;
+          const shouldVerify =
+            config.agent.verify_changes &&
+            isActionable &&
+            (hasMutations || intent === 'DEBUG' || intent === 'REVIEW');
+
+          if (shouldVerify) {
+            this.stateMachine.transition('VERIFYING', 'Executing automated verification pipeline');
+            const verifyReport = await this.verifier.runVerificationPipeline(this.sessionId, {
+              intent,
+              filesModified: Array.from(filesModified),
+              toolsExecuted,
+            });
+
             if (!verifyReport.passed) {
-              this.failureLedger.recordFailure('verification_pipeline', verifyReport.summary);
-              // Feed verification failure back into conversation loop for automated self-healing
-              this.conversationMessages.push({
-                role: 'user',
-                content: `Verification check failed:\n${verifyReport.summary}\nPlease fix the errors and re-verify.`,
-              });
-              continue;
+              const canRemediate = verifyReport.isRemediable !== false && remediationCount < maxRemediations;
+
+              if (canRemediate) {
+                remediationCount++;
+                this.failureLedger.recordFailure('verification_pipeline', verifyReport.summary);
+                this.stateMachine.transition(
+                  'REMEDIATING',
+                  `Remediating verification failure (attempt ${remediationCount}/${maxRemediations}): ${verifyReport.summary}`
+                );
+                this.conversationMessages.push({
+                  role: 'user',
+                  content: `Verification check failed:\n${verifyReport.summary}\nPlease fix the errors and re-verify.`,
+                });
+                continue;
+              } else {
+                this.stateMachine.transition(
+                  'FAILED',
+                  `Verification failed and cannot be remediated (max remediation attempts reached): ${verifyReport.summary}`
+                );
+                break;
+              }
             }
           }
 
@@ -373,8 +454,8 @@ export class AgentRuntime {
           break;
         }
 
-        // 7. Execute Tool Calls
-        this.stateMachine.transition('EXECUTING_TOOL');
+        // Execute Tool Calls
+        this.stateMachine.transition('EXECUTING', 'Executing requested tool calls');
         for (const toolCall of normalizedResponse.toolCalls) {
           if (this.abortController?.signal.aborted) break;
 
@@ -406,6 +487,8 @@ export class AgentRuntime {
 
           const toolDuration = performance.now() - toolStart;
           this.telemetry.recordToolCall(toolCall.name, toolDuration, toolRes.success);
+          toolsExecuted.push(toolCall.name);
+
           if (!toolRes.success) {
             this.failureLedger.recordFailure(toolCall.name, toolRes.error || toolRes.output, {
               toolName: toolCall.name,
@@ -414,9 +497,13 @@ export class AgentRuntime {
           }
           await this.hookManager.trigger('after_tool', { toolCall, result: toolRes });
 
-          // Mark active file in context if filesystem tool
+          // Track modified files
           if (typeof toolCall.arguments === 'object' && toolCall.arguments && (toolCall.arguments as any).path) {
-            this.contextEngine.markFileActive((toolCall.arguments as any).path);
+            const targetPath = (toolCall.arguments as any).path;
+            this.contextEngine.markFileActive(targetPath);
+            if (['write_file', 'edit_file', 'patch_file', 'delete_file'].includes(toolCall.name)) {
+              filesModified.add(targetPath);
+            }
           }
 
           // Feed tool result back to conversation
@@ -434,7 +521,9 @@ export class AgentRuntime {
       await this.hookManager.trigger('session_end', { sessionId: this.sessionId });
     } catch (err: any) {
       this.logger.error(`Error in agent loop: ${err.message}`, err);
-      this.stateMachine.transition('FAILED', err.message);
+      if (this.stateMachine.canTransition('FAILED')) {
+        this.stateMachine.transition('FAILED', err.message);
+      }
       this.eventBus.emit({
         id: crypto.randomUUID(),
         type: 'error',
@@ -447,10 +536,54 @@ export class AgentRuntime {
     } finally {
       this.isRunning = false;
       this.abortController = null;
-      if (this.stateMachine.getState() !== 'COMPLETED' && this.stateMachine.getState() !== 'FAILED') {
-        this.stateMachine.transition('IDLE');
+      const currentState = this.stateMachine.getState();
+      if (currentState !== 'COMPLETED' && currentState !== 'FAILED' && currentState !== 'CANCELLED') {
+        if (this.stateMachine.canTransition('IDLE')) {
+          this.stateMachine.transition('IDLE');
+        }
       }
     }
+  }
+
+  private async handleConversationalTurn(): Promise<void> {
+    let target = this.router.resolveTarget(this.activeModelTarget);
+    const systemPrompt = `You are Berkelium Codex, a helpful, precise, and friendly AI coding assistant. Answer the user's conversational greeting or question concisely and clearly.`;
+
+    this.eventBus.emit({
+      id: crypto.randomUUID(),
+      type: 'message_started',
+      sessionId: this.sessionId,
+      timestamp: Date.now(),
+      role: 'assistant',
+    });
+
+    const acc = ResponseNormalizer.createAccumulator(target.modelId, target.providerId);
+    const stream = target.provider.stream(this.conversationMessages, {
+      model: target.modelId,
+      systemPrompt,
+      tools: [], // No tools exposed for pure conversational turns
+      signal: this.abortController?.signal,
+    });
+
+    for await (const chunk of stream) {
+      acc.processChunk(chunk);
+      if (chunk.type === 'token' && chunk.text) {
+        this.eventBus.emit({
+          id: crypto.randomUUID(),
+          type: 'token_received',
+          sessionId: this.sessionId,
+          timestamp: Date.now(),
+          token: chunk.text,
+        });
+      }
+    }
+
+    const normalizedResponse = acc.toNormalizedResponse();
+    this.telemetry.recordTokenUsage(normalizedResponse.usage);
+    this.conversationMessages.push({
+      role: 'assistant',
+      content: normalizedResponse.text || undefined,
+    });
   }
 
   public async resumeFromSession(sessionData: SessionData): Promise<void> {
