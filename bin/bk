@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if [ -f "$DIR/apps/cli/dist/bin/berkelium.js" ]; then
-  exec node "$DIR/apps/cli/dist/bin/berkelium.js" "$@"
+# Berkelium Codex CLI Launcher
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+REPO_DIR="$(cd -P "$(dirname "$SOURCE")/.." >/dev/null 2>&1 && pwd)"
+
+if [ -f "$REPO_DIR/apps/cli/dist/bin/berkelium.js" ]; then
+  exec node "$REPO_DIR/apps/cli/dist/bin/berkelium.js" "$@"
 else
-  exec npx tsx --tsconfig "$DIR/tsconfig.base.json" "$DIR/apps/cli/src/bin/berkelium.ts" "$@"
+  exec npx tsx --tsconfig "$REPO_DIR/tsconfig.base.json" "$REPO_DIR/apps/cli/src/bin/berkelium.ts" "$@"
 fi
+

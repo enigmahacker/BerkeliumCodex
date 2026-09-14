@@ -14,12 +14,12 @@
     "bench": "tsx --tsconfig tsconfig.base.json benchmarks/index.ts",
     "berkelium": "tsx --tsconfig tsconfig.base.json apps/cli/src/bin/berkelium.ts",
     "bk": "tsx --tsconfig tsconfig.base.json apps/cli/src/bin/berkelium.ts",
-    "link:bin": "node -e 'const fs=require(\"fs\"),path=require(\"path\"),os=require(\"os\");const binDir=path.join(os.homedir(),\".local/bin\");if(!fs.existsSync(binDir))fs.mkdirSync(binDir,{recursive:true});const target=path.resolve(\"./apps/cli/dist/bin/berkelium.js\");for(const name of [\"bk\",\"berkelium\"]){const link=path.join(binDir,name);try{fs.unlinkSync(link);}catch{};fs.symlinkSync(target,link);console.log(\"Linked\",name,\"->\",link);}'",
+    "link:bin": "node -e 'const fs=require(\"fs\"),path=require(\"path\"),os=require(\"os\");const binDirs=[path.join(os.homedir(),\".local/bin\"),path.join(os.homedir(),\"Library/pnpm/bin\")];const targets={bk:path.resolve(\"./bin/bk\"),berkelium:path.resolve(\"./bin/berkelium\")};for(const dir of binDirs){if(fs.existsSync(dir)){for(const [name,target] of Object.entries(targets)){const link=path.join(dir,name);try{fs.unlinkSync(link);}catch{};try{fs.symlinkSync(target,link);console.log(\"Linked\",name,\"->\",link);}catch(e){console.warn(\"Could not link\",name,\"in\",dir,e.message);}}}}'",
     "lint": "tsc -b ./tsconfig.json"
   },
   "bin": {
-    "bk": "./apps/cli/dist/bin/berkelium.js",
-    "berkelium": "./apps/cli/dist/bin/berkelium.js"
+    "bk": "./bin/bk",
+    "berkelium": "./bin/berkelium"
   },
   "dependencies": {
     "@berkelium/agent": "workspace:*",

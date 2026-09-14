@@ -16,7 +16,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && chmod +x dist/bin/berkelium.js",
     "clean": "rm -rf dist",
     "start": "node ./dist/bin/berkelium.js",
     "dev": "tsx ./src/bin/berkelium.ts"
