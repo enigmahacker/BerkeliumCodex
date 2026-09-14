@@ -740,6 +740,68 @@ export class SlashCommandHandler {
       }
 
 
+      case 'default': {
+        const subCmd = subArgs[0]?.toLowerCase();
+        let targetModel = '';
+        if (subCmd === 'model') {
+          targetModel = subArgs.slice(1).join(' ').trim();
+        } else if (subCmd) {
+          targetModel = subArgs.join(' ').trim();
+        }
+
+        const currentConfig = this.configManager.getConfig();
+        const currentDefault = currentConfig.defaultModel || currentConfig.default_model;
+
+        if (!targetModel) {
+          console.log(`Default model: ${currentDefault}`);
+          return true;
+        }
+
+        // Validate that provider/model is available before saving
+        try {
+          const resolved = this.router.resolveTarget(targetModel);
+          const available = await resolved.provider.isAvailable();
+          if (!available) {
+            console.log(fmt.warning(`⚠ Warning: Provider "${resolved.providerId}" is currently reporting unavailable or unauthenticated.`));
+          }
+        } catch (err: any) {
+          console.log(fmt.error(`✗ Cannot set default model: ${err.message}`));
+          return true;
+        }
+
+        // Persist in config (.berkelium/config.json)
+        this.configManager.setDefaultModel(targetModel);
+        this.runtime.setActiveModel(targetModel);
+        console.log(fmt.success(`✓ Default model set to ${targetModel}`));
+        return true;
+      }
+
+      case 'effort': {
+        const effortArg = subArgs[0]?.toLowerCase();
+        const validEfforts = ['low', 'medium', 'high', 'max'] as const;
+
+        if (!effortArg) {
+          const currentEffort = typeof (this.runtime as any).getEffort === 'function'
+            ? (this.runtime as any).getEffort()
+            : this.configManager.getEffort();
+          console.log(`Effort: ${currentEffort}`);
+          return true;
+        }
+
+        if (!validEfforts.includes(effortArg as any)) {
+          console.log(fmt.error(`✗ Invalid effort level "${effortArg}". Valid options: low, medium, high, max`));
+          return true;
+        }
+
+        if (typeof (this.runtime as any).setEffort === 'function') {
+          (this.runtime as any).setEffort(effortArg as any);
+        }
+        this.configManager.setEffort(effortArg as any);
+
+        console.log(fmt.success(`✓ Effort set to ${effortArg}`));
+        return true;
+      }
+
       case 'model':
       case 'm':
         if (arg) {
@@ -977,11 +1039,15 @@ export class SlashCommandHandler {
 
       case 'status': {
         const stats = this.runtime.getTelemetry().getStats();
+        const currentEffort = typeof (this.runtime as any).getEffort === 'function'
+          ? (this.runtime as any).getEffort()
+          : this.configManager.getEffort();
         console.log();
         console.log(fmt.bold(fmt.primary('BERKELIUM STATUS')));
         console.log(`Session ID:        ${fmt.accent(this.runtime.getSessionId())}`);
         console.log(`State:             ${fmt.bold(this.runtime.getState())}`);
         console.log(`Model:             ${fmt.assistant(this.runtime.getActiveModel())}`);
+        console.log(`Effort:            ${fmt.accent(currentEffort)}`);
         console.log(`Tool Calls:        ${stats.toolCallsCount}`);
         console.log(`Memory Footprint:  ${stats.latencies.memoryMb} MB`);
         console.log();

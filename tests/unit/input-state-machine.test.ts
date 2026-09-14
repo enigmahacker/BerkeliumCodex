@@ -126,4 +126,35 @@ describe('InputStateMachine (Slash Mode, Tab Complete, Keyboard Nav)', () => {
     expect(res.buffer).toBe('/theme'); // Buffer must be preserved!
     expect(res.shouldRenderPalette).toBe(false);
   });
+
+  it('should prioritize /default and /effort when typing /', async () => {
+    const sm = createTestStateMachine();
+    const res = await sm.handleKeypress('/', undefined);
+
+    expect(res.mode).toBe('SlashCommand');
+    const firstMatches = res.commandMatches.slice(0, 5).map((m) => m.command.name);
+    expect(firstMatches).toContain('default');
+    expect(firstMatches).toContain('effort');
+  });
+
+  it('should provide static effort options for /effort ', async () => {
+    const sm = createTestStateMachine();
+    sm.setBuffer('/effort ');
+
+    const res = await sm.handleKeypress(undefined, { name: 'down' });
+    expect(res.mode).toBe('SlashArgument');
+    expect(res.activeCommand?.name).toBe('effort');
+    expect(res.argumentMatches.map((m) => m.value)).toEqual(['low', 'medium', 'high', 'max']);
+  });
+
+  it('should handle multi-argument completion for /default model ', async () => {
+    const sm = createTestStateMachine();
+    sm.setBuffer('/default model ');
+
+    const res = await sm.handleKeypress(undefined, { name: 'down' });
+    expect(res.mode).toBe('SlashArgument');
+    expect(res.activeCommand?.name).toBe('default');
+    expect(res.activeArgIndex).toBe(1);
+    expect(res.argumentMatches.length).toBeGreaterThan(0);
+  });
 });

@@ -63,6 +63,7 @@ export interface NormalizedChunk {
 
 export interface NormalizedResponse {
   text: string;
+  content?: string;
   reasoning?: string;
   toolCalls: ToolCall[];
   usage: TokenUsageInfo;
@@ -70,6 +71,14 @@ export interface NormalizedResponse {
   model: string;
   provider: string;
   raw?: unknown;
+}
+
+export interface NormalizedModelResponse {
+  content: string;
+  reasoning?: string; // INTERNAL ONLY
+  toolCalls: ToolCall[];
+  finishReason?: string;
+  usage?: TokenUsageInfo;
 }
 
 export interface ProviderRequestOptions {

@@ -321,3 +321,32 @@ export type AgentEvent =
   | SessionCompletedEvent;
 
 export type EventHandler<T extends AgentEvent = AgentEvent> = (event: T) => void | Promise<void>;
+
+/**
+ * User-visible conversation message. Strictly separated from runtime events.
+ */
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: number;
+}
+
+/**
+ * High-level agent runtime telemetry event.
+ */
+export interface AgentRuntimeTelemetryEvent {
+  id: string;
+  type:
+    | 'thinking'
+    | 'planning'
+    | 'tool_start'
+    | 'tool_result'
+    | 'verification'
+    | 'compaction'
+    | 'permission'
+    | 'error'
+    | 'completed';
+  data: unknown;
+  timestamp: number;
+}

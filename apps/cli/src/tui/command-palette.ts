@@ -67,11 +67,13 @@ export class CommandPaletteRenderer {
 
       const prefix = isSelected ? fmt.primary(fmt.bold(' › ')) : '   ';
 
+      const cmdDisplayBase = cmd.name === 'default' ? 'default model' : cmd.name;
+
       // Highlight matched characters in command name
       let highlightedCmd = '';
       const matchedSet = new Set(item.matchedIndices);
-      for (let cIdx = 0; cIdx < cmd.name.length; cIdx++) {
-        const ch = cmd.name[cIdx];
+      for (let cIdx = 0; cIdx < cmdDisplayBase.length; cIdx++) {
+        const ch = cmdDisplayBase[cIdx];
         if (matchedSet.has(cIdx)) {
           highlightedCmd += fmt.accent(fmt.bold(ch));
         } else {

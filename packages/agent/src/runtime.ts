@@ -1,6 +1,6 @@
 import { EventBus } from '@berkelium/events';
 import { Logger } from '@berkelium/logging';
-import { ConfigManager, PromptEngine, PrivacyEngine, CostController } from '@berkelium/config';
+import { ConfigManager, PromptEngine, PrivacyEngine, CostController, AgentEffort } from '@berkelium/config';
 import { ContextEngine } from '@berkelium/context';
 import { ToolOrchestrator } from '@berkelium/tools';
 import { ProviderRouter, Message, NormalizedResponse, ResponseNormalizer } from '@berkelium/providers';
@@ -16,6 +16,7 @@ import { MissionRunner, MissionReport, MissionOptions } from './mission.js';
 import { BackgroundTaskManager } from './background-task-manager.js';
 import { FailureLedger } from './failure-recovery.js';
 import { classifyIntent, isActionableIntent, UserIntent } from './intent.js';
+import { sanitizeAssistantResponse, StreamSanitizer } from './sanitizer.js';
 
 export interface RuntimeInitOptions {
   workspaceRoot?: string;
@@ -53,6 +54,7 @@ export class AgentRuntime {
 
   private conversationMessages: Message[] = [];
   private activeModelTarget: string;
+  private effort: AgentEffort = 'medium';
   private abortController: AbortController | null = null;
   private isRunning = false;
 
@@ -84,10 +86,21 @@ export class AgentRuntime {
       this.workspaceRoot
     );
 
-    this.activeModelTarget = this.configManager.getConfig().default_model;
+    const conf = this.configManager.getConfig();
+    this.activeModelTarget = conf.defaultModel || conf.default_model;
+    this.effort = (conf.effort as AgentEffort) || 'medium';
 
     // Register all default tools into orchestrator
     this.orchestrator.registerDefaultTools();
+  }
+
+  public getEffort(): AgentEffort {
+    return this.effort;
+  }
+
+  public setEffort(effort: AgentEffort): void {
+    this.effort = effort;
+    this.configManager.setSessionOverride({ effort });
   }
 
   public getFailureLedger(): FailureLedger {
@@ -262,8 +275,33 @@ export class AgentRuntime {
 
       // 3. Actionable Intent Workflow (CODE_TASK, COMMAND, DEBUG, REVIEW, RESEARCH)
       const config = this.configManager.getConfig();
-      const maxIterations = config.agent.max_iterations || 40;
-      const maxRemediations = 3;
+      let maxIterations = config.agent.max_iterations || 40;
+      let maxRemediations = 3;
+      let compactionThreshold = 0.85;
+
+      switch (this.effort) {
+        case 'low':
+          maxIterations = Math.min(maxIterations, 15);
+          maxRemediations = 1;
+          compactionThreshold = 0.70;
+          break;
+        case 'medium':
+          maxIterations = Math.min(maxIterations, 30);
+          maxRemediations = 2;
+          compactionThreshold = 0.80;
+          break;
+        case 'high':
+          maxIterations = Math.max(maxIterations, 45);
+          maxRemediations = 3;
+          compactionThreshold = 0.88;
+          break;
+        case 'max':
+          maxIterations = Math.max(maxIterations, 60);
+          maxRemediations = 4;
+          compactionThreshold = 0.95;
+          break;
+      }
+
       let iterations = 0;
       let remediationCount = 0;
       const filesModified = new Set<string>();
@@ -286,7 +324,7 @@ export class AgentRuntime {
 
         // Context Pressure Management:
         // ACTIVE_STATE -> COMPACTING_CONTEXT -> PREVIOUS_ACTIVE_STATE
-        if (this.contextEngine.needsCompaction(this.conversationMessages, 0.85)) {
+        if (this.contextEngine.needsCompaction(this.conversationMessages, compactionThreshold)) {
           await this.compactContext();
         }
 
@@ -346,6 +384,34 @@ export class AgentRuntime {
         let firstTokenReceived = false;
         const streamStart = performance.now();
 
+        const sanitizer = new StreamSanitizer({
+          onToken: (token) => {
+            this.eventBus.emit({
+              id: crypto.randomUUID(),
+              type: 'token_received',
+              sessionId: this.sessionId,
+              timestamp: Date.now(),
+              token,
+            });
+          },
+          onReasoningStart: () => {
+            this.eventBus.emit({
+              id: crypto.randomUUID(),
+              type: 'reasoning_started',
+              sessionId: this.sessionId,
+              timestamp: Date.now(),
+            });
+          },
+          onReasoningEnd: () => {
+            this.eventBus.emit({
+              id: crypto.randomUUID(),
+              type: 'reasoning_finished',
+              sessionId: this.sessionId,
+              timestamp: Date.now(),
+            });
+          },
+        });
+
         try {
           const stream = target.provider.stream(this.conversationMessages, {
             model: target.modelId,
@@ -363,13 +429,7 @@ export class AgentRuntime {
             acc.processChunk(chunk);
 
             if (chunk.type === 'token' && chunk.text) {
-              this.eventBus.emit({
-                id: crypto.randomUUID(),
-                type: 'token_received',
-                sessionId: this.sessionId,
-                timestamp: Date.now(),
-                token: chunk.text,
-              });
+              sanitizer.feed(chunk.text);
             } else if (chunk.type === 'reasoning' && chunk.reasoning) {
               this.eventBus.emit({
                 id: crypto.randomUUID(),
@@ -380,6 +440,7 @@ export class AgentRuntime {
               });
             }
           }
+          sanitizer.flush();
         } catch (streamErr: any) {
           if (this.abortController?.signal.aborted) {
             if (this.stateMachine.canTransition('CANCELLED')) {
@@ -391,6 +452,8 @@ export class AgentRuntime {
         }
 
         const normalizedResponse = acc.toNormalizedResponse();
+        const sanitized = sanitizeAssistantResponse(normalizedResponse.text || '');
+
         this.telemetry.recordTokenUsage(normalizedResponse.usage);
         this.costController.recordUsage(
           target.providerId,
@@ -400,12 +463,12 @@ export class AgentRuntime {
         );
         await this.hookManager.trigger('after_model', { response: normalizedResponse });
 
-        // Add assistant response to history
+        // Add assistant response to history (clean, never leaking <thought> or prompt internals)
         this.conversationMessages.push({
           role: 'assistant',
-          content: normalizedResponse.text || undefined,
+          content: sanitized.content || undefined,
           tool_calls: normalizedResponse.toolCalls.length > 0 ? normalizedResponse.toolCalls : undefined,
-          reasoning: normalizedResponse.reasoning,
+          reasoning: normalizedResponse.reasoning || sanitized.reasoning,
         });
 
         // If no tool calls were requested, evaluate verification or complete
@@ -565,24 +628,57 @@ export class AgentRuntime {
       signal: this.abortController?.signal,
     });
 
-    for await (const chunk of stream) {
-      acc.processChunk(chunk);
-      if (chunk.type === 'token' && chunk.text) {
+    const sanitizer = new StreamSanitizer({
+      onToken: (token) => {
         this.eventBus.emit({
           id: crypto.randomUUID(),
           type: 'token_received',
           sessionId: this.sessionId,
           timestamp: Date.now(),
-          token: chunk.text,
+          token,
+        });
+      },
+      onReasoningStart: () => {
+        this.eventBus.emit({
+          id: crypto.randomUUID(),
+          type: 'reasoning_started',
+          sessionId: this.sessionId,
+          timestamp: Date.now(),
+        });
+      },
+      onReasoningEnd: () => {
+        this.eventBus.emit({
+          id: crypto.randomUUID(),
+          type: 'reasoning_finished',
+          sessionId: this.sessionId,
+          timestamp: Date.now(),
+        });
+      },
+    });
+
+    for await (const chunk of stream) {
+      acc.processChunk(chunk);
+      if (chunk.type === 'token' && chunk.text) {
+        sanitizer.feed(chunk.text);
+      } else if (chunk.type === 'reasoning' && chunk.reasoning) {
+        this.eventBus.emit({
+          id: crypto.randomUUID(),
+          type: 'reasoning_token_received',
+          sessionId: this.sessionId,
+          timestamp: Date.now(),
+          token: chunk.reasoning,
         });
       }
     }
+    sanitizer.flush();
 
     const normalizedResponse = acc.toNormalizedResponse();
+    const sanitized = sanitizeAssistantResponse(normalizedResponse.text || '');
+
     this.telemetry.recordTokenUsage(normalizedResponse.usage);
     this.conversationMessages.push({
       role: 'assistant',
-      content: normalizedResponse.text || undefined,
+      content: sanitized.content || undefined,
     });
   }
 

@@ -49,11 +49,17 @@ export class CommandMatcher {
       }
     }
 
-    // Sort descending by score, then alphabetically
+    // Sort descending by score and priority, then alphabetically
     return results.sort((a, b) => {
+      if (!cleanQuery) {
+        const pDiff = (b.command.priority || 0) - (a.command.priority || 0);
+        if (pDiff !== 0) return pDiff;
+      }
       if (b.score !== a.score) {
         return b.score - a.score;
       }
+      const pDiff = (b.command.priority || 0) - (a.command.priority || 0);
+      if (pDiff !== 0) return pDiff;
       return a.command.name.localeCompare(b.command.name);
     });
   }

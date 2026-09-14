@@ -50,6 +50,7 @@ export interface CommandDefinition {
   examples?: string[];
   arguments?: CommandArgument[];
   requiresConfirmation?: boolean;
+  priority?: number;
   handler?: (context: CommandExecutionContext, args: string[], rawInput: string) => Promise<boolean | void>;
   isCustom?: boolean;
   customPromptTemplate?: string;

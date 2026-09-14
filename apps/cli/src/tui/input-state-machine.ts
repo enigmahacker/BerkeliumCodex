@@ -23,6 +23,8 @@ export interface InputStateResult {
   selectedIndex: number;
   scrollOffset: number;
   activeCommand?: CommandDefinition;
+  activeArgIndex?: number;
+  activeArgQuery?: string;
   submittedInput?: string;
   cancelled?: boolean;
 }
@@ -41,6 +43,8 @@ export class InputStateMachine {
   private currentArgumentMatches: ArgumentMatchResult[] = [];
   private activeCommandDef?: CommandDefinition;
   private activeArgIndex = 0;
+  private activeArgQuery = '';
+  private completedArgTokens: string[] = [];
 
   // History tracking for normal mode
   private history: string[] = [];
@@ -100,6 +104,9 @@ export class InputStateMachine {
     this.currentCommandMatches = [];
     this.currentArgumentMatches = [];
     this.activeCommandDef = undefined;
+    this.activeArgIndex = 0;
+    this.activeArgQuery = '';
+    this.completedArgTokens = [];
     this.historyIndex = -1;
     this.savedDraft = '';
   }
@@ -257,8 +264,9 @@ export class InputStateMachine {
         const selected = this.currentCommandMatches[this.selectedIndex];
         if (selected) {
           const cmd = selected.command;
+          const cmdName = cmd.name === 'default' ? 'default model' : cmd.name;
           const hasArgs = cmd.arguments && cmd.arguments.length > 0;
-          this.buffer = `/${cmd.name}${hasArgs ? ' ' : ''}`;
+          this.buffer = `/${cmdName}${hasArgs ? ' ' : ''}`;
           this.cursorPosition = this.buffer.length;
           await this.recomputeState();
           return this.buildResult();
@@ -268,9 +276,9 @@ export class InputStateMachine {
       if (this.mode === 'SlashArgument' && this.currentArgumentMatches.length > 0) {
         const selected = this.currentArgumentMatches[this.selectedIndex];
         if (selected && this.activeCommandDef) {
-          const parts = this.buffer.trimStart().split(/\s+/);
-          const cmdPart = parts[0];
-          this.buffer = `${cmdPart} ${selected.value}`;
+          const prefixTokens = this.completedArgTokens.slice(0, this.activeArgIndex + 1);
+          const hasMoreArgs = this.activeCommandDef.arguments && this.activeArgIndex < this.activeCommandDef.arguments.length - 1;
+          this.buffer = `/${prefixTokens.join(' ')} ${selected.value}${hasMoreArgs ? ' ' : ''}`;
           this.cursorPosition = this.buffer.length;
           await this.recomputeState();
           return this.buildResult();
@@ -285,10 +293,11 @@ export class InputStateMachine {
         const selected = this.currentCommandMatches[this.selectedIndex];
         if (selected) {
           const cmd = selected.command;
-          const hasArgs = cmd.arguments && cmd.arguments.some((a) => a.required);
+          const cmdName = cmd.name === 'default' ? 'default model' : cmd.name;
+          const hasArgs = cmd.arguments && (cmd.arguments.some((a) => a.required) || cmd.name === 'default');
           if (hasArgs) {
             // Populate command + space into buffer, do not execute yet
-            this.buffer = `/${cmd.name} `;
+            this.buffer = `/${cmdName} `;
             this.cursorPosition = this.buffer.length;
             await this.recomputeState();
             return this.buildResult();
@@ -298,11 +307,18 @@ export class InputStateMachine {
 
       // If in SlashArgument and an argument option is highlighted
       if (this.mode === 'SlashArgument' && this.currentArgumentMatches.length > 0) {
-        const parts = this.buffer.trimStart().split(/\s+/);
-        if (parts.length <= 2 && (parts[1] === undefined || parts[1] === '')) {
-          const selected = this.currentArgumentMatches[this.selectedIndex];
-          if (selected) {
-            this.buffer = `${parts[0]} ${selected.value}`;
+        const selected = this.currentArgumentMatches[this.selectedIndex];
+        if (selected && this.activeCommandDef) {
+          const prefixTokens = this.completedArgTokens.slice(0, this.activeArgIndex + 1);
+          const hasMoreArgs = this.activeCommandDef.arguments && this.activeArgIndex < this.activeCommandDef.arguments.length - 1;
+          if (hasMoreArgs) {
+            this.buffer = `/${prefixTokens.join(' ')} ${selected.value} `;
+            this.cursorPosition = this.buffer.length;
+            await this.recomputeState();
+            return this.buildResult();
+          } else {
+            this.buffer = `/${prefixTokens.join(' ')} ${selected.value}`;
+            this.cursorPosition = this.buffer.length;
           }
         }
       }
@@ -361,43 +377,62 @@ export class InputStateMachine {
       this.currentCommandMatches = [];
       this.currentArgumentMatches = [];
       this.activeCommandDef = undefined;
+      this.activeArgIndex = 0;
+      this.activeArgQuery = '';
+      this.completedArgTokens = [];
       return;
     }
 
     const afterSlash = trimmedLeading.slice(1);
-    const spaceIndex = afterSlash.indexOf(' ');
+    const hasTrailingSpace = afterSlash.endsWith(' ');
+    const rawParts = afterSlash.trimStart().split(/\s+/).filter(Boolean);
 
-    if (spaceIndex === -1) {
-      // 1. SlashCommand Mode (typing command name)
+    if (rawParts.length === 0 || (rawParts.length === 1 && !hasTrailingSpace)) {
       this.mode = 'SlashCommand';
       const allCommands = this.registry.list();
-      this.currentCommandMatches = CommandMatcher.matchCommands(allCommands, afterSlash);
+      this.currentCommandMatches = CommandMatcher.matchCommands(allCommands, rawParts[0] || '');
       this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.currentCommandMatches.length - 1));
       this.activeCommandDef = this.currentCommandMatches[this.selectedIndex]?.command;
       this.currentArgumentMatches = [];
-    } else {
-      // 2. SlashArgument Mode (typing command arguments)
-      this.mode = 'SlashArgument';
-      const commandName = afterSlash.slice(0, spaceIndex);
-      const argQuery = afterSlash.slice(spaceIndex + 1);
+      this.activeArgIndex = 0;
+      this.activeArgQuery = '';
+      this.completedArgTokens = [];
+      return;
+    }
 
-      const cmd = this.registry.get(commandName);
-      if (cmd && cmd.arguments && cmd.arguments.length > 0) {
-        this.activeCommandDef = cmd;
-        this.activeArgIndex = 0;
-        this.currentArgumentMatches = await CompletionEngine.getArgumentSuggestions(
-          this.executionContext,
-          cmd,
-          this.activeArgIndex,
-          argQuery
-        );
-        this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.currentArgumentMatches.length - 1));
-        this.currentCommandMatches = [];
+    const commandName = rawParts[0].toLowerCase();
+    const cmd = this.registry.get(commandName);
+
+    if (cmd && cmd.arguments && cmd.arguments.length > 0) {
+      this.mode = 'SlashArgument';
+      this.activeCommandDef = cmd;
+
+      if (hasTrailingSpace) {
+        this.completedArgTokens = rawParts;
+        this.activeArgIndex = Math.min(cmd.arguments.length - 1, rawParts.length - 1);
+        this.activeArgQuery = '';
       } else {
-        this.mode = 'Normal';
-        this.currentCommandMatches = [];
-        this.currentArgumentMatches = [];
+        this.completedArgTokens = rawParts.slice(0, -1);
+        this.activeArgIndex = Math.min(cmd.arguments.length - 1, Math.max(0, rawParts.length - 2));
+        this.activeArgQuery = rawParts[rawParts.length - 1] || '';
       }
+
+      this.currentArgumentMatches = await CompletionEngine.getArgumentSuggestions(
+        this.executionContext,
+        cmd,
+        this.activeArgIndex,
+        this.activeArgQuery
+      );
+      this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.currentArgumentMatches.length - 1));
+      this.currentCommandMatches = [];
+    } else {
+      this.mode = 'Normal';
+      this.currentCommandMatches = [];
+      this.currentArgumentMatches = [];
+      this.activeCommandDef = undefined;
+      this.activeArgIndex = 0;
+      this.activeArgQuery = '';
+      this.completedArgTokens = [];
     }
   }
 
@@ -425,6 +460,8 @@ export class InputStateMachine {
       selectedIndex: this.selectedIndex,
       scrollOffset: this.scrollOffset,
       activeCommand: this.activeCommandDef,
+      activeArgIndex: this.activeArgIndex,
+      activeArgQuery: this.activeArgQuery,
       ...overrides,
     };
   }

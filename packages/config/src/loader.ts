@@ -36,17 +36,51 @@ export class ConfigManager {
     this.cliOverrides = { ...this.cliOverrides, ...overrides };
   }
 
+  public getDefaultModel(): string {
+    const conf = this.getConfig();
+    return conf.defaultModel || conf.default_model;
+  }
+
+  public setDefaultModel(model: string): void {
+    this.updateProjectConfig((curr) => ({
+      ...curr,
+      default_model: model,
+      defaultModel: model,
+    }));
+  }
+
+  public getEffort(): string {
+    const conf = this.getConfig();
+    return conf.effort || 'medium';
+  }
+
+  public setEffort(effort: any): void {
+    this.updateProjectConfig((curr) => ({
+      ...curr,
+      effort,
+    }));
+  }
+
+  private getGlobalConfigDir(): string {
+    return process.env.BERKELIUM_GLOBAL_CONFIG_DIR || path.join(os.homedir(), '.berkelium');
+  }
+
   public updateGlobalConfig(mutator: (current: BerkeliumConfig) => Partial<BerkeliumConfig>): void {
-    const globalPath = path.join(os.homedir(), '.berkelium', 'config.yaml');
+    const globalDir = this.getGlobalConfigDir();
+    const jsonPath = path.join(globalDir, 'config.json');
+    const yamlPath = path.join(globalDir, 'config.yaml');
+    const targetPath = fs.existsSync(jsonPath) ? jsonPath : (fs.existsSync(yamlPath) ? yamlPath : jsonPath);
     const updated = mutator(this.getConfig());
-    this.writeConfigFile(globalPath, updated);
+    this.writeConfigFile(targetPath, updated);
     this.config = this.loadHierarchy();
   }
 
   public updateProjectConfig(mutator: (current: BerkeliumConfig) => Partial<BerkeliumConfig>): void {
-    const projectPath = path.join(this.workspaceRoot, '.berkelium', 'config.yaml');
+    const jsonPath = path.join(this.workspaceRoot, '.berkelium', 'config.json');
+    const yamlPath = path.join(this.workspaceRoot, '.berkelium', 'config.yaml');
+    const targetPath = fs.existsSync(jsonPath) ? jsonPath : (fs.existsSync(yamlPath) ? yamlPath : jsonPath);
     const updated = mutator(this.getConfig());
-    this.writeConfigFile(projectPath, updated);
+    this.writeConfigFile(targetPath, updated);
     this.config = this.loadHierarchy();
   }
 
@@ -57,31 +91,48 @@ export class ConfigManager {
     const defaults = BerkeliumConfigSchema.parse({});
     merged = { ...defaults };
 
-    // 2. Global configuration: ~/.berkelium/config.yaml
-    const globalConfig = this.readConfigFile(path.join(os.homedir(), '.berkelium', 'config.yaml'));
+    // 2. Global configuration: ~/.berkelium/config.json or config.yaml
+    const globalConfig = this.readConfigWithFallbacks(path.join(this.getGlobalConfigDir(), 'config'));
     if (globalConfig) merged = this.deepMerge(merged, globalConfig);
 
-    // 3. Machine configuration: /etc/berkelium/config.yaml
-    const machineConfig = this.readConfigFile('/etc/berkelium/config.yaml');
+    // 3. Machine configuration: /etc/berkelium/config.json or config.yaml
+    const machineConfig = this.readConfigWithFallbacks('/etc/berkelium/config');
     if (machineConfig) merged = this.deepMerge(merged, machineConfig);
 
-    // 4. Project configuration: <workspaceRoot>/.berkelium/config.yaml
-    const projectConfig = this.readConfigFile(path.join(this.workspaceRoot, '.berkelium', 'config.yaml'));
+    // 4. Project configuration: <workspaceRoot>/.berkelium/config.json or config.yaml
+    const projectConfig = this.readConfigWithFallbacks(path.join(this.workspaceRoot, '.berkelium', 'config'));
     if (projectConfig) merged = this.deepMerge(merged, projectConfig);
 
-    // 5. Directory configuration: <cwd>/.berkelium/config.yaml (if different from workspace)
+    // 5. Directory configuration: <cwd>/.berkelium/config.json or config.yaml (if different from workspace)
     if (process.cwd() !== this.workspaceRoot) {
-      const dirConfig = this.readConfigFile(path.join(process.cwd(), '.berkelium', 'config.yaml'));
+      const dirConfig = this.readConfigWithFallbacks(path.join(process.cwd(), '.berkelium', 'config'));
       if (dirConfig) merged = this.deepMerge(merged, dirConfig);
     }
 
     return BerkeliumConfigSchema.parse(merged);
   }
 
+  private readConfigWithFallbacks(basePath: string): Record<string, any> | null {
+    const candidates = [
+      `${basePath}.json`,
+      `${basePath}.yaml`,
+      `${basePath}.yml`,
+      basePath,
+    ];
+    for (const p of candidates) {
+      const res = this.readConfigFile(p);
+      if (res) return res;
+    }
+    return null;
+  }
+
   private readConfigFile(filePath: string): Record<string, any> | null {
     try {
       if (fs.existsSync(filePath)) {
         const content = fs.readFileSync(filePath, 'utf-8');
+        if (filePath.endsWith('.json')) {
+          return JSON.parse(content);
+        }
         return parseYaml(content) || null;
       }
     } catch (err) {
@@ -98,10 +149,23 @@ export class ConfigManager {
       }
       let current: Record<string, any> = {};
       if (fs.existsSync(filePath)) {
-        current = parseYaml(fs.readFileSync(filePath, 'utf-8')) || {};
+        const content = fs.readFileSync(filePath, 'utf-8');
+        if (filePath.endsWith('.json')) {
+          try {
+            current = JSON.parse(content) || {};
+          } catch {
+            current = {};
+          }
+        } else {
+          current = parseYaml(content) || {};
+        }
       }
       const combined = this.deepMerge(current, updates);
-      fs.writeFileSync(filePath, stringifyYaml(combined), 'utf-8');
+      if (filePath.endsWith('.json')) {
+        fs.writeFileSync(filePath, JSON.stringify(combined, null, 2), 'utf-8');
+      } else {
+        fs.writeFileSync(filePath, stringifyYaml(combined), 'utf-8');
+      }
     } catch (err) {
       console.error(`[ConfigManager] Failed to write config to ${filePath}:`, err);
     }

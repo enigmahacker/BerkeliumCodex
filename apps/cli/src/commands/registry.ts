@@ -182,10 +182,11 @@ export class CommandRegistry {
     this.register({
       name: 'help',
       aliases: ['?'],
-      description: 'Display all slash commands and capabilities',
+      description: 'Show commands',
       category: 'GENERAL',
       usage: '/help [command]',
       examples: ['/help', '/help model'],
+      priority: 70,
       arguments: [
         {
           name: 'command',
@@ -198,10 +199,11 @@ export class CommandRegistry {
     this.register({
       name: 'clear',
       aliases: ['cls'],
-      description: 'Clear terminal screen',
+      description: 'Clear conversation',
       category: 'GENERAL',
       usage: '/clear',
       examples: ['/clear'],
+      priority: 75,
     });
 
     this.register({
@@ -223,12 +225,53 @@ export class CommandRegistry {
 
     // 2. MODEL
     this.register({
+      name: 'default',
+      description: 'Set default model',
+      category: 'MODEL',
+      usage: '/default model <model>',
+      examples: ['/default model', '/default model lmstudio/berkeliumgpt-coder-3b'],
+      priority: 100,
+      arguments: [
+        {
+          name: 'subcommand',
+          description: 'Subcommand ("model")',
+          required: false,
+          staticOptions: ['model'],
+        },
+        {
+          name: 'model',
+          description: 'Model target or provider model identifier',
+          required: false,
+          dynamicProvider: 'model',
+        },
+      ],
+    });
+
+    this.register({
+      name: 'effort',
+      description: 'Set reasoning effort',
+      category: 'MODEL',
+      usage: '/effort [low|medium|high|max]',
+      examples: ['/effort', '/effort high', '/effort medium', '/effort low', '/effort max'],
+      priority: 95,
+      arguments: [
+        {
+          name: 'level',
+          description: 'Reasoning effort level',
+          required: false,
+          staticOptions: ['low', 'medium', 'high', 'max'],
+        },
+      ],
+    });
+
+    this.register({
       name: 'model',
       aliases: ['m'],
-      description: 'Change active model target or alias',
+      description: 'Select model',
       category: 'MODEL',
       usage: '/model <model_name>',
       examples: ['/model coding', '/model ollama/qwen2.5:14b', '/model local'],
+      priority: 90,
       arguments: [
         {
           name: 'model_name',
@@ -452,10 +495,11 @@ export class CommandRegistry {
     this.register({
       name: 'config',
       aliases: ['cfg'],
-      description: 'Inspect active hierarchical configuration',
+      description: 'Open configuration',
       category: 'CONFIGURATION',
       usage: '/config',
       examples: ['/config'],
+      priority: 80,
     });
 
     this.register({
@@ -855,10 +899,11 @@ export class CommandRegistry {
 
     this.register({
       name: 'status',
-      description: 'View runtime state machine & telemetry stats',
+      description: 'Show runtime status',
       category: 'SYSTEM',
       usage: '/status',
       examples: ['/status'],
+      priority: 85,
     });
 
     this.register({

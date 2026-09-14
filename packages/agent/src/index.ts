@@ -10,4 +10,5 @@ export * from './modes.js';
 export * from './mission.js';
 export * from './failure-recovery.js';
 export * from './intent.js';
+export * from './sanitizer.js';
 export * from './runtime.js';

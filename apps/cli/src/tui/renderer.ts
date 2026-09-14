@@ -8,6 +8,7 @@ export interface TelemetryViewProps {
   contextLimit: number;
   totalTokens: number;
   latencySeconds: number;
+  effort?: string;
   hackathonMode?: boolean;
 }
 
@@ -72,61 +73,116 @@ export class TUIRenderer {
         break;
 
       case 'token_received':
+        // Guard against any runaway thought tags that escaped prior filters
+        if (event.token.includes('<thought>') || event.token.includes('<think>')) {
+          break;
+        }
         process.stdout.write(event.token);
         this.currentStreamLine += event.token;
         this.hasActiveStream = true;
         break;
 
+      case 'reasoning_started':
+        if (!this.isInReasoning) {
+          this.isInReasoning = true;
+          this.flushStream();
+          console.log(fmt.dimmed('● Thinking...'));
+        }
+        break;
+
       case 'reasoning_token_received':
         if (!this.isInReasoning) {
           this.isInReasoning = true;
-          console.log(fmt.dimmed('\n╭─ Thinking ──────────────────────────────────────────'));
+          this.flushStream();
+          console.log(fmt.dimmed('● Thinking...'));
         }
-        process.stdout.write(fmt.dimmed(event.token));
+        // HARD RULE: NEVER expose internal reasoning tokens to terminal
         break;
 
       case 'reasoning_finished':
         if (this.isInReasoning) {
           this.isInReasoning = false;
-          console.log(fmt.dimmed('\n╰─────────────────────────────────────────────────────\n'));
+          console.log(fmt.success('✓'));
         }
         break;
 
-      case 'tool_started':
+      case 'tool_started': {
         this.flushStream();
+        const toolName = event.toolName;
+        const args = (event.args || {}) as Record<string, any>;
+        let actionLabel = `[${toolName}]`;
+        let targetDetail = '';
+
+        if (toolName === 'read_file' || toolName === 'filesystem.read') {
+          actionLabel = 'Reading';
+          targetDetail = args.path || args.file || '';
+        } else if (toolName === 'write_file' || toolName === 'edit_file' || toolName === 'patch_file') {
+          actionLabel = 'Editing';
+          targetDetail = args.path || args.file || '';
+        } else if (toolName === 'run_shell' || toolName === 'execute_command') {
+          const cmd = args.command || '';
+          if (cmd.startsWith('npm test') || cmd.startsWith('pnpm test') || cmd.includes('test')) {
+            actionLabel = 'Testing';
+            targetDetail = cmd;
+          } else {
+            actionLabel = 'Executing';
+            targetDetail = cmd;
+          }
+        } else if (toolName === 'git_diff' || toolName === 'git.diff') {
+          actionLabel = 'Inspecting Git Diff';
+        } else if (toolName === 'diagnostics' || toolName === 'lint') {
+          actionLabel = 'Running Diagnostics';
+        }
+
         console.log();
         console.log(
-          fmt.border('  ● ') +
-            fmt.tool(`[${event.toolName}]`) +
-            fmt.dimmed(` ${JSON.stringify(event.args).slice(0, 70)}...`)
+          fmt.accent('● ') +
+            fmt.bold(actionLabel) +
+            (targetDetail ? '\n  ' + fmt.dimmed(targetDetail) : '')
         );
         break;
+      }
 
-      case 'tool_completed':
+      case 'tool_completed': {
         this.flushStream();
-        console.log(
-          fmt.success('  ✓ ') +
-            fmt.dimmed(`Completed ${event.toolName} in ${event.durationMs}ms`)
-        );
+        let summary = `Completed in ${event.durationMs}ms`;
+        const output = (event as any).output || '';
+        if (event.toolName === 'read_file' || event.toolName === 'filesystem.read') {
+          const lines = output ? output.split('\n').length : 0;
+          if (lines > 0) summary = `Read ${lines} lines`;
+        } else if (event.toolName === 'write_file' || event.toolName === 'edit_file') {
+          summary = 'Applied edits';
+        } else if (event.toolName === 'run_shell' && output.toLowerCase().includes('pass')) {
+          summary = 'Tests passed';
+        }
+        console.log(fmt.success('✓ ') + fmt.dimmed(summary));
         break;
+      }
 
       case 'tool_failed':
         this.flushStream();
         console.log(
-          fmt.error('  ✗ ') +
+          fmt.error('✗ ') +
             fmt.error(`Failed ${event.toolName}: ${event.error} (${event.durationMs}ms)`)
         );
         break;
 
       case 'state_changed':
         if (event.description && !this.hasActiveStream) {
-          if (event.newState === 'RESPONDING' || (event.previousState === 'RESPONDING' && event.newState === 'IDLE')) {
+          if (
+            event.newState === 'RESPONDING' ||
+            event.newState === 'THINKING' ||
+            (event.previousState === 'RESPONDING' && event.newState === 'IDLE')
+          ) {
             break;
           }
-          if (event.newState === 'COMPLETED') {
-            console.log(fmt.success('  ✓ Task completed successfully'));
-          } else if (event.newState !== 'VERIFYING') {
-            console.log(fmt.dimmed(`  ● ${event.description}`));
+          if (event.newState === 'PLANNING') {
+            console.log(fmt.accent('● Planning'));
+            console.log(`  ${fmt.dimmed(event.description.replace(/^Planning\s+/i, ''))}`);
+          } else if (event.newState === 'COMPLETED') {
+            console.log(fmt.success('✓ Task completed'));
+          } else if (event.newState !== 'VERIFYING' && event.newState !== 'EXECUTING') {
+            console.log(fmt.dimmed(`● ${event.description}`));
           }
         }
         break;
@@ -141,15 +197,15 @@ export class TUIRenderer {
       case 'verification_started':
         this.flushStream();
         console.log();
-        console.log(fmt.accent('  ● Starting autonomous verification pipeline...'));
+        console.log(fmt.accent('● Verifying changes'));
         break;
 
       case 'verification_completed':
         this.flushStream();
         if (event.passed) {
-          console.log(fmt.success('  ✓ Task completed successfully'));
+          console.log(fmt.success('✓ Verification passed'));
         } else {
-          console.log(fmt.warning('  ⚠ Verification issues detected. Initiating automated remediation...'));
+          console.log(fmt.warning('⚠ Verification issues detected. Initiating remediation...'));
         }
         break;
 
@@ -175,6 +231,7 @@ export class TUIRenderer {
       `${fmt.dimmed('Context:')} ${fmt.primary(`${usedK}k/${limitK}k`)}`,
       `${fmt.dimmed('Tokens:')} ${fmt.muted(props.totalTokens.toLocaleString())}`,
       `${fmt.dimmed('Latency:')} ${fmt.dimmed(timeStr)}`,
+      `${fmt.dimmed('Effort:')} ${fmt.accent(props.effort || 'medium')}`,
     ];
 
     if (props.hackathonMode) {

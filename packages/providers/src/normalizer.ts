@@ -54,9 +54,44 @@ export class ResponseNormalizer {
           });
         }
 
+        let sanitizedText = fullText;
+        let reasoning = fullReasoning;
+
+        // Extract reasoning tags embedded in text
+        const thoughtMatch = /<(?:thought|think|reasoning|scratchpad)>([\s\S]*?)<\/(?:thought|think|reasoning|scratchpad)>/gi;
+        sanitizedText = sanitizedText.replace(thoughtMatch, (_, tagContent) => {
+          if (tagContent && tagContent.trim()) {
+            reasoning = (reasoning ? reasoning + '\n' : '') + tagContent.trim();
+          }
+          return '';
+        });
+
+        // Strip unclosed thought tags
+        sanitizedText = sanitizedText.replace(/<(?:thought|think|reasoning|scratchpad)>[\s\S]*$/gi, '');
+
+        // Strip accidental leakage patterns
+        const leakagePatterns = [
+          /^System\s+Prompt\s*:\s*[\s\S]*?(?=\n\n|\n[A-Z][a-z]+:|$)/im,
+          /^Developer\s+Message\s*:\s*[\s\S]*?(?=\n\n|\n[A-Z][a-z]+:|$)/im,
+          /^Internal\s+Reasoning\s*:\s*[\s\S]*?(?=\n\n|\n[A-Z][a-z]+:|$)/im,
+          /^Chain\s+of\s+Thought\s*:\s*[\s\S]*?(?=\n\n|\n[A-Z][a-z]+:|$)/im,
+          /^Hidden\s+Instructions\s*:\s*[\s\S]*?(?=\n\n|\n[A-Z][a-z]+:|$)/im,
+          /^Tool\s+Selection\s*:\s*[\s\S]*?(?=\n\n|\n[A-Z][a-z]+:|$)/im,
+          /^Thought\s+Process\s*:\s*[\s\S]*?(?=\n\n|\n[A-Z][a-z]+:|$)/im,
+          /^Role\s*:\s*Berkelium[\s\S]*?(?=\n\n|\n[A-Z][a-z]+:|$)/im,
+          /^Traits\s*:\s*[\s\S]*?(?=\n\n|\n[A-Z][a-z]+:|$)/im,
+          /^Constraints\s*:\s*[\s\S]*?(?=\n\n|\n[A-Z][a-z]+:|$)/im,
+        ];
+        for (const lp of leakagePatterns) {
+          sanitizedText = sanitizedText.replace(lp, '');
+        }
+
+        sanitizedText = sanitizedText.trim();
+
         return {
-          text: fullText,
-          reasoning: fullReasoning || undefined,
+          text: sanitizedText,
+          content: sanitizedText,
+          reasoning: reasoning || undefined,
           toolCalls,
           usage,
           finishReason,

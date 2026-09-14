@@ -220,9 +220,9 @@ export class InteractiveSession {
           res.buffer
         );
       } else if (mode === 'SlashArgument' && res?.activeCommand) {
-        const parts = res.buffer.trimStart().split(/\s+/);
-        const argQuery = parts.slice(1).join(' ');
-        const argName = res.activeCommand.arguments?.[0]?.name || 'option';
+        const argIdx = res.activeArgIndex ?? 0;
+        const argName = res.activeCommand.arguments?.[argIdx]?.name || 'option';
+        const argQuery = res.activeArgQuery ?? '';
         paletteLines = this.paletteRenderer.renderArgumentSuggestions(
           res.activeCommand.name,
           argName,
@@ -364,6 +364,7 @@ export class InteractiveSession {
         contextLimit: breakdown.limit,
         totalTokens: stats.tokenUsage.totalTokens,
         latencySeconds: durationSec,
+        effort: typeof (this.runtime as any).getEffort === 'function' ? (this.runtime as any).getEffort() : 'medium',
         hackathonMode: this.hackathonMode,
       });
 
@@ -395,7 +396,9 @@ export class InteractiveSession {
     if (lower === 'ls' || lower.startsWith('ls ')) return '/' + input;
     if (lower === 'cd' || lower.startsWith('cd ')) return '/' + input;
 
-    // Direct utilities and navigation without leading slash
+    // Direct utilities and configuration commands
+    if (lower === 'default' || lower.startsWith('default ')) return '/' + input;
+    if (lower === 'effort' || lower.startsWith('effort ')) return '/' + input;
     if (lower === 'scan' || lower.startsWith('scan ')) return '/' + input;
     if (lower === 'checkpoint' || lower.startsWith('checkpoint ')) return '/' + input;
     if (lower === 'checkpoints') return '/checkpoints';
@@ -417,6 +420,7 @@ export class InteractiveSession {
       'matrix',
       'version',
       'status',
+      'config',
       'quit',
       'exit',
       'q',
