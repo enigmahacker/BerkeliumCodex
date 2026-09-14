@@ -1,0 +1,476 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://berkelium.ai/schemas/chat.schema.json",
+  "title": "Berkelium Codex Chat Protocol",
+  "description": "Production-grade event schema for the Berkelium Codex agent runtime.",
+  "type": "object",
+  "required": [
+    "id",
+    "conversation_id",
+    "created_at",
+    "type",
+    "role",
+    "content"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Globally unique message or event ID."
+    },
+    "conversation_id": {
+      "type": "string",
+      "description": "Conversation/session identifier."
+    },
+    "parent_id": {
+      "type": ["string", "null"],
+      "description": "ID of the previous message or event."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "message",
+        "system",
+        "assistant",
+        "user",
+        "tool_call",
+        "tool_result",
+        "thinking",
+        "plan",
+        "permission_request",
+        "permission_result",
+        "verification",
+        "context_compaction",
+        "state_change",
+        "error",
+        "warning",
+        "status",
+        "final"
+      ]
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "user",
+        "assistant",
+        "system",
+        "tool"
+      ]
+    },
+    "content": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/contentPart"
+          }
+        }
+      ]
+    },
+    "model": {
+      "type": ["string", "null"]
+    },
+    "provider": {
+      "type": ["string", "null"]
+    },
+    "model_mode": {
+      "type": "string",
+      "enum": [
+        "local",
+        "cloud",
+        "hybrid",
+        "auto"
+      ]
+    },
+    "agent": {
+      "$ref": "#/$defs/agentState"
+    },
+    "tool": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/toolCall"
+        },
+        {
+          "$ref": "#/$defs/toolResult"
+        }
+      ]
+    },
+    "plan": {
+      "$ref": "#/$defs/plan"
+    },
+    "verification": {
+      "$ref": "#/$defs/verification"
+    },
+    "permission": {
+      "$ref": "#/$defs/permission"
+    },
+    "context": {
+      "$ref": "#/$defs/context"
+    },
+    "error": {
+      "$ref": "#/$defs/error"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "contentPart": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "text",
+            "image",
+            "file",
+            "code",
+            "diff",
+            "citation"
+          ]
+        },
+        "text": {
+          "type": ["string", "null"]
+        },
+        "mime_type": {
+          "type": ["string", "null"]
+        },
+        "path": {
+          "type": ["string", "null"]
+        },
+        "language": {
+          "type": ["string", "null"]
+        },
+        "content": {
+          "type": ["string", "null"]
+        },
+        "url": {
+          "type": ["string", "null"],
+          "format": "uri"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "agentState": {
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "IDLE",
+            "THINKING",
+            "PLANNING",
+            "WAITING_FOR_PERMISSION",
+            "EXECUTING",
+            "VERIFYING",
+            "REMEDIATING",
+            "COMPACTING_CONTEXT",
+            "WAITING_FOR_USER",
+            "COMPLETED",
+            "FAILED",
+            "CANCELLED"
+          ]
+        },
+        "previous_state": {
+          "type": ["string", "null"]
+        },
+        "reason": {
+          "type": ["string", "null"]
+        },
+        "run_id": {
+          "type": ["string", "null"]
+        },
+        "iteration": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "toolCall": {
+      "type": "object",
+      "required": [
+        "call_id",
+        "name",
+        "arguments"
+      ],
+      "properties": {
+        "call_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "arguments": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "working_directory": {
+          "type": ["string", "null"]
+        },
+        "timeout_ms": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "requires_permission": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "toolResult": {
+      "type": "object",
+      "required": [
+        "call_id",
+        "status"
+      ],
+      "properties": {
+        "call_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "success",
+            "failed",
+            "cancelled",
+            "timeout",
+            "permission_denied"
+          ]
+        },
+        "stdout": {
+          "type": ["string", "null"]
+        },
+        "stderr": {
+          "type": ["string", "null"]
+        },
+        "exit_code": {
+          "type": ["integer", "null"]
+        },
+        "duration_ms": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "plan": {
+      "type": "object",
+      "required": [
+        "steps"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "goal": {
+          "type": "string"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "description",
+              "status"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "in_progress",
+                  "completed",
+                  "failed",
+                  "skipped"
+                ]
+              },
+              "verification": {
+                "type": ["string", "null"]
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "verification": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "running",
+            "passed",
+            "failed",
+            "partial"
+          ]
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "status"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "running",
+                  "passed",
+                  "failed",
+                  "skipped"
+                ]
+              },
+              "output": {
+                "type": ["string", "null"]
+              },
+              "duration_ms": {
+                "type": ["integer", "null"]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "remediation_required": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "permission": {
+      "type": "object",
+      "required": [
+        "action",
+        "status"
+      ],
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved",
+            "denied",
+            "expired"
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "once",
+            "session",
+            "project",
+            "global"
+          ]
+        },
+        "reason": {
+          "type": ["string", "null"]
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "context": {
+      "type": "object",
+      "properties": {
+        "tokens_used": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "context_limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "usage_percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "compaction_required": {
+          "type": "boolean"
+        },
+        "compaction_reason": {
+          "type": ["string", "null"]
+        },
+        "summary_id": {
+          "type": ["string", "null"]
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "error": {
+      "type": "object",
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "recoverable": {
+          "type": "boolean"
+        },
+        "details": {
+          "type": ["object", "null"],
+          "additionalProperties": true
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

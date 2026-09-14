@@ -1,4 +1,4 @@
-import { EventBus } from '@berkelium/events';
+import { EventBus, agentEventToChatEvent } from '@berkelium/events';
 import { Logger } from '@berkelium/logging';
 import { ConfigManager } from '@berkelium/config';
 import { ThemeManager } from '@berkelium/themes';
@@ -45,6 +45,7 @@ import { SearchCommand } from './commands/search-cmd.js';
 import { InspectCommand } from './commands/inspect-cmd.js';
 import { AccessibilityCommand } from './commands/accessibility-cmd.js';
 import { ConfigCommand } from './commands/config-cmd.js';
+import { SchemaCommand } from './commands/schema-cmd.js';
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
   // Parse CLI flags early
@@ -96,12 +97,13 @@ Primary Commands:
   system scan              Run complete hardware, OS, memory, storage & dev scan
   security scan            Scan workspace and Git history for leaked secrets and vulnerabilities
   doctor                   Run full environment & provider diagnostic checks
+  schema [chat|validate]   Display or validate Berkelium Codex Chat Protocol JSON Schema
   list                     List installed local models
   pull <model>             Download model weights locally
   show <model>             Display model parameters and architecture
   ps                       List active local inference processes
   rm <model>               Delete local model weights
-  run <task>               Execute an autonomous engineering task directly
+  run <task> [--json]      Execute an autonomous engineering task directly
   session <list|resume>    Inspect and resume previous interactive sessions
   git <status|diff>        Inspect repository Git status and diffs
 `);
@@ -415,6 +417,16 @@ Primary Commands:
     return;
   }
 
+  if (firstArg === 'schema' || firstArg === 'protocol' || firstArg === 'chatschema') {
+    await SchemaCommand.run(
+      themeManager,
+      positionalArgs[1],
+      positionalArgs[2],
+      configManager.getWorkspaceRoot()
+    );
+    return;
+  }
+
   // Initialize Agent Runtime
   const runtime = new AgentRuntime({
     workspaceRoot: configManager.getWorkspaceRoot(),
@@ -435,12 +447,51 @@ Primary Commands:
     runtime.setMode(customMode);
   }
 
-  // Direct autonomous run command: berkelium run "task"
+  // Direct autonomous run command: berkelium run "task" [--json]
   if (firstArg === 'run' && positionalArgs.length > 1) {
-    eventBus.on('*', (e) => renderer.handleEvent(e));
+    const isJson = argv.includes('--json') || argv.includes('--format=json');
+    if (isJson) {
+      const convId = `run-${Date.now()}`;
+      eventBus.on('*', (e) => {
+        const chatEvent = agentEventToChatEvent(e, {
+          conversationId: convId,
+          model: runtime.getActiveModel(),
+          provider: router.resolveTarget(runtime.getActiveModel()).provider.name,
+        });
+        process.stdout.write(JSON.stringify(chatEvent) + '\n');
+      });
+    } else {
+      eventBus.on('*', (e) => renderer.handleEvent(e));
+    }
     const task = positionalArgs.slice(1).join(' ');
     await runtime.executeTask(task);
-    console.log();
+    if (!isJson) {
+      console.log();
+    }
+    return;
+  }
+
+  // Direct chat command: berkelium chat "message" [--json]
+  if (firstArg === 'chat' && positionalArgs.length > 1) {
+    const isJson = argv.includes('--json') || argv.includes('--format=json');
+    if (isJson) {
+      const convId = `chat-${Date.now()}`;
+      eventBus.on('*', (e) => {
+        const chatEvent = agentEventToChatEvent(e, {
+          conversationId: convId,
+          model: runtime.getActiveModel(),
+          provider: router.resolveTarget(runtime.getActiveModel()).provider.name,
+        });
+        process.stdout.write(JSON.stringify(chatEvent) + '\n');
+      });
+    } else {
+      eventBus.on('*', (e) => renderer.handleEvent(e));
+    }
+    const msg = positionalArgs.slice(1).join(' ');
+    await runtime.executeTask(msg);
+    if (!isJson) {
+      console.log();
+    }
     return;
   }
 

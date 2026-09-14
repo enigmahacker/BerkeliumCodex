@@ -877,5 +877,22 @@ export class CommandRegistry {
       usage: '/version',
       examples: ['/version'],
     });
+
+    this.register({
+      name: 'schema',
+      aliases: ['protocol', 'chatschema'],
+      description: 'Display or validate Berkelium Codex Chat Protocol JSON schema',
+      category: 'SYSTEM',
+      usage: '/schema [chat|validate <file>]',
+      examples: ['/schema', '/schema chat', '/schema validate event.json'],
+      arguments: [
+        {
+          name: 'action',
+          description: 'Schema action or file to validate',
+          required: false,
+          staticOptions: ['chat', 'validate'],
+        },
+      ],
+    });
   }
 }

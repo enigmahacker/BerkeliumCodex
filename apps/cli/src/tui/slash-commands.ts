@@ -997,6 +997,19 @@ export class SlashCommandHandler {
         console.log(fmt.primary('Berkelium CLI v1.0.0 (darwin-arm64 native)'));
         return true;
 
+      case 'schema':
+      case 'protocol':
+      case 'chatschema': {
+        const { SchemaCommand } = await import('../commands/schema-cmd.js');
+        await SchemaCommand.run(
+          this.themeManager,
+          subArgs[0],
+          subArgs[1],
+          this.configManager.getWorkspaceRoot()
+        );
+        return true;
+      }
+
       case 'quit':
       case 'exit':
       case 'q':
