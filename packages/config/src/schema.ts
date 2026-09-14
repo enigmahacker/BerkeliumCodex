@@ -118,9 +118,14 @@ export const PermissionPolicySchema = z.object({
   }),
 });
 
+export const AgentEffortSchema = z.enum(['low', 'medium', 'high', 'max']).default('medium');
+export type AgentEffort = z.infer<typeof AgentEffortSchema>;
+
 export const BerkeliumConfigSchema = z.object({
   version: z.number().default(1),
   default_model: z.string().default('coding'),
+  defaultModel: z.string().optional(),
+  effort: AgentEffortSchema.optional(),
   routing: z.object({
     primary: z.string().default('openrouter/coding'),
     fallback: z.array(z.string()).default([
