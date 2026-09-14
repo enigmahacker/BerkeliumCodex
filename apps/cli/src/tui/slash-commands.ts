@@ -626,7 +626,8 @@ export class SlashCommandHandler {
 
       case 'security':
       case 'sec':
-      case 'guard': {
+      case 'guard':
+      case 'sandbox': {
         const subAction = subArgs[0]?.toLowerCase();
         const wsRoot = WorkingDirectoryManager.getInstance().getCwd();
         if (subAction === 'scan' || subAction === 'audit' || subAction === 'check' || subAction === 'verify') {
@@ -690,7 +691,8 @@ export class SlashCommandHandler {
       case 'tokens':
       case 'cost':
       case 'token':
-      case 'economy': {
+      case 'economy':
+      case 'budget': {
         const stats = this.runtime.getTelemetry().getStats();
         const history = this.runtime.getSessionHistory();
         const breakdown = await this.contextEngine.getBreakdown(
@@ -703,12 +705,13 @@ export class SlashCommandHandler {
       }
 
       case 'compact': {
-        console.log(fmt.dimmed('Compacting conversation history and historical tool outputs...'));
         const history = this.runtime.getSessionHistory();
-        const result = this.contextEngine.compactIfNeeded(history.length > 0 ? history : [
-          { role: 'user', content: 'Sample user input for compaction' },
-          { role: 'assistant', content: 'Sample assistant response for compaction' },
-        ], 0);
+        if (history.length === 0) {
+          console.log(fmt.muted('ℹ Active session history is currently empty (0 messages). No compaction required.'));
+          return true;
+        }
+        console.log(fmt.dimmed('Compacting conversation history and historical tool outputs...'));
+        const result = this.contextEngine.compactIfNeeded(history, 0);
         const tokensSaved = result.tokensSaved ?? (result.tokensBefore - result.tokensAfter);
         const percent = Math.round((tokensSaved / Math.max(1, result.tokensBefore)) * 100);
         const microStr = result.microCompactedCount ? ` (${result.microCompactedCount} tool outputs micro-compacted)` : '';
@@ -717,6 +720,22 @@ export class SlashCommandHandler {
             `✓ Context compacted: ${result.tokensBefore} → ${result.tokensAfter} tokens (-${percent}%, saved ${tokensSaved.toLocaleString()} tokens)${microStr}.`
           )
         );
+        return true;
+      }
+
+      case 'route':
+      case 'routing': {
+        console.log();
+        console.log(fmt.bold(fmt.primary('MODEL ROUTING MATRIX')));
+        console.log(fmt.dimmed('Intelligent capability-based task routing:'));
+        console.log(`  ${fmt.bold('coding'.padEnd(16))} → Qwen 2.5 Coder 32B / Claude 3.7 Sonnet (implementation)`);
+        console.log(`  ${fmt.bold('reasoning'.padEnd(16))} → DeepSeek R1 / Gemini 2.5 Pro / Claude Thinking (architecture)`);
+        console.log(`  ${fmt.bold('fast'.padEnd(16))} → Gemini 3 Flash / Groq Llama 3.1 8B (summarization & triage)`);
+        console.log(`  ${fmt.bold('local'.padEnd(16))} → Apple MLX / Ollama / GGUF (offline & private tasks)`);
+        console.log(`  ${fmt.bold('cloud'.padEnd(16))} → Gemini 3.8 Flash / NVIDIA NIM (frontier reasoning)`);
+        console.log();
+        console.log(`  Active Target: ${fmt.accent(this.runtime.getActiveModel())}`);
+        console.log();
         return true;
       }
 
@@ -902,12 +921,17 @@ export class SlashCommandHandler {
       case 'agent': {
         const agents = [
           { name: 'explorer', role: 'Repository structure, imports, and AST indexing' },
-          { name: 'coder', role: 'Autonomous incremental code generation & editing' },
+          { name: 'architect', role: 'System architecture design, component planning, invariants' },
+          { name: 'coder', role: 'Autonomous surgical code generation & editing' },
+          { name: 'debugger', role: 'Root-cause failure diagnosis, stack trace analysis, minimal fixes' },
           { name: 'tester', role: 'Execution of test runners, linters, and verification' },
           { name: 'reviewer', role: 'Multi-aspect code review, safety invariants check' },
+          { name: 'security', role: 'Secret leak inspection, SSRF checks, and jail auditing' },
+          { name: 'performance', role: 'Latency profiling, memory footprint, and token efficiency' },
+          { name: 'documentation', role: 'Documentation sync, README updates, API reference integrity' },
         ];
         console.log();
-        console.log(fmt.bold(fmt.primary('SPECIALIZED SUBAGENTS')));
+        console.log(fmt.bold(fmt.primary('SPECIALIZED SUBAGENTS (9 Personas)')));
         for (const a of agents) {
           console.log(`  ${fmt.bold(a.name.padEnd(16, ' '))} ${fmt.dimmed(a.role)}`);
         }

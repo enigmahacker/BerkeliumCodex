@@ -247,6 +247,15 @@ export class CommandRegistry {
       examples: ['/models'],
     });
 
+    this.register({
+      name: 'route',
+      aliases: ['routing'],
+      description: 'View and configure intelligent task model routing policies',
+      category: 'MODEL',
+      usage: '/route',
+      examples: ['/route'],
+    });
+
     // 3. PROVIDERS
     this.register({
       name: 'provider',
@@ -331,11 +340,11 @@ export class CommandRegistry {
 
     this.register({
       name: 'tokens',
-      aliases: ['cost', 'token', 'economy'],
+      aliases: ['cost', 'token', 'economy', 'budget'],
       description: 'Inspect real-time token savings, prompt cache hits & economy metrics',
       category: 'CONTEXT',
       usage: '/tokens',
-      examples: ['/tokens', '/cost'],
+      examples: ['/tokens', '/cost', '/budget'],
     });
 
     this.register({
@@ -519,11 +528,11 @@ export class CommandRegistry {
     // 8. PERMISSIONS & SECURITY
     this.register({
       name: 'security',
-      aliases: ['sec', 'guard'],
+      aliases: ['sec', 'guard', 'sandbox'],
       description: 'Inspect security posture, sandbox protections, or run security audit',
       category: 'PERMISSIONS',
       usage: '/security [status|audit]',
-      examples: ['/security', '/security audit'],
+      examples: ['/security', '/security audit', '/sandbox'],
       arguments: [
         {
           name: 'action',

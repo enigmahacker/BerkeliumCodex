@@ -1,0 +1,89 @@
+name: Berkelium CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Test & Build (${{ matrix.os }} - Node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node-version: [20.x, 22.x, 24.x]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Run Test Suite
+        run: pnpm test
+
+      - name: Build All Monorepo Packages
+        run: pnpm run build
+
+      - name: CLI Smoke Test (--version)
+        run: node apps/cli/dist/bin/berkelium.js --version
+
+      - name: CLI Smoke Test (--help)
+        run: node apps/cli/dist/bin/berkelium.js --help
+
+      - name: CLI Smoke Test (doctor)
+        run: node apps/cli/dist/bin/berkelium.js doctor
+
+      - name: Performance Benchmarks
+        run: pnpm run bench
+
+  security-and-audit:
+    name: Security & Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Dependency Audit
+        run: pnpm audit --audit-level=high || true
+
+      - name: Secret Scan Invariants
+        run: |
+          echo "Scanning repository for leaked credentials..."
+          ! grep -rE "(ghp_[a-zA-Z0-9]{36}|sk-[a-zA-Z0-9]{32,}|nvapi-[a-zA-Z0-9]{40,})" --exclude-dir={node_modules,dist,.git} .

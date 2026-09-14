@@ -1,0 +1,42 @@
+name: 🔌 New AI Provider Request
+description: Request integration with a new local or cloud AI model provider
+labels: ["provider", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Berkelium Codex is fundamentally provider-neutral. If there is a high-quality local runtime or cloud inference provider you want supported, let us know!
+  - type: input
+    id: provider_name
+    attributes:
+      label: Provider Name
+      placeholder: e.g., Fireworks AI, vLLM, DeepInfra, Mistral API
+    validations:
+      required: true
+  - type: dropdown
+    id: provider_type
+    attributes:
+      label: Provider Type
+      options:
+        - Cloud API (OpenAI-compatible)
+        - Cloud API (Proprietary format)
+        - Local Runtime / Self-Hosted (e.g., vLLM, Aphrodite, llama.cpp server)
+    validations:
+      required: true
+  - type: textarea
+    id: api_docs
+    attributes:
+      label: API Documentation & SDK Link
+      placeholder: Link to provider documentation and endpoint specifications.
+    validations:
+      required: true
+  - type: checkboxes
+    id: capabilities
+    attributes:
+      label: Supported Capabilities
+      options:
+        - label: Streaming completion support
+        - label: Native tool calling (Function calling)
+        - label: Reasoning tokens (`reasoning_content` / thinking)
+        - label: Vision / Multimodal inputs
+        - label: Free tier or community access available

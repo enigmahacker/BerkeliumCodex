@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build artifacts & compilation caches
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Test & Coverage
+coverage/
+.vitest/
+
+# OS metadata
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs & Debugging
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Sensitive Credentials & Vaults
+.env
+.env.local
+.env.*.local
+*.vault
+credentials.vault
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# Local Berkelium state & user missions
+.berkelium/credentials.vault
+.berkelium/sessions/
+.berkelium/logs/
+
+# Scratch & temporary dirs
+scratch/
+tmp/
+temp/

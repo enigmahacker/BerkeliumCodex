@@ -1,0 +1,72 @@
+name: 🐛 Bug Report
+description: Report a bug, crash, or unexpected behavior in Berkelium Codex
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Before opening, please run `bk doctor` to check if your environment or provider configuration has actionable diagnostic errors.
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: What happened when you executed the command or prompt?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction Steps
+      description: How can maintainers reproduce the issue?
+      placeholder: |
+        1. Start Berkelium with `bk`
+        2. Enter `/model <name>`
+        3. Enter command `...`
+        4. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: doctor_output
+    attributes:
+      label: Output of `bk doctor`
+      description: Paste the complete output of running `berkelium doctor` or `bk doctor`.
+      render: shell
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - macOS (Apple Silicon M1-M4)
+        - macOS (Intel)
+        - Linux (Ubuntu/Debian)
+        - Linux (Arch/Fedora/Other)
+        - Windows (WSL2)
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Active AI Provider / Runtime
+      options:
+        - Google Gemini
+        - Groq LPU
+        - OpenRouter
+        - NVIDIA NIM
+        - Hugging Face
+        - Ollama (Local)
+        - LM Studio (Local)
+        - Apple MLX (Local)
+        - GGUF (Local)
+        - Other
+    validations:
+      required: false

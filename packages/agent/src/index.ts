@@ -8,4 +8,5 @@ export * from './checkpoint-manager.js';
 export * from './background-task-manager.js';
 export * from './modes.js';
 export * from './mission.js';
+export * from './failure-recovery.js';
 export * from './runtime.js';

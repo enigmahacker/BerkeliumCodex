@@ -14,6 +14,7 @@ import { SubagentManager } from './subagents.js';
 import { AgentMode, AGENT_MODES, isValidAgentMode } from './modes.js';
 import { MissionRunner, MissionReport, MissionOptions } from './mission.js';
 import { BackgroundTaskManager } from './background-task-manager.js';
+import { FailureLedger } from './failure-recovery.js';
 
 export interface RuntimeInitOptions {
   workspaceRoot?: string;
@@ -47,6 +48,7 @@ export class AgentRuntime {
   private memory: ProjectMemory;
   private agentMode: AgentMode = 'build';
   private missionRunner: MissionRunner;
+  private failureLedger: FailureLedger;
 
   private conversationMessages: Message[] = [];
   private activeModelTarget: string;
@@ -71,6 +73,7 @@ export class AgentRuntime {
     this.privacyEngine = new PrivacyEngine(this.configManager.getConfig().privacy);
     this.costController = new CostController(this.configManager.getConfig().cost);
     this.memory = new ProjectMemory(this.workspaceRoot);
+    this.failureLedger = new FailureLedger();
     this.missionRunner = new MissionRunner(
       this.orchestrator,
       this.router,
@@ -84,6 +87,10 @@ export class AgentRuntime {
 
     // Register all default tools into orchestrator
     this.orchestrator.registerDefaultTools();
+  }
+
+  public getFailureLedger(): FailureLedger {
+    return this.failureLedger;
   }
 
   public getMemory(): ProjectMemory {
@@ -233,8 +240,9 @@ export class AgentRuntime {
         const promptLayers = PromptEngine.loadCustomPrompts(this.workspaceRoot);
         const repoMap = await this.contextEngine.getRepoMap(800);
         const memPrompt = this.memory.getContextPrompt(400);
+        const failurePrompt = this.failureLedger.formatAvoidanceContext();
         const modePrompt = AGENT_MODES[this.agentMode]?.promptInstructions || '';
-        promptLayers.workspace = `Active Workspace: ${this.workspaceRoot}\n\n${modePrompt}\n\n${repoMap}${memPrompt ? '\n\n' + memPrompt : ''}`;
+        promptLayers.workspace = `Active Workspace: ${this.workspaceRoot}\n\n${modePrompt}\n\n${repoMap}${memPrompt ? '\n\n' + memPrompt : ''}${failurePrompt ? '\n\n' + failurePrompt : ''}`;
         const systemPrompt = PromptEngine.compose(promptLayers, this.workspaceRoot);
 
         // 3. Resolve Active Model Target & Mode Execution
@@ -351,6 +359,7 @@ export class AgentRuntime {
             this.stateMachine.transition('VERIFYING', 'Executing automated verification checks');
             const verifyReport = await this.verifier.runVerificationPipeline(this.sessionId);
             if (!verifyReport.passed) {
+              this.failureLedger.recordFailure('verification_pipeline', verifyReport.summary);
               // Feed verification failure back into conversation loop for automated self-healing
               this.conversationMessages.push({
                 role: 'user',
@@ -397,6 +406,12 @@ export class AgentRuntime {
 
           const toolDuration = performance.now() - toolStart;
           this.telemetry.recordToolCall(toolCall.name, toolDuration, toolRes.success);
+          if (!toolRes.success) {
+            this.failureLedger.recordFailure(toolCall.name, toolRes.error || toolRes.output, {
+              toolName: toolCall.name,
+              args: toolCall.arguments,
+            });
+          }
           await this.hookManager.trigger('after_tool', { toolCall, result: toolRes });
 
           // Mark active file in context if filesystem tool
