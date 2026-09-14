@@ -840,13 +840,24 @@ pnpm run bench
 
 ## Contributing
 
-Contributions are welcome. Please read [AGENTS.md](file:///Users/prithviaryam/Downloads/claude-code-main/AGENTS.md) and [DEVELOPMENT.md](file:///Users/prithviaryam/Downloads/claude-code-main/DEVELOPMENT.md) before submitting pull requests. All contributions must pass typechecking, tests, and adhere to architectural invariants.
+Contributions are welcome from everyone! Please read [CONTRIBUTING.md](./CONTRIBUTING.md), [AGENTS.md](./AGENTS.md), and [DEVELOPMENT.md](./DEVELOPMENT.md) before submitting pull requests.
+
+Check out our contributor guides:
+- [Developer Architecture Guide](./docs/DEVELOPER_GUIDE.md)
+- [Building Custom Model Providers](./docs/PROVIDER_GUIDE.md)
+- [Creating Custom Skills](./docs/SKILLS_GUIDE.md)
+- [Community Governance](./GOVERNANCE.md)
+- [Code of Conduct](./CODE_OF_CONDUCT.md)
+- [Support Guidelines](./SUPPORT.md)
+- [Changelog](./CHANGELOG.md)
+
+All contributions must pass typechecking (`pnpm run typecheck`), test suites (`pnpm test`), and satisfy benchmark budgets (`pnpm run bench`).
 
 ---
 
 ## Security Reporting
 
-If you discover a potential security vulnerability, please report it responsibly. Do not open public GitHub issues for security reports. Contact security maintainers directly via repository issue security advisories.
+If you discover a potential security vulnerability, please report it responsibly. Do NOT open public GitHub issues for security reports. Review our [SECURITY.md](./SECURITY.md) policy and email **security@berkelium.dev**.
 
 ---
 
@@ -856,6 +867,9 @@ If you discover a potential security vulnerability, please report it responsibly
 - [x] Local runtime adapters (Apple MLX, GGUF/llama.cpp, CPU fallback)
 - [x] Cloud provider adapters (Gemini, Groq, OpenRouter, NVIDIA NIM, Hugging Face)
 - [x] Ollama and LM Studio local service integrations
+- [x] 12-state deterministic finite state machine with strict transition validation
+- [x] 10-category hierarchical failure recovery engine and avoidance ledger
+- [x] 9 scoped subagent personas (`Explorer`, `Architect`, `Coder`, `Debugger`, `Tester`, `Reviewer`, `Security`, `Performance`, `Documentation`)
 - [x] 3-tier permission engine (`ASK`, `AUTO`, `FULL`) with protected operation guards
 - [x] Working directory control (`pwd`, `ls`, `cd`, `--cwd`)
 - [x] Repository, system, and security scanners
@@ -864,6 +878,7 @@ If you discover a potential security vulnerability, please report it responsibly
 - [x] Git checkpoints, diff preview, and transactional undo
 - [x] Tool-layer outbound network enforcement
 - [x] Persistent session management and resume
+- [x] CI/CD multi-OS testing matrix on GitHub Actions
 - [~] Direct native OpenAI & Anthropic provider adapters (available via OpenRouter)
 - [~] Experimental voice and vision accessibility interfaces
 - [ ] Distributed multi-agent orchestrator
@@ -872,4 +887,6 @@ If you discover a potential security vulnerability, please report it responsibly
 
 ## License
 
-Licensed under the Apache-2.0 License or see repository for licensing details.
+This project is licensed under the **Apache License 2.0**. See the [LICENSE](./LICENSE) file for details.
+
+Copyright (c) 2026 Berkelium Authors & Contributors.
