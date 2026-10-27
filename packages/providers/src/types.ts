@@ -91,6 +91,13 @@ export interface ProviderRequestOptions {
   systemPrompt?: string;
 }
 
+export interface ProviderHealth {
+  isHealthy: boolean;
+  latency: number;
+  lastCheck: number;
+  error?: string;
+}
+
 export interface Provider {
   readonly id: string;
   readonly name: string;
@@ -99,4 +106,5 @@ export interface Provider {
   listModels(): Promise<ModelInfo[]>;
   stream(messages: Message[], options: ProviderRequestOptions): AsyncIterable<NormalizedChunk>;
   generate(messages: Message[], options: ProviderRequestOptions): Promise<NormalizedResponse>;
+  checkHealth?(): Promise<ProviderHealth>;
 }
