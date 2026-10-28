@@ -27,6 +27,7 @@ export type AgentEventType =
   | 'subagent_completed'
   | 'verification_started'
   | 'verification_completed'
+  | 'task_outcome'
   | 'mission_started'
   | 'mission_task_started'
   | 'mission_task_completed'
@@ -218,7 +219,22 @@ export interface VerificationStartedEvent extends BaseAgentEvent {
 export interface VerificationCompletedEvent extends BaseAgentEvent {
   type: 'verification_completed';
   passed: boolean;
-  results: Array<{ check: string; passed: boolean; message?: string }>;
+  results: Array<{ check: string; passed: boolean; status?: 'passed' | 'failed' | 'skipped'; message?: string }>;
+}
+
+export type TaskOutcomeStatus = 'completed' | 'partial' | 'blocked' | 'failed';
+
+export interface TaskOutcomeEvent extends BaseAgentEvent {
+  type: 'task_outcome';
+  status: TaskOutcomeStatus;
+  applied: string[];
+  failed: string[];
+  denied: string[];
+  /** null when verification did not run for this task. */
+  verified: boolean | null;
+  /** Restorable checkpoint created before the first mutation, when available. */
+  checkpointId?: string;
+  summary: string;
 }
 
 export interface StateChangedEvent extends BaseAgentEvent {
@@ -311,6 +327,7 @@ export type AgentEvent =
   | SubagentCompletedEvent
   | VerificationStartedEvent
   | VerificationCompletedEvent
+  | TaskOutcomeEvent
   | MissionStartedEvent
   | MissionTaskStartedEvent
   | MissionTaskCompletedEvent

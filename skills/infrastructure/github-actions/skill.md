@@ -60,7 +60,7 @@ If syntax validation fails, check indentation and quotes on boolean values.
 WorkflowCreationResult with workflowPath, jobs: array, triggers: array.
 
 ## Examples
-Creating multi-OS CI workflow for Berkelium Codex on Node 20/22/24.
+Creating multi-OS CI workflow for Berkelium Codex on Node 22/24/26.
 
 ## Related Skills
 - `infrastructure-ci-cd`

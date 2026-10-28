@@ -490,6 +490,41 @@ export function createChatEvent(
   return event;
 }
 
+function stringifyToolResult(result: unknown): string {
+  if (result === null || result === undefined) return '';
+  if (typeof result === 'string') return result;
+  try {
+    return JSON.stringify(result);
+  } catch {
+    return String(result);
+  }
+}
+
+const AGENT_STATE_MAP: Record<string, AgentStateName> = {
+  IDLE: 'IDLE',
+  THINKING: 'THINKING',
+  RESPONDING: 'EXECUTING',
+  ANALYZING: 'THINKING',
+  PLANNING: 'PLANNING',
+  WAITING_FOR_MODEL: 'THINKING',
+  WAITING_FOR_PERMISSION: 'WAITING_FOR_PERMISSION',
+  EXECUTING: 'EXECUTING',
+  EXECUTING_TOOL: 'EXECUTING',
+  RUNNING_SUBAGENT: 'EXECUTING',
+  VERIFYING: 'VERIFYING',
+  REMEDIATING: 'REMEDIATING',
+  COMPACTING_CONTEXT: 'COMPACTING_CONTEXT',
+  STOPPED: 'COMPLETED',
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED',
+  ERROR: 'FAILED',
+  CANCELLED: 'CANCELLED',
+};
+
+function mapAgentState(state: string): AgentStateName {
+  return AGENT_STATE_MAP[state] || (VALID_AGENT_STATES.has(state as AgentStateName) ? (state as AgentStateName) : 'IDLE');
+}
+
 /**
  * Maps an internal AgentRuntime AgentEvent into a specification-compliant BerkeliumChatEvent.
  */
@@ -567,134 +602,156 @@ export function agentEventToChatEvent(
       });
     }
 
+    case 'tool_output':
+      return createChatEvent({
+        ...base,
+        type: 'status',
+        role: 'tool',
+        content: agentEvent.output,
+        metadata: {
+          tool_call_id: agentEvent.callId,
+          tool_name: agentEvent.toolName,
+          stream: agentEvent.stream ?? false,
+        },
+      });
+
     case 'tool_completed': {
-      const t = agentEvent as any;
+      const output = stringifyToolResult(agentEvent.result);
       return createChatEvent({
         ...base,
         type: 'tool_result',
         role: 'tool',
-        content: t.output || '',
+        content: output,
         tool: {
-          call_id: t.callId || randomUUID(),
+          call_id: agentEvent.callId,
           status: 'success',
-          stdout: t.output || null,
-          exit_code: 0,
-          duration_ms: t.durationMs ?? null,
+          stdout: output,
+          duration_ms: agentEvent.durationMs,
+        },
+        metadata: {
+          tool_name: agentEvent.toolName,
         },
       });
     }
 
-    case 'tool_failed': {
-      const t = agentEvent as any;
+    case 'tool_failed':
       return createChatEvent({
         ...base,
         type: 'tool_result',
         role: 'tool',
-        content: t.error || 'Tool execution failed',
+        content: agentEvent.error,
         tool: {
-          call_id: t.callId || randomUUID(),
+          call_id: agentEvent.callId,
           status: 'failed',
-          stderr: t.error || null,
-          exit_code: 1,
+          stderr: agentEvent.error,
+          duration_ms: agentEvent.durationMs,
+        },
+        metadata: {
+          tool_name: agentEvent.toolName,
+          retryable: agentEvent.retryable ?? null,
         },
       });
-    }
 
-    case 'permission_requested': {
-      const p = agentEvent as any;
+    case 'permission_requested':
       return createChatEvent({
         ...base,
         type: 'permission_request',
         role: 'system',
-        content: `Permission required for action: ${p.operation || p.toolName}`,
+        content: `Permission required: ${agentEvent.action} on ${agentEvent.target} (risk: ${agentEvent.risk})`,
         permission: {
-          action: p.operation || p.toolName || 'execute',
+          action: agentEvent.action,
           status: 'pending',
-          reason: p.reason || null,
+        },
+        metadata: {
+          permission_id: agentEvent.permissionId,
+          target: agentEvent.target,
+          risk: agentEvent.risk,
+          details: agentEvent.details ?? null,
         },
       });
-    }
 
-    case 'permission_granted': {
-      const p = agentEvent as any;
+    case 'permission_granted':
       return createChatEvent({
         ...base,
         type: 'permission_result',
         role: 'system',
-        content: `Permission approved for ${p.operation || p.toolName}`,
+        content: `Permission approved (${agentEvent.remember ? 'remembered for session' : 'once'}): ${agentEvent.permissionId}`,
         permission: {
-          action: p.operation || p.toolName || 'execute',
+          action: 'permission',
           status: 'approved',
-          scope: 'session',
+          scope: agentEvent.remember ? 'session' : 'once',
+        },
+        metadata: {
+          permission_id: agentEvent.permissionId,
+          remember: agentEvent.remember ?? false,
         },
       });
-    }
 
-    case 'permission_denied': {
-      const p = agentEvent as any;
+    case 'permission_denied':
       return createChatEvent({
         ...base,
         type: 'permission_result',
         role: 'system',
-        content: `Permission denied for ${p.operation || p.toolName}`,
+        content: `Permission denied: ${agentEvent.permissionId}${agentEvent.reason ? ` (${agentEvent.reason})` : ''}`,
         permission: {
-          action: p.operation || p.toolName || 'execute',
+          action: 'permission',
           status: 'denied',
-          reason: p.reason || null,
+          reason: agentEvent.reason ?? null,
+        },
+        metadata: {
+          permission_id: agentEvent.permissionId,
         },
       });
-    }
 
-    case 'state_changed': {
-      const s = agentEvent as any;
-      const stateMap: Record<string, AgentStateName> = {
-        IDLE: 'IDLE',
-        ANALYZING: 'THINKING',
-        PLANNING: 'PLANNING',
-        WAITING_FOR_PERMISSION: 'WAITING_FOR_PERMISSION',
-        EXECUTING_TOOL: 'EXECUTING',
-        VERIFYING: 'VERIFYING',
-        COMPACTING_CONTEXT: 'COMPACTING_CONTEXT',
-        STOPPED: 'COMPLETED',
-        ERROR: 'FAILED',
-      };
-      const mappedState: AgentStateName = stateMap[s.to] || 'EXECUTING';
+    case 'state_changed':
       return createChatEvent({
         ...base,
         type: 'state_change',
         role: 'system',
-        content: `State transition: ${s.from} -> ${s.to}`,
+        content: agentEvent.description || `State transition: ${agentEvent.previousState} -> ${agentEvent.newState}`,
         agent: {
-          state: mappedState,
-          previous_state: s.from,
-          reason: s.reason || null,
+          state: mapAgentState(agentEvent.newState),
+          previous_state: agentEvent.previousState,
+          reason: agentEvent.description ?? null,
         },
       });
-    }
 
-    case 'context_compacted': {
-      const c = agentEvent as any;
+    case 'context_compacted':
       return createChatEvent({
         ...base,
         type: 'context_compaction',
         role: 'system',
-        content: `Context compacted: ${c.previousTokens || 0} -> ${c.newTokens || 0} tokens`,
+        content: `Context compacted: ${agentEvent.tokensBefore} -> ${agentEvent.tokensAfter} tokens (-${agentEvent.reductionPercentage}%)`,
         context: {
-          tokens_used: c.newTokens,
-          compaction_required: true,
-          compaction_reason: c.reason || 'Context threshold exceeded',
+          tokens_used: Math.max(0, Math.round(agentEvent.tokensAfter)),
+        },
+        metadata: {
+          tokens_before: agentEvent.tokensBefore,
+          tokens_after: agentEvent.tokensAfter,
+          reduction_percentage: agentEvent.reductionPercentage,
         },
       });
-    }
 
     case 'verification_started':
+      return createChatEvent({
+        ...base,
+        type: 'verification',
+        role: 'system',
+        content: `Verification started: ${agentEvent.checks.join(', ')}`,
+        verification: {
+          status: 'running',
+          checks: agentEvent.checks.map((check) => ({ name: check, status: 'pending' as const })),
+        },
+      });
+
     case 'verification_completed': {
-      const v = agentEvent as any;
-      const status: VerificationStatus = agentEvent.type === 'verification_started'
-        ? 'running'
-        : v.passed
-        ? 'passed'
-        : 'failed';
+      const checks = agentEvent.results.map((result) => ({
+        name: result.check,
+        status: result.status ?? (result.passed ? 'passed' : 'failed'),
+        output: result.message ?? null,
+      }));
+      const hasSkipped = checks.some((check) => check.status === 'skipped');
+      const status: VerificationStatus = agentEvent.passed ? (hasSkipped ? 'partial' : 'passed') : 'failed';
       return createChatEvent({
         ...base,
         type: 'verification',
@@ -702,69 +759,285 @@ export function agentEventToChatEvent(
         content: `Verification status: ${status}`,
         verification: {
           status,
-          remediation_required: !v.passed,
+          checks,
+          remediation_required: !agentEvent.passed,
         },
       });
     }
 
-    case 'error': {
-      const err = agentEvent as any;
-      return createChatEvent({
-        ...base,
-        type: 'error',
-        role: 'system',
-        content: err.message || 'An unexpected error occurred',
-        error: {
-          code: err.code || 'RUNTIME_ERROR',
-          message: err.message || 'An unexpected error occurred',
-          recoverable: true,
-          retryable: true,
-        },
-      });
-    }
-
-    case 'security_warning':
-    case 'security_blocked':
-    case 'secret_detected':
-    case 'unsafe_command_blocked': {
-      const sec = agentEvent as any;
-      return createChatEvent({
-        ...base,
-        type: 'warning',
-        role: 'system',
-        content: sec.reason || sec.message || `Security notice: ${agentEvent.type}`,
-        metadata: {
-          security_event: agentEvent.type,
-          details: sec,
-        },
-      });
-    }
-
-    case 'status_updated': {
-      const st = agentEvent as any;
+    case 'task_outcome': {
+      const outcome = agentEvent as any;
       return createChatEvent({
         ...base,
         type: 'status',
         role: 'system',
-        content: st.status || 'Status update',
+        content: outcome.summary || `Task ${outcome.status}`,
+        metadata: {
+          task_outcome: outcome.status,
+          applied: outcome.applied || [],
+          failed: outcome.failed || [],
+          denied: outcome.denied || [],
+          verified: outcome.verified ?? null,
+          checkpointId: outcome.checkpointId,
+        },
       });
     }
 
-    case 'session_completed': {
+    case 'session_started':
+      return createChatEvent({
+        ...base,
+        model: agentEvent.model,
+        provider: agentEvent.provider,
+        type: 'system',
+        role: 'system',
+        content: `Session started with ${agentEvent.model} (${agentEvent.provider})`,
+        metadata: {
+          workspace_path: agentEvent.workspacePath,
+        },
+      });
+
+    case 'model_changed':
+      return createChatEvent({
+        ...base,
+        model: agentEvent.newModel,
+        provider: agentEvent.provider,
+        type: 'status',
+        role: 'system',
+        content: `Model changed: ${agentEvent.previousModel} -> ${agentEvent.newModel} (${agentEvent.provider})`,
+        metadata: {
+          previous_model: agentEvent.previousModel,
+          new_model: agentEvent.newModel,
+          provider: agentEvent.provider,
+        },
+      });
+
+    case 'mode_changed':
+      return createChatEvent({
+        ...base,
+        type: 'status',
+        role: 'system',
+        content: `Mode changed: ${agentEvent.previousMode} -> ${agentEvent.newMode}`,
+        metadata: {
+          previous_mode: agentEvent.previousMode,
+          new_mode: agentEvent.newMode,
+        },
+      });
+
+    case 'provider_changed':
+      return createChatEvent({
+        ...base,
+        provider: agentEvent.newProvider,
+        type: 'status',
+        role: 'system',
+        content: `Provider changed: ${agentEvent.previousProvider} -> ${agentEvent.newProvider}`,
+        metadata: {
+          previous_provider: agentEvent.previousProvider,
+          new_provider: agentEvent.newProvider,
+        },
+      });
+
+    case 'subagent_started':
+      return createChatEvent({
+        ...base,
+        type: 'status',
+        role: 'assistant',
+        content: `Subagent ${agentEvent.role} started: ${agentEvent.task}`,
+        metadata: {
+          subagent_id: agentEvent.subagentId,
+          role: agentEvent.role,
+          task: agentEvent.task,
+        },
+      });
+
+    case 'subagent_completed':
+      return createChatEvent({
+        ...base,
+        type: 'status',
+        role: 'assistant',
+        content: `Subagent ${agentEvent.role} completed in ${agentEvent.durationMs}ms`,
+        metadata: {
+          subagent_id: agentEvent.subagentId,
+          role: agentEvent.role,
+          duration_ms: agentEvent.durationMs,
+          result: agentEvent.result,
+        },
+      });
+
+    case 'mission_started':
+      return createChatEvent({
+        ...base,
+        type: 'status',
+        role: 'system',
+        content: `Mission started: ${agentEvent.goal} (${agentEvent.taskCount} tasks)`,
+        metadata: {
+          mission_goal: agentEvent.goal,
+          task_count: agentEvent.taskCount,
+        },
+      });
+
+    case 'mission_task_started':
+      return createChatEvent({
+        ...base,
+        type: 'status',
+        role: 'system',
+        content: `Mission task started: ${agentEvent.objective}`,
+        metadata: {
+          task_id: agentEvent.taskId,
+          objective: agentEvent.objective,
+        },
+      });
+
+    case 'mission_task_completed':
+      return createChatEvent({
+        ...base,
+        type: 'status',
+        role: 'system',
+        content: `Mission task ${agentEvent.taskId} ${agentEvent.status}${agentEvent.result ? `: ${agentEvent.result}` : ''}`,
+        metadata: {
+          task_id: agentEvent.taskId,
+          status: agentEvent.status,
+          result: agentEvent.result ?? null,
+        },
+      });
+
+    case 'mission_completed': {
+      const report = agentEvent.report as { summary?: unknown } | null;
+      const summary = report && typeof report.summary === 'string' ? report.summary : 'Mission completed';
       return createChatEvent({
         ...base,
         type: 'final',
         role: 'system',
-        content: 'Session execution completed successfully.',
+        content: summary,
+        metadata: {
+          report: agentEvent.report,
+        },
       });
     }
 
-    default:
+    case 'error':
+      return createChatEvent({
+        ...base,
+        type: 'error',
+        role: 'system',
+        content: agentEvent.message,
+        error: {
+          code: agentEvent.code || 'RUNTIME_ERROR',
+          message: agentEvent.message,
+          recoverable: agentEvent.recoverable,
+        },
+      });
+
+    case 'security_warning':
+      return createChatEvent({
+        ...base,
+        type: 'warning',
+        role: 'system',
+        content: agentEvent.warning,
+        metadata: {
+          security_event: agentEvent.type,
+          category: agentEvent.category,
+          target: agentEvent.target ?? null,
+        },
+      });
+
+    case 'security_blocked':
+      return createChatEvent({
+        ...base,
+        type: 'warning',
+        role: 'system',
+        content: agentEvent.reason,
+        metadata: {
+          security_event: agentEvent.type,
+          action: agentEvent.action,
+          target: agentEvent.target ?? null,
+        },
+      });
+
+    case 'secret_detected':
+      return createChatEvent({
+        ...base,
+        type: 'warning',
+        role: 'system',
+        content: `Detected secret material (${agentEvent.secretTypes.join(', ')}) in ${agentEvent.source}`,
+        metadata: {
+          security_event: agentEvent.type,
+          secret_types: agentEvent.secretTypes,
+          source: agentEvent.source,
+        },
+      });
+
+    case 'path_escape_blocked':
+      return createChatEvent({
+        ...base,
+        type: 'warning',
+        role: 'system',
+        content: agentEvent.reason,
+        metadata: {
+          security_event: agentEvent.type,
+          attempted_path: agentEvent.attemptedPath,
+          workspace_root: agentEvent.workspaceRoot,
+        },
+      });
+
+    case 'network_request_blocked':
+      return createChatEvent({
+        ...base,
+        type: 'warning',
+        role: 'system',
+        content: agentEvent.reason,
+        metadata: {
+          security_event: agentEvent.type,
+          url: agentEvent.url,
+        },
+      });
+
+    case 'unsafe_command_blocked':
+      return createChatEvent({
+        ...base,
+        type: 'warning',
+        role: 'system',
+        content: agentEvent.reason,
+        metadata: {
+          security_event: agentEvent.type,
+          command: agentEvent.command,
+        },
+      });
+
+    case 'status_updated':
+      return createChatEvent({
+        ...base,
+        type: 'status',
+        role: 'system',
+        content: agentEvent.status,
+        metadata: {
+          step: agentEvent.step ?? null,
+          details: agentEvent.details ?? null,
+          icon: agentEvent.icon ?? null,
+        },
+      });
+
+    case 'session_completed':
+      return createChatEvent({
+        ...base,
+        type: 'final',
+        role: 'system',
+        content: `Session completed in ${(agentEvent.durationMs / 1000).toFixed(1)}s (${agentEvent.toolsExecuted} tool(s) executed, ${agentEvent.totalTokens} tokens)`,
+        metadata: {
+          duration_ms: agentEvent.durationMs,
+          total_tokens: agentEvent.totalTokens,
+          total_cost: agentEvent.totalCost ?? null,
+          tools_executed: agentEvent.toolsExecuted,
+        },
+      });
+
+    default: {
+      const unhandled = agentEvent as unknown as { type?: string };
       return createChatEvent({
         ...base,
         type: 'message',
         role: 'system',
-        content: `Event: ${agentEvent.type}`,
+        content: `Unhandled event: ${unhandled.type ?? 'unknown'}`,
       });
+    }
   }
 }

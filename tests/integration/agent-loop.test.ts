@@ -22,6 +22,7 @@ import { AgentRuntime } from '@berkelium/agent';
 class MockProvider implements Provider {
   public readonly id = 'mock';
   public readonly name = 'Mock Provider';
+  public lastSystemPrompt = '';
   private callCount = 0;
 
   public capabilities(): ProviderCapabilities {
@@ -46,9 +47,10 @@ class MockProvider implements Provider {
 
   public async *stream(
     messages: Message[],
-    _options: ProviderRequestOptions
+    options: ProviderRequestOptions
   ): AsyncIterable<NormalizedChunk> {
     this.callCount++;
+    this.lastSystemPrompt = options.systemPrompt || '';
 
     if (this.callCount === 1) {
       // First turn: Request to write a file
@@ -117,14 +119,27 @@ describe('Agent Loop Integration', () => {
       contextEngine,
       logger,
       eventBus,
+      cloudEscalationHandler: async () => true,
     });
 
     runtime.setActiveModel('mock/mock-model');
+
+    await fs.mkdir(path.join(tempDir, 'src'), { recursive: true });
+    await fs.writeFile(
+      path.join(tempDir, 'src', 'greeting-helper.ts'),
+      'export class GreetingHelper {}\n',
+      'utf-8'
+    );
 
     const emittedEvents: string[] = [];
     eventBus.on('*', (e) => emittedEvents.push(e.type));
 
     await runtime.executeTask('Create a greeting module in src/greeting.ts');
+
+    // The workspace layer must carry both the repo map and task-ranked files.
+    expect(mockProvider.lastSystemPrompt).toContain('Repository Map');
+    expect(mockProvider.lastSystemPrompt).toContain('Relevant files (ranked for current task):');
+    expect(mockProvider.lastSystemPrompt).toContain('greeting-helper.ts');
 
     // Verify events sequence
     expect(emittedEvents).toContain('state_changed');

@@ -1,8 +1,7 @@
-import { exec } from 'node:child_process';
 import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import { z } from 'zod';
 import { Tool, ToolContext, ToolExecutionResult } from '../types.js';
+import { RunProcessTool } from '../shell/run-process.js';
 
 export const TestInputSchema = z.object({
   filter: z.string().optional().describe('Specific test file or test name pattern to run'),
@@ -23,16 +22,18 @@ export class TestTool implements Tool<TestInput> {
   public async execute(args: TestInput, context: ToolContext): Promise<ToolExecutionResult> {
     try {
       const files = await fs.readdir(context.workspaceRoot);
-      let cmd = 'npm test';
+      let executable = 'npm';
+      let processArgs = ['test'];
 
       if (files.includes('pnpm-lock.yaml')) {
-        cmd = 'pnpm test';
+        executable = 'pnpm';
       } else if (files.includes('yarn.lock')) {
-        cmd = 'yarn test';
+        executable = 'yarn';
       } else if (files.includes('Cargo.toml')) {
-        cmd = 'cargo test';
+        executable = 'cargo';
       } else if (files.includes('pyproject.toml') || files.includes('pytest.ini')) {
-        cmd = 'pytest';
+        executable = 'pytest';
+        processArgs = [];
       } else if (!files.includes('package.json')) {
         return {
           success: true,
@@ -41,43 +42,37 @@ export class TestTool implements Tool<TestInput> {
       }
 
       if (args.filter) {
-        cmd += ` ${args.filter}`;
+        processArgs.push(args.filter);
       }
 
-      return new Promise((resolve) => {
-        exec(cmd, { cwd: context.workspaceRoot, timeout: 60000, env: { ...process.env, CI: '1' } }, (error, stdout, stderr) => {
-          const output = (stdout + (stderr ? '\n' + stderr : '')).trim();
-          if (error) {
-            // Check if error is simply missing test script in package.json
-            if (
-              output.includes('Missing script: "test"') ||
-              output.includes('missing script: test') ||
-              output.includes('no test specified') ||
-              output.includes('npm ERR! missing script: test')
-            ) {
-              resolve({
-                success: true,
-                output: '(no test script specified in package.json)',
-                metadata: { exitCode: 0 },
-              });
-              return;
-            }
+      const result = await new RunProcessTool().execute(
+        { executable, args: processArgs, timeout_ms: 60000 },
+        context
+      );
+      const output = result.output;
 
-            resolve({
-              success: false,
-              output: output || error.message,
-              error: 'TEST_SUITE_FAILED',
-              metadata: { exitCode: error.code },
-            });
-          } else {
-            resolve({
-              success: true,
-              output: output || '✓ All tests passed successfully.',
-              metadata: { exitCode: 0 },
-            });
-          }
-        });
-      });
+      if (
+        !result.success &&
+        (output.includes('Missing script: "test"') ||
+          output.includes('missing script: test') ||
+          output.includes('no test specified') ||
+          output.includes('npm ERR! missing script: test'))
+      ) {
+        return {
+          success: true,
+          output: '(no test script specified in package.json)',
+          metadata: { exitCode: 0 },
+        };
+      }
+
+      if (!result.success) {
+        return { ...result, error: 'TEST_SUITE_FAILED' };
+      }
+
+      return {
+        ...result,
+        output: output || '✓ All tests passed successfully.',
+      };
     } catch (err: any) {
       return {
         success: false,

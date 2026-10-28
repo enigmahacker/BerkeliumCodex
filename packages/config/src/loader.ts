@@ -16,12 +16,12 @@ export class ConfigManager {
   }
 
   public getConfig(): BerkeliumConfig {
-    // Merge base config with session and CLI overrides
-    return BerkeliumConfigSchema.parse({
-      ...this.config,
-      ...this.sessionOverrides,
-      ...this.cliOverrides,
-    });
+    // Deep-merge so partial overrides preserve nested settings from lower tiers.
+    const merged = this.deepMerge(
+      this.deepMerge(this.config, this.sessionOverrides),
+      this.cliOverrides
+    );
+    return BerkeliumConfigSchema.parse(merged);
   }
 
   public getWorkspaceRoot(): string {
@@ -41,8 +41,8 @@ export class ConfigManager {
     return conf.defaultModel || conf.default_model;
   }
 
-  public setDefaultModel(model: string): void {
-    this.updateProjectConfig((curr) => ({
+  public setDefaultModel(model: string): boolean {
+    return this.updateProjectConfig((curr) => ({
       ...curr,
       default_model: model,
       defaultModel: model,
@@ -54,8 +54,8 @@ export class ConfigManager {
     return conf.effort || 'medium';
   }
 
-  public setEffort(effort: any): void {
-    this.updateProjectConfig((curr) => ({
+  public setEffort(effort: any): boolean {
+    return this.updateProjectConfig((curr) => ({
       ...curr,
       effort,
     }));
@@ -65,23 +65,40 @@ export class ConfigManager {
     return process.env.BERKELIUM_GLOBAL_CONFIG_DIR || path.join(os.homedir(), '.berkelium');
   }
 
-  public updateGlobalConfig(mutator: (current: BerkeliumConfig) => Partial<BerkeliumConfig>): void {
+  public updateGlobalConfig(mutator: (current: BerkeliumConfig) => Partial<BerkeliumConfig>): boolean {
     const globalDir = this.getGlobalConfigDir();
     const jsonPath = path.join(globalDir, 'config.json');
     const yamlPath = path.join(globalDir, 'config.yaml');
     const targetPath = fs.existsSync(jsonPath) ? jsonPath : (fs.existsSync(yamlPath) ? yamlPath : jsonPath);
-    const updated = mutator(this.getConfig());
-    this.writeConfigFile(targetPath, updated);
-    this.config = this.loadHierarchy();
+    return this.persistConfig(targetPath, mutator);
   }
 
-  public updateProjectConfig(mutator: (current: BerkeliumConfig) => Partial<BerkeliumConfig>): void {
+  public updateProjectConfig(mutator: (current: BerkeliumConfig) => Partial<BerkeliumConfig>): boolean {
     const jsonPath = path.join(this.workspaceRoot, '.berkelium', 'config.json');
     const yamlPath = path.join(this.workspaceRoot, '.berkelium', 'config.yaml');
     const targetPath = fs.existsSync(jsonPath) ? jsonPath : (fs.existsSync(yamlPath) ? yamlPath : jsonPath);
-    const updated = mutator(this.getConfig());
-    this.writeConfigFile(targetPath, updated);
-    this.config = this.loadHierarchy();
+    return this.persistConfig(targetPath, mutator);
+  }
+
+  private persistConfig(
+    targetPath: string,
+    mutator: (current: BerkeliumConfig) => Partial<BerkeliumConfig>
+  ): boolean {
+    try {
+      // Mutate the persisted hierarchy, not session/CLI overrides, so transient
+      // flags are never written to disk.
+      const updated = mutator(this.config);
+      const changes = this.diffConfig(this.config, updated);
+      if (Object.keys(changes).length === 0) {
+        return true;
+      }
+      this.writeConfigFile(targetPath, changes);
+      this.config = this.loadHierarchy();
+      return true;
+    } catch (err) {
+      console.error(`[ConfigManager] Failed to persist config to ${targetPath}:`, err);
+      return false;
+    }
   }
 
   private loadHierarchy(): BerkeliumConfig {
@@ -127,48 +144,85 @@ export class ConfigManager {
   }
 
   private readConfigFile(filePath: string): Record<string, any> | null {
-    try {
-      if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        if (filePath.endsWith('.json')) {
-          return JSON.parse(content);
-        }
-        return parseYaml(content) || null;
-      }
-    } catch (err) {
-      console.warn(`[ConfigManager] Failed to read config from ${filePath}:`, err);
+    if (!fs.existsSync(filePath)) {
+      return null;
     }
-    return null;
+
+    let content: string;
+    try {
+      content = fs.readFileSync(filePath, 'utf-8');
+    } catch (err: any) {
+      throw new Error(`Failed to read config file "${filePath}": ${err?.message || String(err)}`);
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = filePath.endsWith('.json') ? JSON.parse(content) : parseYaml(content);
+    } catch (err: any) {
+      throw new Error(`Failed to parse config file "${filePath}": ${err?.message || String(err)}`);
+    }
+
+    if (parsed === null || parsed === undefined) {
+      return null;
+    }
+    if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`Config file "${filePath}" must contain an object at the root.`);
+    }
+    return parsed as Record<string, any>;
   }
 
   private writeConfigFile(filePath: string, updates: Record<string, any>): void {
-    try {
-      const dir = path.dirname(filePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      let current: Record<string, any> = {};
-      if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        if (filePath.endsWith('.json')) {
-          try {
-            current = JSON.parse(content) || {};
-          } catch {
-            current = {};
-          }
-        } else {
-          current = parseYaml(content) || {};
-        }
-      }
-      const combined = this.deepMerge(current, updates);
-      if (filePath.endsWith('.json')) {
-        fs.writeFileSync(filePath, JSON.stringify(combined, null, 2), 'utf-8');
-      } else {
-        fs.writeFileSync(filePath, stringifyYaml(combined), 'utf-8');
-      }
-    } catch (err) {
-      console.error(`[ConfigManager] Failed to write config to ${filePath}:`, err);
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
+
+    const current = this.readConfigFile(filePath) || {};
+    const combined = this.deepMerge(current, updates);
+    const serialized = filePath.endsWith('.json')
+      ? JSON.stringify(combined, null, 2)
+      : stringifyYaml(combined);
+    const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+
+    try {
+      // Config files can contain provider settings; keep them owner-only and
+      // replace atomically so a crash cannot leave a truncated file behind.
+      fs.writeFileSync(tempPath, serialized, { encoding: 'utf-8', mode: 0o600 });
+      fs.renameSync(tempPath, filePath);
+    } catch (err) {
+      try {
+        fs.unlinkSync(tempPath);
+      } catch {}
+      throw err;
+    }
+  }
+
+  private diffConfig(current: any, next: any): Record<string, any> {
+    const changes: Record<string, any> = {};
+    if (!next || typeof next !== 'object' || Array.isArray(next)) {
+      return changes;
+    }
+
+    for (const key of Object.keys(next)) {
+      const nextValue = next[key];
+      const currentValue = current?.[key];
+      if (
+        nextValue &&
+        typeof nextValue === 'object' &&
+        !Array.isArray(nextValue) &&
+        currentValue &&
+        typeof currentValue === 'object' &&
+        !Array.isArray(currentValue)
+      ) {
+        const nested = this.diffConfig(currentValue, nextValue);
+        if (Object.keys(nested).length > 0) {
+          changes[key] = nested;
+        }
+      } else if (JSON.stringify(nextValue) !== JSON.stringify(currentValue)) {
+        changes[key] = nextValue;
+      }
+    }
+    return changes;
   }
 
   private deepMerge(target: any, source: any): any {

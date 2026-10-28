@@ -42,7 +42,7 @@ export class InvalidStateTransitionError extends Error {
  * Defines all mathematically valid transitions in the autonomous engineering loop.
  */
 export const VALID_TRANSITIONS: Record<AgentState, AgentState[]> = {
-  IDLE: ['THINKING', 'PLANNING', 'CANCELLED'],
+  IDLE: ['THINKING', 'PLANNING', 'COMPACTING_CONTEXT', 'CANCELLED'],
   THINKING: [
     'RESPONDING',
     'PLANNING',

@@ -16,7 +16,7 @@ Berkelium is architected around a strict separation of concerns:
                          EVENT BUS
                               │
                         AGENT RUNTIME
-                  (12-State Finite State Machine)
+                  (15-State Finite State Machine)
                               │
             ┌─────────────────┼─────────────────┐
             │                 │                 │
@@ -52,20 +52,23 @@ Berkelium is architected around a strict separation of concerns:
 
 ## Agent State Machine
 
-The core `AgentRuntime` operates as a 12-state deterministic state machine:
+The core `AgentRuntime` operates as a 15-state deterministic state machine:
 
 1. `IDLE`: Awaiting user input or command.
 2. `THINKING`: Processing user intent and initializing context.
-3. `PLANNING`: Constructing step-by-step goal decomposition.
-4. `WAITING_FOR_MODEL`: Streaming completion or tool calls from the active provider.
-5. `WAITING_FOR_PERMISSION`: Pausing for user confirmation on medium/high risk actions.
-6. `EXECUTING_TOOL`: Running authorized tool executions in the orchestrator pipeline.
-7. `COMPACTING_CONTEXT`: Condensing conversation history when approaching token limits.
-8. `RUNNING_SUBAGENT`: Delegating specialized tasks to child subagents (Explorer, Tester, etc.).
+3. `RESPONDING`: Producing a conversational answer without tool execution.
+4. `PLANNING`: Constructing step-by-step goal decomposition.
+5. `WAITING_FOR_MODEL`: Streaming completion or tool calls from the active provider.
+6. `WAITING_FOR_PERMISSION`: Pausing for user confirmation on medium/high risk actions.
+7. `EXECUTING`: Running an authorized non-tool action.
+8. `EXECUTING_TOOL`: Running authorized tool executions in the orchestrator pipeline.
 9. `VERIFYING`: Validating changes against build, test, lint, and diff criteria.
-10. `COMPLETED`: Successfully finalized autonomous task.
-11. `FAILED`: Unrecoverable failure or exceeded retry limits.
-12. `CANCELLED`: Interrupted via user `Ctrl+C`.
+10. `REMEDIATING`: Attempting an automated repair after a failed verification.
+11. `COMPACTING_CONTEXT`: Condensing conversation history when approaching token limits.
+12. `RUNNING_SUBAGENT`: Delegating specialized tasks to child subagents (Explorer, Tester, etc.).
+13. `COMPLETED`: Successfully finalized autonomous task.
+14. `FAILED`: Unrecoverable failure or exceeded retry limits.
+15. `CANCELLED`: Interrupted via user `Ctrl+C`.
 
 ## Providers & Router
 

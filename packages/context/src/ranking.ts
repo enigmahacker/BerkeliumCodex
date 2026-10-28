@@ -17,47 +17,54 @@ export class FileRanker {
       let score = 0;
       const reasons: string[] = [];
       const lowerPath = file.path.toLowerCase();
+      let matchedQuery = false;
 
-      // 1. Active file boost
-      if (activeFiles.has(file.path)) {
-        score += 50;
-        reasons.push('active in recent session');
-      }
-
-      // 2. Exact or substring match in path
+      // 1. Exact or substring match in path
       for (const term of terms) {
         if (lowerPath.includes(term)) {
           score += 20;
+          matchedQuery = true;
           reasons.push(`path matches term "${term}"`);
         }
       }
 
-      // 3. Symbol matches
+      // 2. Symbol matches
       for (const sym of file.symbols) {
         const lowerSym = sym.name.toLowerCase();
         for (const term of terms) {
           if (lowerSym === term) {
             score += 30;
+            matchedQuery = true;
             reasons.push(`exact symbol "${sym.name}"`);
           } else if (lowerSym.includes(term)) {
             score += 15;
+            matchedQuery = true;
             reasons.push(`symbol contains "${term}"`);
           }
         }
       }
 
-      // 4. Recency boost (modified in last 24 hours)
-      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-      if (file.lastModified > oneDayAgo) {
-        score += 10;
-        reasons.push('recently modified');
+      // Activity and recency only break ties between query-relevant files;
+      // they must not surface every recently touched file for an unrelated query.
+      if (matchedQuery) {
+        if (activeFiles.has(file.path)) {
+          score += 50;
+          reasons.push('active in recent session');
+        }
+
+        const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+        if (file.lastModified > oneDayAgo) {
+          score += 10;
+          reasons.push('recently modified');
+        }
       }
 
-      if (score > 0) {
+      if (matchedQuery) {
         ranked.push({
           path: file.path,
           score,
           reasons,
+          topSymbols: file.symbols.slice(0, 4).map((s) => s.name),
         });
       }
     }

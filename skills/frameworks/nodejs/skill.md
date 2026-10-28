@@ -29,10 +29,10 @@ Activate when developing Node.js CLI tools, background workers, or backend micro
 Node.js source files, package.json.
 
 ## Preconditions
-Node.js 20+ runtime.
+Node.js 22.13+ runtime.
 
 ## Procedure
-1. Check Node.js version target in package.json engines (>= 20.0.0).
+1. Check Node.js version against the package.json engines field (>= 22.13.0 in this repository).
 2. Utilize native node: namespace imports (node:fs, node:path, node:crypto).
 3. Use streams and pipeline() for large file processing rather than reading whole buffers.
 4. Ensure graceful process termination with process.on('SIGTERM', ...).

@@ -44,8 +44,8 @@ To help maintainers diagnose and resolve issues quickly:
 - **Tier 1 (Fully Supported & Tested in CI)**:
   - macOS 12+ (Apple Silicon M1/M2/M3/M4)
   - Linux (x86_64, aarch64 on Ubuntu 22.04+ / Debian 12+)
-  - Node.js >= 20.0.0 (Node 22 LTS and Node 24 recommended)
-  - pnpm >= 9.0.0
+  - Node.js >= 22.13.0 (Node 22, 24, or 26 supported)
+  - pnpm >= 11.7.0
 - **Tier 2 (Community Supported)**:
   - Windows 11 via WSL2 (Ubuntu)
   - Intel x86_64 macOS

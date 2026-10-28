@@ -1,5 +1,5 @@
 import * as readline from 'node:readline';
-import { AgentRuntime } from '@berkelium/agent';
+import { AgentRuntime, SessionManager } from '@berkelium/agent';
 import { ThemeManager, stripAnsi } from '@berkelium/themes';
 import { EventBus } from '@berkelium/events';
 import { ConfigManager } from '@berkelium/config';
@@ -12,6 +12,7 @@ import { SlashCommandHandler } from './slash-commands.js';
 import { InputStateMachine, InputStateResult } from './input-state-machine.js';
 import { CommandPaletteRenderer } from './command-palette.js';
 import { CommandExecutionContext } from '../commands/types.js';
+import { ConfirmationRequest } from './confirmation.js';
 
 export interface InteractiveSessionOptions {
   runtime: AgentRuntime;
@@ -22,6 +23,7 @@ export interface InteractiveSessionOptions {
   orchestrator: ToolOrchestrator;
   contextEngine: ContextEngine;
   authStore: AuthStore;
+  sessionManager?: SessionManager;
   hackathonMode?: boolean;
 }
 
@@ -40,6 +42,14 @@ export class InteractiveSession {
   private isProcessing = false;
   private ctrlCCount = 0;
   private lastPopupHeight = 0;
+  private confirmationQueue: Array<{
+    request: ConfirmationRequest;
+    resolve: (approved: boolean) => void;
+  }> = [];
+  private pendingConfirmation: {
+    request: ConfirmationRequest;
+    resolve: (approved: boolean) => void;
+  } | null = null;
 
   private inputStateMachine: InputStateMachine;
   private paletteRenderer: CommandPaletteRenderer;
@@ -78,13 +88,52 @@ export class InteractiveSession {
       this.router,
       this.orchestrator,
       this.contextEngine,
-      this.authStore
+      this.authStore,
+      options.sessionManager
     );
 
     // Subscribe renderer to all agent events
     options.eventBus.on('*', (event) => {
       this.renderer.handleEvent(event);
     });
+  }
+
+  public requestConfirmation(request: ConfirmationRequest): Promise<boolean> {
+    if (!process.stdin.isTTY) {
+      return Promise.resolve(false);
+    }
+
+    return new Promise((resolve) => {
+      this.confirmationQueue.push({ request, resolve });
+      this.showNextConfirmation();
+    });
+  }
+
+  private showNextConfirmation(): void {
+    if (this.pendingConfirmation || this.confirmationQueue.length === 0) return;
+
+    this.pendingConfirmation = this.confirmationQueue.shift()!;
+    this.clearPopup();
+    const fmt = this.themeManager.getFormatted();
+    process.stdout.write(
+      '\n' +
+        fmt.warning('⚠ Confirmation required: ') +
+        this.pendingConfirmation.request.message +
+        fmt.dimmed('\n  [y/N] ')
+    );
+  }
+
+  private settleConfirmation(approved: boolean): void {
+    const pending = this.pendingConfirmation;
+    if (!pending) return;
+
+    const fmt = this.themeManager.getFormatted();
+    process.stdout.write(
+      (approved ? fmt.success(' approved') : fmt.error(' denied')) + '\n'
+    );
+    this.pendingConfirmation = null;
+    pending.resolve(approved);
+    this.showNextConfirmation();
   }
 
   public async start(): Promise<void> {
@@ -128,6 +177,23 @@ export class InteractiveSession {
   }
 
   private async handleTTYKeypress(char: string | undefined, key: any): Promise<void> {
+    if (this.pendingConfirmation) {
+      const keyName = String(key?.name || '').toLowerCase();
+      if (key?.ctrl && keyName === 'c') {
+        this.settleConfirmation(false);
+      } else if (char && char.toLowerCase() === 'y') {
+        this.settleConfirmation(true);
+      } else if (
+        (char && char.toLowerCase() === 'n') ||
+        keyName === 'return' ||
+        keyName === 'enter' ||
+        keyName === 'escape'
+      ) {
+        this.settleConfirmation(false);
+      }
+      return;
+    }
+
     if (this.isProcessing) {
       // Handle Ctrl+C to cancel running task
       if (key?.ctrl && key?.name === 'c') {
@@ -355,7 +421,7 @@ export class InteractiveSession {
       this.isProcessing = false;
       const durationSec = (performance.now() - start) / 1000;
       const stats = this.runtime.getTelemetry().getStats();
-      const breakdown = await this.contextEngine.getBreakdown('System Prompt', []);
+      const breakdown = await this.runtime.getContextBreakdown();
 
       this.renderer.renderTelemetryBar({
         model: this.runtime.getActiveModel(),

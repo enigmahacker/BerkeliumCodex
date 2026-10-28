@@ -30,14 +30,30 @@ export class WriteFileTool implements Tool<WriteFileInput> {
 
       await fs.mkdir(parentDir, { recursive: true });
 
+      // Preserve permissions (e.g. executable bits) when overwriting an existing file.
+      let existingMode: number | undefined;
+      try {
+        existingMode = (await fs.stat(fullPath)).mode & 0o777;
+      } catch {
+        // New file: keep the default mode.
+      }
+
       // Atomic write: write to unique temporary file in same folder, then rename
       const tempPath = path.join(
         parentDir,
         `.bk_tmp_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`
       );
 
-      await fs.writeFile(tempPath, args.content, 'utf-8');
-      await fs.rename(tempPath, fullPath);
+      try {
+        await fs.writeFile(tempPath, args.content, 'utf-8');
+        if (existingMode !== undefined) {
+          await fs.chmod(tempPath, existingMode);
+        }
+        await fs.rename(tempPath, fullPath);
+      } catch (writeErr) {
+        await fs.unlink(tempPath).catch(() => {});
+        throw writeErr;
+      }
 
       return {
         success: true,

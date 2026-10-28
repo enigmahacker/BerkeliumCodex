@@ -122,7 +122,7 @@ export class MissionRunner {
 
     this.eventBus.emit({
       id: crypto.randomUUID(),
-      type: 'mission_started' as any,
+      type: 'mission_started',
       sessionId: missionId,
       timestamp: Date.now(),
       goal,
@@ -145,7 +145,7 @@ export class MissionRunner {
 
       this.eventBus.emit({
         id: crypto.randomUUID(),
-        type: 'mission_task_started' as any,
+        type: 'mission_task_started',
         sessionId: missionId,
         timestamp: Date.now(),
         taskId: task.id,
@@ -223,7 +223,7 @@ Complete this objective using appropriate tools. Once the objective is met, prov
 
               const args = typeof tc.arguments === 'string' ? JSON.parse(tc.arguments) : tc.arguments;
               if (args?.path && typeof args.path === 'string') {
-                if (!task.filesModified.includes(args.path) && ['write_file', 'edit_file', 'patch_file'].includes(tc.name)) {
+                if (!task.filesModified.includes(args.path) && ['write_file', 'edit_file', 'delete_file'].includes(tc.name)) {
                   task.filesModified.push(args.path);
                 }
               }
@@ -279,7 +279,7 @@ Complete this objective using appropriate tools. Once the objective is met, prov
 
       this.eventBus.emit({
         id: crypto.randomUUID(),
-        type: 'mission_task_completed' as any,
+        type: 'mission_task_completed',
         sessionId: missionId,
         timestamp: Date.now(),
         taskId: task.id,
@@ -306,7 +306,7 @@ Complete this objective using appropriate tools. Once the objective is met, prov
 
     this.eventBus.emit({
       id: crypto.randomUUID(),
-      type: 'mission_completed' as any,
+      type: 'mission_completed',
       sessionId: missionId,
       timestamp: Date.now(),
       report,

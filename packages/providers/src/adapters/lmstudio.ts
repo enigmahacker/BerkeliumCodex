@@ -8,14 +8,32 @@ import {
   ProviderRequestOptions,
 } from '../types.js';
 import { ResponseNormalizer } from '../normalizer.js';
+import { EndpointTrustHandler, EndpointTrustPolicy } from '../endpoint-trust.js';
+import { fetchWithTimeout } from '../http.js';
+
+const DEFAULT_BASE_URL = 'http://127.0.0.1:1234/v1';
 
 export class LMStudioProvider implements Provider {
   public readonly id = 'lmstudio';
   public readonly name = 'LM Studio';
   private baseUrl: string;
+  private endpointTrust: EndpointTrustPolicy;
+  private timeoutMs: number;
 
-  constructor(baseUrl = 'http://127.0.0.1:1234/v1') {
-    this.baseUrl = baseUrl.replace(/\/$/, '');
+  constructor(
+    baseUrl = DEFAULT_BASE_URL,
+    trustHandler?: EndpointTrustHandler,
+    timeoutMs = 60000
+  ) {
+    this.timeoutMs = timeoutMs;
+    this.endpointTrust = new EndpointTrustPolicy(
+      this.id,
+      this.name,
+      baseUrl,
+      DEFAULT_BASE_URL,
+      trustHandler
+    );
+    this.baseUrl = this.endpointTrust.getEndpoint();
   }
 
   public capabilities(): ProviderCapabilities {
@@ -30,7 +48,12 @@ export class LMStudioProvider implements Provider {
     };
   }
 
+  public isLocal(): boolean {
+    return this.endpointTrust.isLocal();
+  }
+
   public async isAvailable(): Promise<boolean> {
+    await this.endpointTrust.assertTrusted();
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 1000);
@@ -43,11 +66,9 @@ export class LMStudioProvider implements Provider {
   }
 
   public async listModels(): Promise<ModelInfo[]> {
+    await this.endpointTrust.assertTrusted();
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 1500);
-      const res = await fetch(`${this.baseUrl}/models`, { signal: controller.signal });
-      clearTimeout(timeout);
+      const res = await fetchWithTimeout(`${this.baseUrl}/models`, {}, this.timeoutMs);
       if (!res.ok) return this.getDefaultModels();
       const data = (await res.json()) as any;
       if (!data.data || !Array.isArray(data.data) || data.data.length === 0) return this.getDefaultModels();
@@ -100,6 +121,7 @@ export class LMStudioProvider implements Provider {
     messages: Message[],
     options: ProviderRequestOptions
   ): AsyncIterable<NormalizedChunk> {
+    await this.endpointTrust.assertTrusted();
     const isUp = await this.isAvailable();
     if (!isUp) {
       throw new Error(
@@ -129,12 +151,16 @@ export class LMStudioProvider implements Provider {
       payload.tool_choice = options.toolChoice || 'auto';
     }
 
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: options.signal,
-    });
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/chat/completions`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: options.signal,
+      },
+      options.timeoutMs ?? this.timeoutMs
+    );
 
     if (!res.ok) {
       const errText = await res.text();

@@ -170,7 +170,7 @@ export const terminalSkills: SkillDefinition[] = [
     preconditions: 'Workspace root must be set.',
     procedure: `1. Call diagnostics_run to gather platform metrics (OS, ARM64, CPU cores, RAM).
 2. Check available memory budget for local models.
-3. Verify Node.js version >= 20 and Git version.
+3. Verify Node.js version >= 22.13.0 and Git version.
 4. Verify provider credentials and network reachability.
 5. Compile comprehensive diagnostic report.`,
     tool_usage: 'Invoke diagnostics_run.',

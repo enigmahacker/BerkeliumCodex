@@ -10,7 +10,6 @@ export interface FileMetadata {
   tokens: number;
   symbols: SymbolDefinition[];
   imports: string[];
-  exports: string[];
   lastModified: number;
 }
 
@@ -19,7 +18,6 @@ export interface ContextBreakdown {
   projectTokens: number;
   conversationTokens: number;
   toolsTokens: number;
-  filesTokens: number;
   totalTokens: number;
   limit: number;
   remaining: number;
@@ -29,4 +27,5 @@ export interface RankedFile {
   path: string;
   score: number;
   reasons: string[];
+  topSymbols: string[];
 }

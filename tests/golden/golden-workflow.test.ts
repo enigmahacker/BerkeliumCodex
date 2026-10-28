@@ -99,6 +99,7 @@ describe('Golden Workflows', () => {
       contextEngine,
       logger,
       eventBus,
+      cloudEscalationHandler: async () => true,
     });
 
     runtime.setActiveModel('golden/golden-model');

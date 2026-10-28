@@ -1,4 +1,3 @@
-import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { Message } from '@berkelium/providers';
 import { Logger } from '@berkelium/logging';
@@ -7,6 +6,9 @@ import { FileRanker } from './ranking.js';
 import { Tokenizer } from './tokenizer.js';
 import { ContextCompactor, CompactionResult } from './compaction.js';
 import { ContextBreakdown, FileMetadata, RankedFile } from './types.js';
+
+/** Single source of truth for the repo-map slice injected into the system prompt. */
+export const REPO_MAP_TOKEN_BUDGET = 800;
 
 export class ContextEngine {
   private workspaceRoot: string;
@@ -36,7 +38,7 @@ export class ContextEngine {
     this.activeFiles.add(path.relative(this.workspaceRoot, path.resolve(this.workspaceRoot, filePath)));
   }
 
-  public async getRepoMap(maxTokens = 2000): Promise<string> {
+  public async getRepoMap(maxTokens = REPO_MAP_TOKEN_BUDGET): Promise<string> {
     return this.repoMapper.generateRepoMap(maxTokens);
   }
 
@@ -45,12 +47,56 @@ export class ContextEngine {
     return FileRanker.rankFiles(query, files, this.activeFiles);
   }
 
-  public needsCompaction(messages: Message[], threshold = 0.75): boolean {
+  /**
+   * Formats the highest-ranked workspace files for the current request so the
+   * model sees likely-relevant paths without injecting whole file contents.
+   */
+  public async getRelevantFilesContext(query: string, maxTokens = 160, maxFiles = 8): Promise<string> {
+    try {
+      const ranked = await this.rankFilesForQuery(query);
+      if (ranked.length === 0) {
+        return '';
+      }
+
+      const lines = ['Relevant files (ranked for current task):'];
+      let listed = 0;
+      let omitted = 0;
+
+      for (const file of ranked) {
+        if (listed >= maxFiles) {
+          omitted = ranked.length - listed;
+          break;
+        }
+
+        const symbols = file.topSymbols.length > 0 ? ` (${file.topSymbols.join(', ')})` : '';
+        const line = `- ${file.path}${symbols}`;
+
+        if (listed > 0 && Tokenizer.countTokens(lines.join('\n') + '\n' + line) > maxTokens - 10) {
+          omitted = ranked.length - listed;
+          break;
+        }
+
+        lines.push(line);
+        listed++;
+      }
+
+      if (omitted > 0) {
+        lines.push(`- ... ${omitted} more matching file(s)`);
+      }
+
+      return lines.join('\n');
+    } catch (err) {
+      this.logger.debug(`Relevant-file discovery failed: ${(err as Error).message}`);
+      return '';
+    }
+  }
+
+  public needsCompaction(messages: Message[], threshold = 0.75, overheadTokens = 0): boolean {
     const totalTokens = messages.reduce(
-      (sum, m) => sum + Tokenizer.countTokens(m.content || '') + 10,
+      (sum, m) => sum + Tokenizer.countMessageTokens(m),
       0
     );
-    return totalTokens > this.maxContextLimit * threshold;
+    return totalTokens + Math.max(0, overheadTokens) > this.maxContextLimit * threshold;
   }
 
   public compactIfNeeded(messages: Message[], threshold = 0.75): CompactionResult {
@@ -60,27 +106,19 @@ export class ContextEngine {
   public async getBreakdown(
     systemPrompt: string,
     messages: Message[],
-    toolDefinitionsText = ''
+    toolDefinitionsText = '',
+    repoMapTokens = REPO_MAP_TOKEN_BUDGET
   ): Promise<ContextBreakdown> {
     const systemTokens = Tokenizer.countTokens(systemPrompt);
-    const repoMap = await this.getRepoMap(2000);
+    const repoMap = await this.getRepoMap(repoMapTokens);
     const projectTokens = Tokenizer.countTokens(repoMap);
     const conversationTokens = messages.reduce(
-      (sum, m) => sum + Tokenizer.countTokens(m.content || '') + 10,
+      (sum, m) => sum + Tokenizer.countMessageTokens(m),
       0
     );
     const toolsTokens = Tokenizer.countTokens(toolDefinitionsText);
 
-    let filesTokens = 0;
-    for (const activePath of this.activeFiles) {
-      try {
-        const fullPath = path.resolve(this.workspaceRoot, activePath);
-        const content = await fs.readFile(fullPath, 'utf-8');
-        filesTokens += Tokenizer.countTokens(content);
-      } catch {}
-    }
-
-    const totalTokens = systemTokens + projectTokens + conversationTokens + toolsTokens + filesTokens;
+    const totalTokens = systemTokens + projectTokens + conversationTokens + toolsTokens;
     const remaining = Math.max(0, this.maxContextLimit - totalTokens);
 
     return {
@@ -88,7 +126,6 @@ export class ContextEngine {
       projectTokens,
       conversationTokens,
       toolsTokens,
-      filesTokens,
       totalTokens,
       limit: this.maxContextLimit,
       remaining,

@@ -199,7 +199,7 @@ export class CommandRegistry {
     this.register({
       name: 'clear',
       aliases: ['cls'],
-      description: 'Clear conversation',
+      description: 'Clear terminal screen',
       category: 'GENERAL',
       usage: '/clear',
       examples: ['/clear'],
@@ -721,14 +721,14 @@ export class CommandRegistry {
       name: 'session',
       description: 'Session management and persistence',
       category: 'SESSION',
-      usage: '/session [list|resume|clear]',
+      usage: '/session [list|resume <id>]',
       examples: ['/session list', '/session resume <id>'],
       arguments: [
         {
           name: 'action',
           description: 'Session operation',
           required: false,
-          staticOptions: ['list', 'resume', 'clear'],
+          staticOptions: ['list', 'resume'],
           dynamicProvider: 'session',
         },
       ],

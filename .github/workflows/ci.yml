@@ -14,11 +14,12 @@ jobs:
   validate:
     name: Test & Build (${{ matrix.os }} - Node ${{ matrix.node-version }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        node-version: [20.x, 22.x, 24.x]
+        node-version: [22.x, 24.x, 26.x]
 
     steps:
       - name: Checkout Code
@@ -26,8 +27,6 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
@@ -57,33 +56,65 @@ jobs:
         run: node apps/cli/dist/bin/berkelium.js doctor
 
       - name: Performance Benchmarks
+        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '22.x'
         run: pnpm run bench
 
-  security-and-audit:
-    name: Security & Dependency Audit
+  coverage:
+    name: Test Coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24.x
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Test Coverage
+        run: pnpm run test:coverage
+
+  security-and-audit:
+    name: Security & Dependency Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
           cache: 'pnpm'
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Dependency Audit
-        run: pnpm audit --audit-level=high || true
+        run: pnpm audit --audit-level=high
 
       - name: Secret Scan Invariants
         run: |
           echo "Scanning repository for leaked credentials..."
-          ! grep -rE "(ghp_[a-zA-Z0-9]{36}|sk-[a-zA-Z0-9]{32,}|nvapi-[a-zA-Z0-9]{40,})" --exclude-dir={node_modules,dist,.git} .
+          if grep -rE "(ghp_[a-zA-Z0-9]{36}|sk-[a-zA-Z0-9]{32,}|nvapi-[a-zA-Z0-9]{40,})" \
+            --exclude-dir=node_modules \
+            --exclude-dir=dist \
+            --exclude-dir=.git \
+            --exclude-dir=coverage \
+            --exclude-dir=tests .; then
+            echo "::error::Potential credential material detected in repository files."
+            exit 1
+          fi
+          echo "No credential material detected."

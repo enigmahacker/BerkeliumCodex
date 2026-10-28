@@ -2,6 +2,15 @@ import { BerkeliumConfig, ModelAlias } from '@berkelium/config';
 import { Logger } from '@berkelium/logging';
 import { ModelInfo, NormalizedChunk, NormalizedResponse, Provider, ProviderRequestOptions, Message } from './types.js';
 import { CapabilityMatrix } from './capability-matrix.js';
+import { EndpointTrustError } from './endpoint-trust.js';
+
+const LOCAL_PROVIDER_IDS = new Set(['mlx', 'gguf', 'cpu', 'ollama', 'lmstudio']);
+
+function createAbortError(): Error {
+  const error = new Error('Request aborted by caller.');
+  error.name = 'AbortError';
+  return error;
+}
 
 export interface ResolvedModelTarget {
   provider: Provider;
@@ -39,8 +48,32 @@ export class ProviderRouter {
     this.config = config;
   }
 
+  private isLocalProvider(provider: Provider, providerId: string): boolean {
+    return provider.isLocal?.() ?? LOCAL_PROVIDER_IDS.has(providerId.toLowerCase());
+  }
+
+  private applyCategory(
+    target: ResolvedModelTarget,
+    category: 'cloud' | 'local' | 'custom' | undefined
+  ): ResolvedModelTarget {
+    if (category === 'local' && !this.isLocalProvider(target.provider, target.providerId)) {
+      throw new Error(
+        `Model target "${target.providerId}/${target.modelId}" is not local, but the "local/" prefix requires a local provider.`
+      );
+    }
+    if (category === 'cloud' && this.isLocalProvider(target.provider, target.providerId)) {
+      throw new Error(
+        `Model target "${target.providerId}/${target.modelId}" is local, but the "cloud/" prefix requires a cloud provider.`
+      );
+    }
+    return category ? { ...target, category } : target;
+  }
+
   public resolveTarget(input: string): ResolvedModelTarget {
     let trimmed = input.trim();
+    if (!trimmed) {
+      throw new Error('Model identifier cannot be empty.');
+    }
     let lower = trimmed.toLowerCase();
     let category: 'cloud' | 'local' | 'custom' | undefined;
 
@@ -61,14 +94,14 @@ export class ProviderRouter {
           `Provider "${aliasConfig.provider}" for alias "${trimmed}" is not registered or supported.`
         );
       }
-      return {
+      return this.applyCategory({
         provider,
         providerId: aliasConfig.provider,
         modelId: aliasConfig.model,
         alias: trimmed,
         config: aliasConfig,
         category,
-      };
+      }, category);
     }
 
     // 2. Direct provider identifier lookup (e.g. user selected "/model lmstudio" or "/model ollama" or "/model groq")
@@ -91,18 +124,23 @@ export class ProviderRouter {
         ([_, conf]) => conf.provider.toLowerCase() === normalizedProvId
       );
       let modelId = matchingAlias ? matchingAlias[1].model : '';
-      if (!modelId && typeof (directProvider as any).getDefaultModels === 'function') {
-        const defaults = (directProvider as any).getDefaultModels() as ModelInfo[];
+      if (!modelId && directProvider.getDefaultModels) {
+        const defaults = directProvider.getDefaultModels();
         if (defaults && defaults.length > 0) {
           modelId = defaults[0].id;
         }
       }
-      return {
+      if (!modelId) {
+        throw new Error(
+          `Provider "${normalizedProvId}" has no configured model and exposes no default models.`
+        );
+      }
+      return this.applyCategory({
         provider: directProvider,
         providerId: directProvider.id,
-        modelId: modelId || 'default',
+        modelId,
         category,
-      };
+      }, category);
     }
 
     // 3. Check if it matches 'provider/model' notation (e.g. 'lmstudio/deepseek-coder-v2', 'ollama/qwen2.5-coder:7b', 'hf/meta-llama/...')
@@ -115,12 +153,12 @@ export class ProviderRouter {
       }
       const provider = this.providers.get(providerId);
       if (provider) {
-        return {
+        return this.applyCategory({
           provider,
           providerId,
           modelId,
           category,
-        };
+        }, category);
       }
       throw new Error(`Provider "${providerId}" is not registered or supported.`);
     }
@@ -129,14 +167,14 @@ export class ProviderRouter {
     // If the user entered an unqualified model name like 'deepseek-coder-v2', 'qwen2.5-coder:7b', or 'llama-3.3-70b-versatile',
     // check if it matches any provider's known default models
     for (const [provId, prov] of this.providers.entries()) {
-      if (typeof (prov as any).getDefaultModels === 'function') {
-        const defaults = (prov as any).getDefaultModels() as ModelInfo[];
+      if (prov.getDefaultModels) {
+        const defaults = prov.getDefaultModels();
         if (defaults.some((m) => m.id.toLowerCase() === lower || m.id.toLowerCase().endsWith('/' + lower))) {
-          return {
+          return this.applyCategory({
             provider: prov,
             providerId: provId,
             modelId: trimmed,
-          };
+          }, category);
         }
       }
     }
@@ -147,54 +185,155 @@ export class ProviderRouter {
       const def = this.config.models[defaultAlias];
       const prov = this.providers.get(def.provider);
       if (prov) {
-        return {
+        return this.applyCategory({
           provider: prov,
           providerId: def.provider,
           modelId: trimmed,
-        };
+        }, category);
       }
     }
 
     const openrouter = this.providers.get('openrouter');
     if (openrouter) {
-      return {
+      return this.applyCategory({
         provider: openrouter,
         providerId: 'openrouter',
         modelId: trimmed,
-      };
+      }, category);
     }
 
     throw new Error(`Could not resolve model or provider for: "${input}"`);
   }
 
+  public async checkProviderHealth(providerId: string): Promise<{ isHealthy: boolean; latency: number; lastCheck: number; error?: string }> {
+    const provider = this.providers.get(providerId);
+
+    if (!provider) {
+      return {
+        isHealthy: false,
+        latency: 0,
+        lastCheck: Date.now(),
+        error: `Provider "${providerId}" is not registered.`,
+      };
+    }
+
+    return this.checkTargetHealth(provider);
+  }
+
+  private async checkTargetHealth(
+    provider: Provider
+  ): Promise<{ isHealthy: boolean; latency: number; lastCheck: number; error?: string }> {
+    const start = performance.now();
+    const lastCheck = Date.now();
+
+    try {
+      if (provider.checkHealth) {
+        return await provider.checkHealth();
+      }
+
+      const isHealthy = await provider.isAvailable();
+      return {
+        isHealthy,
+        latency: Math.round(performance.now() - start),
+        lastCheck,
+        error: isHealthy ? undefined : 'Provider is unavailable.',
+      };
+    } catch (error: any) {
+      return {
+        isHealthy: false,
+        latency: Math.round(performance.now() - start),
+        lastCheck,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   public async *streamWithFallback(
     messages: Message[],
     options: ProviderRequestOptions,
-    initialTargetName?: string
+    initialTargetName?: string,
+    authorizeTarget?: (target: ResolvedModelTarget) => Promise<void>,
+    onTargetSelected?: (target: ResolvedModelTarget) => void
   ): AsyncIterable<NormalizedChunk> {
     const targetName = initialTargetName || this.config.default_model;
-    const candidates: string[] = [targetName, ...(this.config.routing.fallback || [])];
+    const configuredCandidates = [targetName, ...(this.config.routing.fallback || [])];
+    const candidates = [...new Set(configuredCandidates)];
     let lastError: Error | null = null;
 
     for (let i = 0; i < candidates.length; i++) {
       const candidate = candidates[i];
+      if (options.signal?.aborted) {
+        throw createAbortError();
+      }
+
+      let target: ResolvedModelTarget;
       try {
-        const target = this.resolveTarget(candidate);
+        target = this.resolveTarget(candidate);
+      } catch (err: any) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        this.logger.warn(`Provider candidate "${candidate}" could not be resolved: ${lastError.message}`);
+        if (i === candidates.length - 1) {
+          throw lastError;
+        }
+        continue;
+      }
+
+      // Consent and endpoint-trust decisions apply to every candidate and are
+      // never downgraded into a silent fallback.
+      if (authorizeTarget) {
+        await authorizeTarget(target);
+      }
+
+      let yieldedAny = false;
+      try {
+        const health = await this.checkTargetHealth(target.provider);
+        if (!health.isHealthy) {
+          throw new Error(
+            `Provider ${target.providerId} is unhealthy${health.error ? `: ${health.error}` : '.'}`
+          );
+        }
+
+        onTargetSelected?.(target);
+
+        const providerConfig = (this.config.providers as Record<string, { timeout_ms?: number }>)[
+          target.providerId
+        ];
         const streamOptions: ProviderRequestOptions = {
           ...options,
           model: target.modelId,
+          temperature: options.temperature ?? target.config?.temperature,
+          maxTokens: options.maxTokens ?? target.config?.max_tokens,
+          timeoutMs: options.timeoutMs ?? providerConfig?.timeout_ms,
         };
 
-        this.logger.debug(`Routing stream to ${target.providerId}/${target.modelId}`);
+        this.logger.debug(
+          `Routing stream to ${target.providerId}/${target.modelId} after ${health.latency}ms health check`
+        );
         for await (const chunk of target.provider.stream(messages, streamOptions)) {
+          yieldedAny = true;
           yield chunk;
         }
-        return; // Stream succeeded
+        return;
       } catch (err: any) {
-        lastError = err;
-        this.logger.warn(`Provider candidate "${candidate}" failed: ${err.message}. Attempting fallback...`);
-        if (i === candidates.length - 1) {
+        if (options.signal?.aborted) {
+          throw createAbortError();
+        }
+        lastError = err instanceof Error ? err : new Error(String(err));
+
+        if (err instanceof EndpointTrustError) {
           throw err;
+        }
+
+        // Retrying after partial output would duplicate tokens for the caller.
+        if (yieldedAny) {
+          throw lastError;
+        }
+
+        this.logger.warn(
+          `Provider candidate "${candidate}" failed: ${lastError.message}. Attempting fallback...`
+        );
+        if (i === candidates.length - 1) {
+          throw lastError;
         }
       }
     }

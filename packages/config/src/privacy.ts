@@ -21,6 +21,17 @@ export interface PrivacyCheckResult {
   violations?: string[];
 }
 
+export interface CloudEscalationRequest {
+  providerId: string;
+  modelId: string;
+  reason: string;
+  message: string;
+}
+
+export type CloudEscalationHandler = (
+  request: CloudEscalationRequest
+) => Promise<boolean>;
+
 export class PrivacyEngine {
   private config: PrivacyConfig;
 

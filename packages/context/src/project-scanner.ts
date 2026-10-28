@@ -41,7 +41,7 @@ export class ProjectScanner {
       framework = 'Node.js';
       try {
         const pkg = JSON.parse(fs.readFileSync(path.join(workspaceRoot, 'package.json'), 'utf-8'));
-        const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+        const deps = pkg.dependencies || {};
         if (deps.next) framework = 'Next.js';
         else if (deps.vite) framework = 'Vite';
         else if (deps.vitest) framework = 'Node.js (Vitest)';

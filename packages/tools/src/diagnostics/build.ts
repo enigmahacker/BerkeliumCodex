@@ -1,6 +1,6 @@
-import { exec } from 'node:child_process';
 import { z } from 'zod';
 import { Tool, ToolContext, ToolExecutionResult } from '../types.js';
+import { RunProcessTool } from '../shell/run-process.js';
 
 export const BuildInputSchema = z.object({});
 export type BuildInput = z.infer<typeof BuildInputSchema>;
@@ -16,24 +16,18 @@ export class BuildTool implements Tool<BuildInput> {
   public readonly schema = BuildInputSchema;
 
   public async execute(_args: BuildInput, context: ToolContext): Promise<ToolExecutionResult> {
-    const cmd = 'npm run build';
+    const result = await new RunProcessTool().execute(
+      { executable: 'npm', args: ['run', 'build'], timeout_ms: 60000 },
+      context
+    );
 
-    return new Promise((resolve) => {
-      exec(cmd, { cwd: context.workspaceRoot, timeout: 60000 }, (error, stdout, stderr) => {
-        const output = (stdout + (stderr ? '\n' + stderr : '')).trim();
-        if (error) {
-          resolve({
-            success: false,
-            output: output || error.message,
-            error: 'BUILD_FAILED',
-          });
-        } else {
-          resolve({
-            success: true,
-            output: output || '✓ Build completed successfully.',
-          });
-        }
-      });
-    });
+    if (!result.success) {
+      return { ...result, error: 'BUILD_FAILED' };
+    }
+
+    return {
+      ...result,
+      output: result.output || '✓ Build completed successfully.',
+    };
   }
 }

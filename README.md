@@ -129,13 +129,13 @@ Git:          Clean (main)
 
 ### Requirements
 - **macOS** (12.0+ recommended; Apple Silicon M1–M4 required for native MLX acceleration) or **Linux**
-- **Node.js**: >= 20.0.0 (Node 22 or 26 recommended)
-- **pnpm**: >= 9.0.0 (`corepack enable` or `npm i -g pnpm`)
+- **Node.js**: >= 22.13.0 (Node 22, 24, or 26 supported)
+- **pnpm**: >= 11.7.0 (`corepack enable` or `npm i -g pnpm`)
 - **Git**: >= 2.40.0
 
 ### Installation
 
-Clone the repository and build from source:
+Berkelium Codex is currently distributed **from source only**. It is not published to npm yet. The unscoped `berkelium` package on npm belongs to a different project, so `npm install -g berkelium` will not install this codebase. Build from a checkout:
 
 ```bash
 git clone https://github.com/enigmahacker/BerkeliumCodex.git
@@ -147,13 +147,18 @@ pnpm run build
 ### Starting Berkelium
 
 ```bash
-# Run directly via pnpm
+# Run directly from the checkout via pnpm
 pnpm berkelium
 
-# Or link globally to access 'berkelium' and 'bk' commands anywhere
-npm link
+# Or symlink the launchers into ~/.local/bin or ~/Library/pnpm/bin
+# (one of those directories must exist and be on your PATH)
+pnpm run link:bin
 berkelium
 ```
+
+`link:bin` points `berkelium` and `bk` at this checkout's `bin/` launchers, so a later `git pull` is picked up without relinking. It only creates links in directories that already exist; it does not modify your shell profile. Remove the symlinks manually to uninstall.
+
+Release and publication procedures are documented in [docs/RELEASING.md](./docs/RELEASING.md).
 
 ### First Task
 
@@ -846,9 +851,11 @@ Check out our contributor guides:
 - [Developer Architecture Guide](./docs/DEVELOPER_GUIDE.md)
 - [Building Custom Model Providers](./docs/PROVIDER_GUIDE.md)
 - [Creating Custom Skills](./docs/SKILLS_GUIDE.md)
+- [Desktop Direction and Audience](./docs/DESKTOP_DIRECTION.md)
 - [Community Governance](./GOVERNANCE.md)
 - [Code of Conduct](./CODE_OF_CONDUCT.md)
 - [Support Guidelines](./SUPPORT.md)
+- [Release Process](./docs/RELEASING.md)
 - [Changelog](./CHANGELOG.md)
 
 All contributions must pass typechecking (`pnpm run typecheck`), test suites (`pnpm test`), and satisfy benchmark budgets (`pnpm run bench`).
@@ -867,7 +874,7 @@ If you discover a potential security vulnerability, please report it responsibly
 - [x] Local runtime adapters (Apple MLX, GGUF/llama.cpp, CPU fallback)
 - [x] Cloud provider adapters (Gemini, Groq, OpenRouter, NVIDIA NIM, Hugging Face)
 - [x] Ollama and LM Studio local service integrations
-- [x] 12-state deterministic finite state machine with strict transition validation
+- [x] 15-state deterministic finite state machine with strict transition validation
 - [x] 10-category hierarchical failure recovery engine and avoidance ledger
 - [x] 9 scoped subagent personas (`Explorer`, `Architect`, `Coder`, `Debugger`, `Tester`, `Reviewer`, `Security`, `Performance`, `Documentation`)
 - [x] 3-tier permission engine (`ASK`, `AUTO`, `FULL`) with protected operation guards

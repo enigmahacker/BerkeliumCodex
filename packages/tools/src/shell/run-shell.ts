@@ -3,11 +3,13 @@ import { z } from 'zod';
 import { Tool, ToolContext, ToolExecutionResult } from '../types.js';
 import { resolveSafeWorkspacePath } from '../filesystem/path-utils.js';
 import { sanitizeEnvironment } from './env-sanitizer.js';
+import { BackgroundProcessManager } from './background-process-manager.js';
 
 export const RunShellInputSchema = z.object({
   command: z.string().describe('Shell command to execute'),
   cwd: z.string().optional().describe('Working directory relative to workspace root'),
   timeout_ms: z.number().default(30000).describe('Execution timeout in milliseconds'),
+  background: z.boolean().default(false).describe('Run as a tracked background task'),
 });
 
 export type RunShellInput = z.infer<typeof RunShellInputSchema>;
@@ -37,6 +39,19 @@ export class RunShellTool implements Tool<RunShellInput> {
           });
           return;
         }
+      }
+
+      if (args.background) {
+        const task = BackgroundProcessManager.getInstance().startTask(args.command, workingDir);
+        resolve({
+          success: task.status !== 'FAILED',
+          output: task.status === 'FAILED'
+            ? task.outputBuffer
+            : `Started background task #${task.id}: ${task.command}`,
+          data: task,
+          error: task.status === 'FAILED' ? 'BACKGROUND_TASK_FAILED' : undefined,
+        });
+        return;
       }
 
       const timeout = args.timeout_ms || 30000;

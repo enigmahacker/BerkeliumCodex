@@ -159,6 +159,7 @@ describe('Berkelium Codex — Proper Chat Architecture & Acceptance Tests', () =
       contextEngine,
       logger,
       eventBus,
+      cloudEscalationHandler: async () => true,
     });
     runtime.setActiveModel('mock/mock-model');
 
@@ -307,9 +308,9 @@ describe('Berkelium Codex — Proper Chat Architecture & Acceptance Tests', () =
     console.log = (...args: any[]) => consoleLogSpy.push(args.join(' '));
 
     try {
-      // 1. View default effort
+      // 1. View configured effort
       await slashHandler.handle('/effort');
-      expect(consoleLogSpy.some((l) => l.includes('Effort: medium'))).toBe(true);
+      expect(consoleLogSpy.some((l) => l.includes(`Effort: ${configManager.getEffort()}`))).toBe(true);
 
       // 2. Set effort to high
       consoleLogSpy.length = 0;

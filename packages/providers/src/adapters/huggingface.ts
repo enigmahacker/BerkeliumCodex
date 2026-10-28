@@ -9,19 +9,35 @@ import {
   ProviderRequestOptions,
 } from '../types.js';
 import { ResponseNormalizer } from '../normalizer.js';
+import { EndpointTrustHandler, EndpointTrustPolicy } from '../endpoint-trust.js';
+import { fetchWithTimeout } from '../http.js';
+
+const DEFAULT_BASE_URL = 'https://router.huggingface.co/hf-inference/v1';
 
 export class HuggingFaceProvider implements Provider {
   public readonly id = 'huggingface';
   public readonly name = 'Hugging Face';
   private baseUrl: string;
   private authStore: AuthStore;
+  private endpointTrust: EndpointTrustPolicy;
+  private timeoutMs: number;
 
   constructor(
     authStore: AuthStore,
-    baseUrl = 'https://router.huggingface.co/hf-inference/v1'
+    baseUrl = DEFAULT_BASE_URL,
+    trustHandler?: EndpointTrustHandler,
+    timeoutMs = 60000
   ) {
     this.authStore = authStore;
-    this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.timeoutMs = timeoutMs;
+    this.endpointTrust = new EndpointTrustPolicy(
+      this.id,
+      this.name,
+      baseUrl,
+      DEFAULT_BASE_URL,
+      trustHandler
+    );
+    this.baseUrl = this.endpointTrust.getEndpoint();
   }
 
   public capabilities(): ProviderCapabilities {
@@ -41,7 +57,12 @@ export class HuggingFaceProvider implements Provider {
     return Boolean(key);
   }
 
+  public isLocal(): boolean {
+    return this.endpointTrust.isLocal();
+  }
+
   public async listModels(): Promise<ModelInfo[]> {
+    await this.endpointTrust.assertTrusted();
     try {
       const apiKey = await this.authStore.getApiKey('huggingface');
       const headers: Record<string, string> = {};
@@ -49,7 +70,7 @@ export class HuggingFaceProvider implements Provider {
         headers['Authorization'] = `Bearer ${apiKey}`;
       }
 
-      const res = await fetch(`${this.baseUrl}/models`, { headers });
+      const res = await fetchWithTimeout(`${this.baseUrl}/models`, { headers }, this.timeoutMs);
       if (!res.ok) return this.getDefaultModels();
 
       const data = (await res.json()) as any;
@@ -205,6 +226,7 @@ export class HuggingFaceProvider implements Provider {
     messages: Message[],
     options: ProviderRequestOptions
   ): AsyncIterable<NormalizedChunk> {
+    await this.endpointTrust.assertTrusted();
     const apiKey = await this.authStore.getApiKey('huggingface');
     if (!apiKey) {
       throw new Error(
@@ -233,16 +255,20 @@ export class HuggingFaceProvider implements Provider {
       payload.tool_choice = options.toolChoice || 'auto';
     }
 
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-        'User-Agent': 'Berkelium-CLI/1.0.0',
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/chat/completions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+          'User-Agent': 'Berkelium-CLI/1.0.0',
+        },
+        body: JSON.stringify(payload),
+        signal: options.signal,
       },
-      body: JSON.stringify(payload),
-      signal: options.signal,
-    });
+      options.timeoutMs ?? this.timeoutMs
+    );
 
     if (!res.ok) {
       const errText = await res.text();

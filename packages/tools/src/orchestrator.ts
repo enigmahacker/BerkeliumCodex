@@ -18,6 +18,7 @@ import { GitDiffTool } from './git/git-diff.js';
 import { GitLogTool } from './git/git-log.js';
 import { GitBranchTool } from './git/git-branch.js';
 import { GitCommitTool } from './git/git-commit.js';
+import { CheckpointCreateTool, CheckpointRestoreTool, CheckpointUndoTool } from './git/checkpoint-manager.js';
 import { InspectProjectTool } from './diagnostics/inspect-project.js';
 import { DiagnosticsTool } from './diagnostics/diagnostics.js';
 import { TestTool } from './diagnostics/test.js';
@@ -42,6 +43,7 @@ export class ToolOrchestrator {
   private eventBus?: EventBus;
   private logger: Logger;
   private workspaceRoot: string;
+  private nonDestructiveMode = false;
 
   constructor(
     registry: ToolRegistry,
@@ -65,6 +67,29 @@ export class ToolOrchestrator {
 
   public getPermissionEngine(): PermissionEngine {
     return this.permissionEngine;
+  }
+
+  public setWorkspaceRoot(workspaceRoot: string): void {
+    this.workspaceRoot = workspaceRoot;
+    this.permissionEngine.setWorkspaceRoot(workspaceRoot);
+  }
+
+  public setNonDestructiveMode(enabled: boolean): void {
+    this.nonDestructiveMode = enabled;
+  }
+
+  public isToolAllowedInNonDestructiveMode(toolName: string): boolean {
+    const tool = this.registry.get(toolName);
+    if (!tool) return true;
+
+    const filesystem = tool.metadata.filesystem;
+    if (filesystem?.read && !filesystem.write && !filesystem.delete) return true;
+    if (tool.metadata.category === 'web') return true;
+    if (tool.metadata.category === 'git') {
+      return this.permissionEngine.mapActionToCapability(tool.metadata.category, tool.metadata.name) === 'git.read';
+    }
+
+    return false;
   }
 
   public async execute(req: ToolExecutionRequest): Promise<ToolExecutionResult> {
@@ -98,6 +123,21 @@ export class ToolOrchestrator {
       return { success: false, output: errorMsg, error: 'TOOL_NOT_FOUND' };
     }
 
+    if (this.nonDestructiveMode && !this.isToolAllowedInNonDestructiveMode(req.toolName)) {
+      const blockedMsg = `Tool "${req.toolName}" is blocked by non-destructive mode.`;
+      this.eventBus?.emit({
+        id: crypto.randomUUID(),
+        type: 'tool_failed',
+        sessionId: req.sessionId,
+        timestamp: Date.now(),
+        callId: req.callId,
+        toolName: req.toolName,
+        error: blockedMsg,
+        durationMs: Math.round(performance.now() - startTime),
+      });
+      return { success: false, output: blockedMsg, error: 'NON_DESTRUCTIVE_MODE' };
+    }
+
     // 2. Schema Validation
     let parsedArgs = req.args;
     try {
@@ -129,9 +169,10 @@ export class ToolOrchestrator {
     }
 
     // 3. Permission Check
-    const targetDesc = String(
-      parsedArgs.path || parsedArgs.command || parsedArgs.url || parsedArgs.message || req.toolName
-    );
+    const processArgs = Array.isArray(parsedArgs.args) ? parsedArgs.args.map(String) : [];
+    const targetDesc = req.toolName === 'run_process'
+      ? [String(parsedArgs.executable || ''), ...processArgs].join(' ')
+      : String(parsedArgs.path || parsedArgs.command || parsedArgs.url || parsedArgs.message || req.toolName);
     const hasPermission = await this.permissionEngine.evaluate({
       id: req.callId,
       category: tool.metadata.category,
@@ -265,6 +306,9 @@ export class ToolOrchestrator {
       new GitLogTool(),
       new GitBranchTool(),
       new GitCommitTool(),
+      new CheckpointCreateTool(),
+      new CheckpointRestoreTool(),
+      new CheckpointUndoTool(),
       new InspectProjectTool(),
       new DiagnosticsTool(),
       new TestTool(),

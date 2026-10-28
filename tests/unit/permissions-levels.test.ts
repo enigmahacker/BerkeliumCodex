@@ -136,6 +136,46 @@ describe('Permission Levels & Granular Capabilities', () => {
     expect(rmRootCheck.isProtectedOperation).toBe(true);
   });
 
+  it('should never auto-approve mutations to Git internals or the credential vault', () => {
+    const engine = new PermissionEngine('/tmp/workspace', basePolicy);
+    engine.setPermissionLevel('full');
+
+    const hookCheck = engine.checkPolicy({
+      id: 'test-git-hook',
+      category: 'filesystem',
+      action: 'write_file',
+      target: '/tmp/workspace/.git/hooks/pre-commit',
+      risk: 'high',
+      description: 'Write a Git hook',
+    });
+    expect(hookCheck.allowed).toBe(false);
+    expect(hookCheck.requiresPrompt).toBe(true);
+    expect(hookCheck.isProtectedOperation).toBe(true);
+
+    const vaultCheck = engine.checkPolicy({
+      id: 'test-vault',
+      category: 'filesystem',
+      action: 'write_file',
+      target: '.berkelium/credentials.vault',
+      risk: 'high',
+      description: 'Overwrite the credential vault',
+    });
+    expect(vaultCheck.allowed).toBe(false);
+    expect(vaultCheck.requiresPrompt).toBe(true);
+    expect(vaultCheck.isProtectedOperation).toBe(true);
+
+    const normalCheck = engine.checkPolicy({
+      id: 'test-normal-write',
+      category: 'filesystem',
+      action: 'write_file',
+      target: '/tmp/workspace/src/app.ts',
+      risk: 'medium',
+      description: 'Write application source',
+    });
+    expect(normalCheck.allowed).toBe(true);
+    expect(normalCheck.requiresPrompt).toBe(false);
+  });
+
   it('should support granular capability grants', () => {
     const engine = new PermissionEngine('/tmp/workspace', basePolicy);
     engine.setPermissionLevel('ask');

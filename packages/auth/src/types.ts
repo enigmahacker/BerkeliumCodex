@@ -14,4 +14,6 @@ export interface AuthStatus {
 export interface AuthStoreOptions {
   serviceName?: string;
   vaultPath?: string;
+  vaultKeyPath?: string;
+  vaultKey?: string;
 }

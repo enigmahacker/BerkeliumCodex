@@ -121,7 +121,6 @@ export class TUIOverlays {
     console.log(`Project         ${fmt.muted((bd.projectTokens / 1000).toFixed(1) + 'k').padStart(18, ' ')}`);
     console.log(`Conversation    ${fmt.muted((bd.conversationTokens / 1000).toFixed(1) + 'k').padStart(18, ' ')}`);
     console.log(`Tools           ${fmt.muted((bd.toolsTokens / 1000).toFixed(1) + 'k').padStart(18, ' ')}`);
-    console.log(`Files           ${fmt.muted((bd.filesTokens / 1000).toFixed(1) + 'k').padStart(18, ' ')}`);
     console.log(fmt.border('────────────────────────────'));
     console.log(fmt.bold(`Total           ${fmt.primary((bd.totalTokens / 1000).toFixed(1) + 'k').padStart(18, ' ')}`));
     console.log(`Limit           ${fmt.dimmed((bd.limit / 1000).toFixed(1) + 'k').padStart(18, ' ')}`);

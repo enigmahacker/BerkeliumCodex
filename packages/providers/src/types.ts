@@ -89,6 +89,7 @@ export interface ProviderRequestOptions {
   toolChoice?: 'auto' | 'none' | 'required' | { type: 'function'; function: { name: string } };
   signal?: AbortSignal;
   systemPrompt?: string;
+  timeoutMs?: number;
 }
 
 export interface ProviderHealth {
@@ -103,7 +104,9 @@ export interface Provider {
   readonly name: string;
   capabilities(): ProviderCapabilities;
   isAvailable(): Promise<boolean>;
+  isLocal?(): boolean;
   listModels(): Promise<ModelInfo[]>;
+  getDefaultModels?(): ModelInfo[];
   stream(messages: Message[], options: ProviderRequestOptions): AsyncIterable<NormalizedChunk>;
   generate(messages: Message[], options: ProviderRequestOptions): Promise<NormalizedResponse>;
   checkHealth?(): Promise<ProviderHealth>;

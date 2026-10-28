@@ -5,14 +5,72 @@ import * as crypto from 'node:crypto';
 import { AuthProviderId, AuthStatus, AuthStoreOptions } from './types.js';
 import { MacOSKeychain } from './keychain.js';
 
+const VAULT_VERSION = 1;
+const VAULT_ALGORITHM = 'aes-256-gcm';
+const VAULT_AAD = Buffer.from('berkelium-auth-vault-v1');
+const VAULT_KEY_BYTES = 32;
+const VAULT_IV_BYTES = 12;
+
+interface EncryptedVaultEnvelope {
+  version: number;
+  algorithm: string;
+  iv: string;
+  tag: string;
+  data: string;
+}
+
+type VaultRecord = Record<string, string>;
+
+function isVaultRecord(value: unknown): value is VaultRecord {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.values(value).every((entry) => typeof entry === 'string');
+}
+
+function isEncryptedEnvelope(value: unknown): value is EncryptedVaultEnvelope {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    candidate.version === VAULT_VERSION &&
+    candidate.algorithm === VAULT_ALGORITHM &&
+    typeof candidate.iv === 'string' &&
+    typeof candidate.tag === 'string' &&
+    typeof candidate.data === 'string'
+  );
+}
+
+function decodeBase64(value: string, label: string): Buffer {
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(value) || value.length % 4 !== 0) {
+    throw new Error(`[AuthStore] Invalid base64 encoding for ${label}.`);
+  }
+  return Buffer.from(value, 'base64');
+}
+
+function decodeVaultKey(value: string): Buffer {
+  const trimmed = value.trim();
+  if (/^[a-fA-F0-9]{64}$/.test(trimmed)) {
+    return Buffer.from(trimmed, 'hex');
+  }
+  const decoded = decodeBase64(trimmed, 'vault encryption key');
+  if (decoded.length !== VAULT_KEY_BYTES) {
+    throw new Error(
+      `[AuthStore] Vault encryption key must decode to ${VAULT_KEY_BYTES} bytes.`
+    );
+  }
+  return decoded;
+}
+
 export class AuthStore {
   private keychain: MacOSKeychain;
   private vaultPath: string;
+  private vaultKeyPath: string;
+  private configuredVaultKey?: string;
 
   constructor(options: AuthStoreOptions = {}) {
     this.keychain = new MacOSKeychain(options.serviceName || 'berkelium');
     this.vaultPath =
       options.vaultPath || path.join(os.homedir(), '.berkelium', '.auth_vault.json');
+    this.vaultKeyPath = options.vaultKeyPath || `${this.vaultPath}.key`;
+    this.configuredVaultKey = options.vaultKey;
   }
 
   public async getApiKey(provider: AuthProviderId): Promise<string | null> {
@@ -23,7 +81,7 @@ export class AuthStore {
     const keychainKey = await this.keychain.getPassword(provider);
     if (keychainKey) return keychainKey;
 
-    // Fallback to vault
+    // Fallback to encrypted vault
     return this.getFromVault(provider);
   }
 
@@ -154,41 +212,168 @@ export class AuthStore {
     }
   }
 
-
   private getFromVault(provider: string): string | null {
-    try {
-      if (!fs.existsSync(this.vaultPath)) return null;
-      const data = JSON.parse(fs.readFileSync(this.vaultPath, 'utf-8'));
-      return data[provider] || null;
-    } catch {
-      return null;
-    }
+    const data = this.readVault();
+    return data[provider] || null;
   }
 
   private saveToVault(provider: string, key: string): void {
-    try {
-      const dir = path.dirname(this.vaultPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-      }
-      let data: Record<string, string> = {};
-      if (fs.existsSync(this.vaultPath)) {
-        data = JSON.parse(fs.readFileSync(this.vaultPath, 'utf-8'));
-      }
-      data[provider] = key;
-      fs.writeFileSync(this.vaultPath, JSON.stringify(data, null, 2), { mode: 0o600 });
-    } catch (err) {
-      console.error('[AuthStore] Failed to save to local vault:', err);
-    }
+    const data = this.readVault();
+    data[provider] = key;
+    this.writeVault(data);
   }
 
   private removeFromVault(provider: string): void {
+    if (!fs.existsSync(this.vaultPath)) return;
+    const data = this.readVault();
+    delete data[provider];
+    this.writeVault(data);
+  }
+
+  private readVault(): VaultRecord {
+    if (!fs.existsSync(this.vaultPath)) return {};
+
+    let parsed: unknown;
     try {
-      if (!fs.existsSync(this.vaultPath)) return;
-      const data = JSON.parse(fs.readFileSync(this.vaultPath, 'utf-8'));
-      delete data[provider];
-      fs.writeFileSync(this.vaultPath, JSON.stringify(data, null, 2), { mode: 0o600 });
-    } catch {}
+      parsed = JSON.parse(fs.readFileSync(this.vaultPath, 'utf-8'));
+    } catch (err) {
+      throw new Error(
+        `[AuthStore] Failed to read credential vault at ${this.vaultPath}: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+
+    if (isEncryptedEnvelope(parsed)) {
+      return this.decryptVault(parsed);
+    }
+
+    // Version 0 stored plaintext. Persist the encrypted form before returning
+    // any credential so a failed migration never deletes the only copy.
+    if (isVaultRecord(parsed)) {
+      this.writeVault(parsed);
+      return parsed;
+    }
+
+    throw new Error(
+      `[AuthStore] Credential vault at ${this.vaultPath} has an unsupported format.`
+    );
+  }
+
+  private decryptVault(envelope: EncryptedVaultEnvelope): VaultRecord {
+    try {
+      const key = this.getVaultKey();
+      const iv = decodeBase64(envelope.iv, 'vault IV');
+      const tag = decodeBase64(envelope.tag, 'vault authentication tag');
+      const ciphertext = decodeBase64(envelope.data, 'vault ciphertext');
+
+      if (iv.length !== VAULT_IV_BYTES || tag.length !== 16) {
+        throw new Error('Vault envelope has invalid cryptographic parameters.');
+      }
+
+      const decipher = crypto.createDecipheriv(VAULT_ALGORITHM, key, iv);
+      decipher.setAAD(VAULT_AAD);
+      decipher.setAuthTag(tag);
+      const plaintext = Buffer.concat([
+        decipher.update(ciphertext),
+        decipher.final(),
+      ]).toString('utf-8');
+
+      const parsed = JSON.parse(plaintext);
+      if (!isVaultRecord(parsed)) {
+        throw new Error('Decrypted vault payload is not a credential record.');
+      }
+      return parsed;
+    } catch (err) {
+      throw new Error(
+        `[AuthStore] Failed to decrypt credential vault. The vault or its key may be damaged: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+  }
+
+  private writeVault(data: VaultRecord): void {
+    try {
+      const key = this.getVaultKey();
+      const iv = crypto.randomBytes(VAULT_IV_BYTES);
+      const cipher = crypto.createCipheriv(VAULT_ALGORITHM, key, iv);
+      cipher.setAAD(VAULT_AAD);
+      const ciphertext = Buffer.concat([
+        cipher.update(JSON.stringify(data), 'utf-8'),
+        cipher.final(),
+      ]);
+      const envelope: EncryptedVaultEnvelope = {
+        version: VAULT_VERSION,
+        algorithm: VAULT_ALGORITHM,
+        iv: iv.toString('base64'),
+        tag: cipher.getAuthTag().toString('base64'),
+        data: ciphertext.toString('base64'),
+      };
+
+      this.ensureVaultDirectory();
+      const tempPath = `${this.vaultPath}.${process.pid}.${crypto
+        .randomBytes(6)
+        .toString('hex')}.tmp`;
+
+      try {
+        fs.writeFileSync(tempPath, JSON.stringify(envelope, null, 2), {
+          mode: 0o600,
+          flag: 'wx',
+        });
+        fs.chmodSync(tempPath, 0o600);
+        fs.renameSync(tempPath, this.vaultPath);
+        fs.chmodSync(this.vaultPath, 0o600);
+      } catch (err) {
+        try {
+          fs.unlinkSync(tempPath);
+        } catch {
+          // The temporary file may not have been created.
+        }
+        throw err;
+      }
+    } catch (err) {
+      throw new Error(
+        `[AuthStore] Failed to save the encrypted credential vault at ${this.vaultPath}: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+  }
+
+  private getVaultKey(): Buffer {
+    const configured = this.configuredVaultKey || process.env.BERKELIUM_VAULT_KEY;
+    if (configured) {
+      return decodeVaultKey(configured);
+    }
+
+    this.ensureVaultDirectory();
+    if (fs.existsSync(this.vaultKeyPath)) {
+      const stored = fs.readFileSync(this.vaultKeyPath, 'utf-8');
+      return decodeVaultKey(stored);
+    }
+
+    const generated = crypto.randomBytes(VAULT_KEY_BYTES);
+    try {
+      fs.writeFileSync(this.vaultKeyPath, generated.toString('base64'), {
+        mode: 0o600,
+        flag: 'wx',
+      });
+      fs.chmodSync(this.vaultKeyPath, 0o600);
+      return generated;
+    } catch (err: any) {
+      if (err?.code === 'EEXIST') {
+        return decodeVaultKey(fs.readFileSync(this.vaultKeyPath, 'utf-8'));
+      }
+      throw err;
+    }
+  }
+
+  private ensureVaultDirectory(): void {
+    const dir = path.dirname(this.vaultPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    }
   }
 }
 

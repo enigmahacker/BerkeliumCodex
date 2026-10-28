@@ -143,6 +143,7 @@ describe('Autonomous Verification Routing & Deterministic State Machine Regressi
       contextEngine,
       logger,
       eventBus,
+      cloudEscalationHandler: async () => true,
     });
     runtime.setActiveModel('mock/mock-model');
     return runtime;

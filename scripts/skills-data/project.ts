@@ -60,7 +60,7 @@ export const projectSkills: SkillDefinition[] = [
     verification: 'Confirm all required compilers, package managers, and dependencies meet project specifications.',
     failure_handling: 'If required tool is missing, provide exact OS-specific installation instructions (Homebrew, apt, etc.).',
     output_contract: 'OnboardingStatusReport with toolchainChecks, envPrerequisites, and readinessScore.',
-    examples: 'Verifying Node 20+, pnpm 9+, and Turbo are installed before compiling Berkelium monorepo.',
+    examples: 'Verifying Node 22.13+, pnpm 11.7+, and Git are installed before building the Berkelium monorepo.',
     related_skills: ['project-discovery', 'terminal-environment', 'project-health'],
   },
   {

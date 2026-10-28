@@ -19,8 +19,8 @@ All contributions MUST adhere to the engineering invariants defined in [AGENTS.m
 ## 2. Development Setup
 
 ### Prerequisites
-- **Node.js**: >= 20.0.0 (Node 22 LTS or Node 24 recommended)
-- **pnpm**: >= 9.0.0 (`corepack enable` or `npm i -g pnpm`)
+- **Node.js**: >= 22.13.0 (Node 22, 24, or 26 supported)
+- **pnpm**: >= 11.7.0 (`corepack enable` or `npm i -g pnpm`)
 - **Git**: >= 2.40.0
 - **macOS** (Apple Silicon M1–M4 recommended for local MLX inference) or **Linux**
 

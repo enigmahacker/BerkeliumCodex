@@ -1,8 +1,8 @@
 # Berkelium Development Guide
 
 ## Environment Prerequisites
-- Node.js >= 20 (Node 22 or 26 recommended)
-- `pnpm` >= 9 (`corepack enable` or `npm i -g pnpm`)
+- Node.js >= 22.13.0 (Node 22, 24, or 26 supported)
+- `pnpm` >= 11.7.0 (`corepack enable` or `npm i -g pnpm`)
 - `git` >= 2.40
 
 ## Getting Started

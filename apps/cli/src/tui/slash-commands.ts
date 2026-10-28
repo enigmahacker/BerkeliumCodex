@@ -1,7 +1,7 @@
 import * as readline from 'node:readline/promises';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { AgentRuntime, CheckpointManager, BackgroundTaskManager, isValidAgentMode, AgentMode } from '@berkelium/agent';
+import { AgentRuntime, CheckpointManager, BackgroundTaskManager, SessionManager, isValidAgentMode, AgentMode, type CheckpointRecord } from '@berkelium/agent';
 import { ThemeManager } from '@berkelium/themes';
 import { ConfigManager, PromptEngine, pickFileWithFinder } from '@berkelium/config';
 import { ProviderRouter } from '@berkelium/providers';
@@ -27,6 +27,7 @@ export class SlashCommandHandler {
   private contextEngine: ContextEngine;
   private authStore: AuthStore;
   private registry: CommandRegistry;
+  private sessionManager: SessionManager;
 
   constructor(
     runtime: AgentRuntime,
@@ -35,7 +36,8 @@ export class SlashCommandHandler {
     router: ProviderRouter,
     orchestrator: ToolOrchestrator,
     contextEngine: ContextEngine,
-    authStore: AuthStore
+    authStore: AuthStore,
+    sessionManager?: SessionManager
   ) {
     this.runtime = runtime;
     this.themeManager = themeManager;
@@ -44,6 +46,7 @@ export class SlashCommandHandler {
     this.orchestrator = orchestrator;
     this.contextEngine = contextEngine;
     this.authStore = authStore;
+    this.sessionManager = sessionManager || new SessionManager();
     this.registry = CommandRegistry.getInstance();
     this.registry.loadCustomCommands(configManager.getWorkspaceRoot());
   }
@@ -135,13 +138,14 @@ export class SlashCommandHandler {
   public async handle(input: string): Promise<boolean> {
     const trimmed = input.trim();
     const parts = trimmed.slice(1).split(/\s+/);
-    const command = parts[0]?.toLowerCase() || '';
+    const rawCommand = parts[0]?.toLowerCase() || '';
+    const command = this.registry.get(rawCommand)?.name || rawCommand;
     const subArgs = parts.slice(1);
     const arg = subArgs.join(' ');
     const fmt = this.themeManager.getFormatted();
 
     // Check custom commands first
-    const cmdDef = this.registry.get(command);
+    const cmdDef = this.registry.get(rawCommand);
     if (cmdDef?.isCustom && cmdDef.customPromptTemplate) {
       const fullTask = arg
         ? `${cmdDef.customPromptTemplate}\n\nTask Argument: ${arg}`
@@ -207,6 +211,7 @@ export class SlashCommandHandler {
           console.log(`  Project:           ${cdRes.project.language} / ${cdRes.project.framework}`);
           console.log();
           this.contextEngine.setWorkspaceRoot(cdRes.newDir);
+          this.orchestrator.setWorkspaceRoot(cdRes.newDir);
         }
         return true;
       }
@@ -240,8 +245,17 @@ export class SlashCommandHandler {
 
       case 'checkpoint':
       case 'cp': {
-        const cpMgr = new CheckpointManager(WorkingDirectoryManager.getInstance().getCwd());
-        const cp = cpMgr.createCheckpoint(arg || undefined);
+        const res = await this.orchestrator.execute({
+          callId: `cmd_checkpoint_${Date.now()}`,
+          toolName: 'checkpoint_create',
+          args: { name: arg || undefined },
+          sessionId: this.runtime.getSessionId(),
+        });
+        if (!res.success) {
+          console.log(fmt.error(`✗ ${res.output}`));
+          return true;
+        }
+        const cp = res.data as CheckpointRecord;
         console.log();
         console.log(fmt.success(`✓ Created checkpoint ${fmt.bold(cp.id)}`));
         console.log(`  Name:     ${cp.name}`);
@@ -264,23 +278,31 @@ export class SlashCommandHandler {
           console.log(fmt.warning('Usage: /restore <checkpoint_id>'));
           return true;
         }
-        const cpMgr = new CheckpointManager(WorkingDirectoryManager.getInstance().getCwd());
-        const res = cpMgr.restoreCheckpoint(arg);
+        const res = await this.orchestrator.execute({
+          callId: `cmd_restore_${Date.now()}`,
+          toolName: 'checkpoint_restore',
+          args: { id: arg },
+          sessionId: this.runtime.getSessionId(),
+        });
         if (res.success) {
-          console.log(fmt.success(`✓ ${res.message}`));
+          console.log(fmt.success(`✓ ${res.output}`));
         } else {
-          console.log(fmt.error(`✗ ${res.message}`));
+          console.log(fmt.error(`✗ ${res.output}`));
         }
         return true;
       }
 
       case 'undo': {
-        const cpMgr = new CheckpointManager(WorkingDirectoryManager.getInstance().getCwd());
-        const res = cpMgr.undo();
+        const res = await this.orchestrator.execute({
+          callId: `cmd_undo_${Date.now()}`,
+          toolName: 'checkpoint_undo',
+          args: {},
+          sessionId: this.runtime.getSessionId(),
+        });
         if (res.success) {
-          console.log(fmt.success(`✓ ${res.message}`));
+          console.log(fmt.success(`✓ ${res.output}`));
         } else {
-          console.log(fmt.error(`✗ ${res.message}`));
+          console.log(fmt.error(`✗ ${res.output}`));
         }
         return true;
       }
@@ -335,9 +357,17 @@ export class SlashCommandHandler {
           console.log(fmt.warning('Usage: /background <command>'));
           return true;
         }
-        const btm = BackgroundTaskManager.getInstance();
-        const task = btm.startTask(arg, WorkingDirectoryManager.getInstance().getCwd());
-        console.log(fmt.success(`✓ Spawned background task #${task.id}: "${task.command}"`));
+        const res = await this.orchestrator.execute({
+          callId: `cmd_background_${Date.now()}`,
+          toolName: 'run_shell',
+          args: { command: arg, background: true },
+          sessionId: this.runtime.getSessionId(),
+        });
+        if (res.success) {
+          console.log(fmt.success(`✓ ${res.output}`));
+        } else {
+          console.log(fmt.error(`✗ ${res.output}`));
+        }
         return true;
       }
 
@@ -611,11 +641,15 @@ export class SlashCommandHandler {
         if (arg) {
           const success = this.themeManager.setTheme(arg);
           if (success) {
-            this.configManager.updateGlobalConfig((c) => ({
+            const persisted = this.configManager.updateGlobalConfig((c) => ({
               ...c,
               theme: { name: arg },
             }));
-            console.log(fmt.success(`✓ Theme switched to "${arg}".`));
+            if (persisted) {
+              console.log(fmt.success(`✓ Theme switched to "${arg}".`));
+            } else {
+              console.log(fmt.warning(`⚠ Theme changed for this session but could not be saved to global config.`));
+            }
           } else {
             console.log(fmt.error(`✗ Unknown theme "${arg}". Run /theme to see available themes.`));
           }
@@ -678,12 +712,7 @@ export class SlashCommandHandler {
 
       case 'context':
       case 'ctx': {
-        const history = this.runtime.getSessionHistory();
-        const breakdown = await this.contextEngine.getBreakdown(
-          'System Prompt',
-          history,
-          JSON.stringify(this.orchestrator.getRegistry().getDefinitions())
-        );
+        const breakdown = await this.runtime.getContextBreakdown();
         TUIOverlays.renderContext(this.themeManager, breakdown);
         return true;
       }
@@ -694,12 +723,7 @@ export class SlashCommandHandler {
       case 'economy':
       case 'budget': {
         const stats = this.runtime.getTelemetry().getStats();
-        const history = this.runtime.getSessionHistory();
-        const breakdown = await this.contextEngine.getBreakdown(
-          'System Prompt',
-          history,
-          JSON.stringify(this.orchestrator.getRegistry().getDefinitions())
-        );
+        const breakdown = await this.runtime.getContextBreakdown();
         TUIOverlays.renderTokens(this.themeManager, stats, breakdown);
         return true;
       }
@@ -711,7 +735,11 @@ export class SlashCommandHandler {
           return true;
         }
         console.log(fmt.dimmed('Compacting conversation history and historical tool outputs...'));
-        const result = this.contextEngine.compactIfNeeded(history, 0);
+        const result = await this.runtime.compactContext(true);
+        if (!result.compacted) {
+          console.log(fmt.muted('ℹ No compaction was possible: conversation is already within the minimum retained size.'));
+          return true;
+        }
         const tokensSaved = result.tokensSaved ?? (result.tokensBefore - result.tokensAfter);
         const percent = Math.round((tokensSaved / Math.max(1, result.tokensBefore)) * 100);
         const microStr = result.microCompactedCount ? ` (${result.microCompactedCount} tool outputs micro-compacted)` : '';
@@ -770,9 +798,13 @@ export class SlashCommandHandler {
         }
 
         // Persist in config (.berkelium/config.json)
-        this.configManager.setDefaultModel(targetModel);
+        const persisted = this.configManager.setDefaultModel(targetModel);
         this.runtime.setActiveModel(targetModel);
-        console.log(fmt.success(`✓ Default model set to ${targetModel}`));
+        if (persisted) {
+          console.log(fmt.success(`✓ Default model set to ${targetModel}`));
+        } else {
+          console.log(fmt.warning(`⚠ Model "${targetModel}" is active for this session but could not be saved to project config.`));
+        }
         return true;
       }
 
@@ -796,9 +828,13 @@ export class SlashCommandHandler {
         if (typeof (this.runtime as any).setEffort === 'function') {
           (this.runtime as any).setEffort(effortArg as any);
         }
-        this.configManager.setEffort(effortArg as any);
+        const persisted = this.configManager.setEffort(effortArg as any);
 
-        console.log(fmt.success(`✓ Effort set to ${effortArg}`));
+        if (persisted) {
+          console.log(fmt.success(`✓ Effort set to ${effortArg}`));
+        } else {
+          console.log(fmt.warning(`⚠ Effort "${effortArg}" is active for this session but could not be saved to project config.`));
+        }
         return true;
       }
 
@@ -1002,11 +1038,60 @@ export class SlashCommandHandler {
       }
 
       case 'session': {
+        const action = subArgs[0]?.toLowerCase();
+
+        if (action === 'list') {
+          const sessions = await this.sessionManager.listSessions();
+          console.log();
+          console.log(fmt.bold(fmt.primary('PERSISTENT SESSIONS')));
+          console.log();
+          if (sessions.length === 0) {
+            console.log(fmt.dimmed('  No saved sessions found.'));
+          } else {
+            for (const s of sessions.slice(0, 10)) {
+              const dateStr = new Date(s.updatedAt).toISOString().replace('T', ' ').slice(0, 19);
+              console.log(`  • ${fmt.bold(fmt.primary(s.id))}  ${fmt.dimmed(dateStr)}  [${fmt.assistant(s.model)}]`);
+            }
+            if (sessions.length > 10) {
+              console.log(fmt.dimmed(`  ... and ${sessions.length - 10} earlier sessions.`));
+            }
+          }
+          console.log();
+          return true;
+        }
+
+        if (action === 'resume') {
+          const targetId = subArgs[1];
+          const session = targetId
+            ? await this.sessionManager.loadSession(targetId)
+            : await this.sessionManager.getLatestSession();
+
+          if (!session) {
+            console.log(
+              fmt.error(
+                targetId
+                  ? `Session "${targetId}" not found.`
+                  : 'No recent session found to resume.'
+              )
+            );
+            return true;
+          }
+
+          await this.runtime.resumeFromSession(session);
+          console.log();
+          console.log(fmt.success(`✓ Resumed session: ${session.id}`));
+          console.log(`  Model:     ${fmt.bold(session.model)}`);
+          console.log(`  Messages:  ${session.messages.length}`);
+          console.log();
+          return true;
+        }
+
         console.log();
         console.log(fmt.bold(fmt.primary('BERKELIUM SESSION')));
         console.log(`  Session ID:    ${fmt.accent(this.runtime.getSessionId())}`);
         console.log(`  Workspace:     ${fmt.dimmed(this.configManager.getWorkspaceRoot())}`);
         console.log(`  Active Model:  ${fmt.assistant(this.runtime.getActiveModel())}`);
+        console.log(fmt.dimmed('  Usage: /session list | /session resume [id]'));
         console.log();
         return true;
       }
@@ -1033,8 +1118,8 @@ export class SlashCommandHandler {
         return true;
 
       case 'reset':
-        this.runtime.cancel();
-        console.log(fmt.success('✓ Session state and conversation context reset.'));
+        this.runtime.resetConversation();
+        console.log(fmt.success('✓ Conversation history and failure context cleared.'));
         return true;
 
       case 'status': {

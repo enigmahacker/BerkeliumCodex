@@ -320,6 +320,7 @@ agent:
   max_iterations: 40
   max_tool_retries: 3
   auto_compact: true
+  auto_checkpoint: true
   verify_changes: true
   timeout_seconds: 300
 tools:

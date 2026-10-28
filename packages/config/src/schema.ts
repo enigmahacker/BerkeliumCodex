@@ -137,7 +137,7 @@ export const BerkeliumConfigSchema = z.object({
     primary: 'openrouter/coding',
     fallback: ['nvidia/coding', 'ollama/local', 'lmstudio/workstation'],
   }),
-  models: z.record(ModelAliasSchema).default({
+  models: z.record(z.string(), ModelAliasSchema).default({
     coding: {
       provider: 'openrouter',
       model: 'deepseek/deepseek-chat',
@@ -467,30 +467,37 @@ export const BerkeliumConfigSchema = z.object({
     openrouter: ProviderConfigSchema.default({
       enabled: true,
       base_url: 'https://openrouter.ai/api/v1',
+      timeout_ms: 60000,
     }),
     nvidia: ProviderConfigSchema.default({
       enabled: true,
       base_url: 'https://integrate.api.nvidia.com/v1',
+      timeout_ms: 60000,
     }),
     gemini: ProviderConfigSchema.default({
       enabled: true,
       base_url: 'https://generativelanguage.googleapis.com/v1beta/openai',
+      timeout_ms: 60000,
     }),
     huggingface: ProviderConfigSchema.default({
       enabled: true,
       base_url: 'https://router.huggingface.co/hf-inference/v1',
+      timeout_ms: 60000,
     }),
     groq: ProviderConfigSchema.default({
       enabled: true,
       base_url: 'https://api.groq.com/openai/v1',
+      timeout_ms: 60000,
     }),
     ollama: ProviderConfigSchema.default({
       enabled: true,
       base_url: 'http://127.0.0.1:11434',
+      timeout_ms: 60000,
     }),
     lmstudio: ProviderConfigSchema.default({
       enabled: true,
       base_url: 'http://127.0.0.1:1234/v1',
+      timeout_ms: 60000,
     }),
   }).default({
     openrouter: { enabled: true, base_url: 'https://openrouter.ai/api/v1', timeout_ms: 60000 },
@@ -506,12 +513,14 @@ export const BerkeliumConfigSchema = z.object({
     max_iterations: z.number().default(40),
     max_tool_retries: z.number().default(3),
     auto_compact: z.boolean().default(true),
+    auto_checkpoint: z.boolean().default(true),
     verify_changes: z.boolean().default(true),
     timeout_seconds: z.number().default(300),
   }).default({
     max_iterations: 40,
     max_tool_retries: 3,
     auto_compact: true,
+    auto_checkpoint: true,
     verify_changes: true,
     timeout_seconds: 300,
   }),
@@ -528,7 +537,7 @@ export const BerkeliumConfigSchema = z.object({
     web: true,
     diagnostics: true,
   }),
-  permissions: PermissionPolicySchema.default({}),
+  permissions: PermissionPolicySchema.prefault({}),
   theme: z.object({
     name: z.string().default('berkelium-dark'),
   }).default({
@@ -555,7 +564,7 @@ export const BerkeliumConfigSchema = z.object({
     behavior: z.string().optional(),
     coding: z.string().optional(),
     tools: z.string().optional(),
-  }).default({}),
+  }).prefault({}),
 
   // ── New: Runtime, Privacy, Cost, Model Storage, Cloud ──────────────
   runtime: RuntimeConfigSchema,

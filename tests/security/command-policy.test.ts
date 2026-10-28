@@ -113,4 +113,106 @@ describe('Security Hardening: Command Classification & Shell Policy', () => {
       expect(res.requiresPrompt).toBe(false);
     }
   });
+
+  it('should not let wildcard grants override protected operations', () => {
+    const localEngine = new PermissionEngine('/tmp/workspace', BerkeliumConfigSchema.parse({}).permissions);
+    localEngine.setPermissionLevel('full');
+    localEngine.grantCapability({
+      id: 'wildcard-shell',
+      capability: 'shell.execute',
+      targetPattern: '*',
+      scope: 'session',
+      grantedAt: Date.now(),
+    });
+
+    const res = localEngine.checkPolicy({
+      id: 'protected-with-grant',
+      category: 'shell',
+      action: 'run_shell',
+      target: 'git reset --hard HEAD~1',
+      risk: 'critical',
+      description: 'Discard changes',
+    });
+
+    expect(res.allowed).toBe(false);
+    expect(res.isProtectedOperation).toBe(true);
+  });
+
+  it('should not match hostname grants by substring', () => {
+    const localEngine = new PermissionEngine('/tmp/workspace', BerkeliumConfigSchema.parse({}).permissions);
+    localEngine.grantCapability({
+      id: 'exact-host',
+      capability: 'network.access',
+      targetPattern: 'api.example.com',
+      scope: 'session',
+      grantedAt: Date.now(),
+    });
+
+    expect(localEngine.hasGrant('network.access', 'https://api.example.com.evil.invalid')).toBe(false);
+    expect(localEngine.hasGrant('network.access', 'https://api.example.com/path')).toBe(true);
+  });
+
+  it('should require confirmation again for protected operations after a session approval', async () => {
+    const localPolicy = BerkeliumConfigSchema.parse({}).permissions;
+    localPolicy.shell.privileged = 'ask';
+    const localEngine = new PermissionEngine('/tmp/workspace', localPolicy);
+    let prompts = 0;
+    localEngine.setPromptHandler(async () => {
+      prompts++;
+      return 'allow_session';
+    });
+    const request = {
+      id: 'protected-session',
+      category: 'shell' as const,
+      action: 'run_shell',
+      target: 'git reset --hard HEAD~1',
+      risk: 'critical' as const,
+      description: 'Discard changes',
+    };
+
+    expect(await localEngine.evaluate(request)).toBe(true);
+    expect(await localEngine.evaluate(request)).toBe(true);
+    expect(prompts).toBe(2);
+  });
+
+  it('should not auto-approve redirection or mutating find actions', () => {
+    for (const cmd of ['cat notes.txt > notes.txt', 'find . -type f -delete', 'find . -exec rm {} \\;']) {
+      const res = engine.checkPolicy({
+        id: `unsafe_${cmd}`,
+        category: 'shell',
+        action: 'run_shell',
+        target: cmd,
+        risk: 'medium',
+        description: 'Potentially mutating command',
+      });
+      expect(res.allowed).toBe(false);
+      expect(res.requiresPrompt).toBe(true);
+    }
+  });
+
+  it('should require confirmation for diagnostic processes in ASK mode and builds in AUTO mode', () => {
+    const askEngine = new PermissionEngine('/tmp/workspace', BerkeliumConfigSchema.parse({}).permissions);
+    askEngine.setPermissionLevel('ask');
+    const testCheck = askEngine.checkPolicy({
+      id: 'ask-test',
+      category: 'diagnostics',
+      action: 'test',
+      target: 'test',
+      risk: 'low',
+      description: 'Run project test script',
+    });
+    expect(testCheck.allowed).toBe(false);
+    expect(testCheck.requiresPrompt).toBe(true);
+
+    const buildCheck = engine.checkPolicy({
+      id: 'auto-build',
+      category: 'diagnostics',
+      action: 'build',
+      target: 'build',
+      risk: 'low',
+      description: 'Run project build script',
+    });
+    expect(buildCheck.allowed).toBe(false);
+    expect(buildCheck.requiresPrompt).toBe(true);
+  });
 });

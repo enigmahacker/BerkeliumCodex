@@ -47,9 +47,10 @@ export class PermissionEngine {
   private granularGrants: Map<string, GranularGrant> = new Map();
 
   private safeShellCommands = new Set([
-    'ls', 'dir', 'pwd', 'cat', 'head', 'tail', 'grep', 'rg', 'find', 'git',
-    'echo', 'which', 'where', 'node', 'npm test', 'npm run test', 'pnpm test',
+    'ls', 'dir', 'pwd', 'cat', 'head', 'tail', 'grep', 'rg', 'find',
+    'echo', 'which', 'where', 'npm test', 'npm run test', 'pnpm test',
     'cargo test', 'pytest', 'vitest', 'tsc', 'diff', 'cargo check', 'go test',
+    'git status', 'git diff', 'git log', 'git branch',
   ]);
 
   private dangerousShellPatterns: Array<{ pattern: RegExp; reason: string }> = [
@@ -83,6 +84,13 @@ export class PermissionEngine {
     { pattern: /(?:credentials|secrets|service-account|serviceAccount)\.json$/i, reason: 'Service account credentials file' },
     { pattern: /\.(?:pem|key|pfx|p12|pkcs12)$/i, reason: 'Cryptographic certificate/private key file' },
     { pattern: /^\/etc\/(?:passwd|shadow|sudoers|master\.passwd)$/i, reason: 'System authentication file' },
+  ];
+
+  // Mutating these paths can execute arbitrary code on the next Git/VCS
+  // operation, so they are never auto-approved even in FULL mode.
+  private protectedMutationPatterns: Array<{ pattern: RegExp; reason: string }> = [
+    { pattern: /[\\/]\.git(?:[\\/]|$)/i, reason: 'Git repository internals (hooks, config, objects)' },
+    { pattern: /[\\/]\.berkelium[\\/]credentials\.vault$/i, reason: 'Berkelium credential vault' },
   ];
 
   constructor(
@@ -170,6 +178,16 @@ export class PermissionEngine {
     return { isSensitive: false };
   }
 
+  public isProtectedMutationTarget(targetPath: string): { isProtected: boolean; reason?: string } {
+    const normalized = path.resolve(this.workspaceRoot, targetPath);
+    for (const { pattern, reason } of this.protectedMutationPatterns) {
+      if (pattern.test(normalized)) {
+        return { isProtected: true, reason };
+      }
+    }
+    return { isProtected: false };
+  }
+
   public isProtectedCommand(command: string): { isProtected: boolean; reason?: string } {
     const cmd = command.trim();
     for (const { pattern, reason } of this.dangerousShellPatterns) {
@@ -205,13 +223,15 @@ export class PermissionEngine {
 
   public hasGrant(capability: GranularCapability, target?: string): boolean {
     for (const grant of this.granularGrants.values()) {
-      if (grant.capability === capability) {
-        if (!grant.targetPattern || !target) {
-          return true;
-        }
-        if (target.includes(grant.targetPattern) || grant.targetPattern === '*') {
-          return true;
-        }
+      if (grant.capability !== capability) continue;
+      if (!grant.targetPattern || grant.targetPattern === '*') return true;
+      if (!target) continue;
+      if (target === grant.targetPattern) return true;
+
+      try {
+        if (new URL(target).hostname === grant.targetPattern) return true;
+      } catch {
+        // Non-URL targets require an exact match.
       }
     }
     return false;
@@ -229,7 +249,7 @@ export class PermissionEngine {
       return 'filesystem.read';
     }
     if (category === 'shell') {
-      if (act.includes('spawn')) return 'process.spawn';
+      if (act.includes('spawn') || act === 'run_process') return 'process.spawn';
       if (act.includes('kill')) return 'process.kill';
       return 'shell.execute';
     }
@@ -259,7 +279,7 @@ export class PermissionEngine {
 
     // Check if previously approved or denied for this session
     const approvalKey = `${request.category}:${request.action}:${request.target}`;
-    if (this.sessionApprovals.has(approvalKey)) {
+    if (!check.isProtectedOperation && this.sessionApprovals.has(approvalKey)) {
       return true;
     }
     if (this.sessionDenials.has(approvalKey)) {
@@ -314,7 +334,9 @@ export class PermissionEngine {
     }
 
     if (decision === 'always_allow' || decision === 'allow_session') {
-      this.sessionApprovals.add(approvalKey);
+      if (!check.isProtectedOperation) {
+        this.sessionApprovals.add(approvalKey);
+      }
       this.eventBus?.emit({
         id: crypto.randomUUID(),
         type: 'permission_granted',
@@ -327,28 +349,32 @@ export class PermissionEngine {
     }
 
     if (decision === 'allow_project') {
-      this.sessionApprovals.add(approvalKey);
-      const cap = this.mapActionToCapability(request.category, request.action);
-      this.grantCapability({
-        id: `proj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        capability: cap,
-        targetPattern: request.target,
-        scope: 'project',
-        grantedAt: Date.now(),
-      });
+      if (!check.isProtectedOperation) {
+        this.sessionApprovals.add(approvalKey);
+        const cap = this.mapActionToCapability(request.category, request.action);
+        this.grantCapability({
+          id: `proj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          capability: cap,
+          targetPattern: request.target,
+          scope: 'project',
+          grantedAt: Date.now(),
+        });
+      }
       return true;
     }
 
     if (decision === 'allow_permanent') {
-      this.sessionApprovals.add(approvalKey);
-      const cap = this.mapActionToCapability(request.category, request.action);
-      this.grantCapability({
-        id: `perm_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        capability: cap,
-        targetPattern: request.target,
-        scope: 'permanent',
-        grantedAt: Date.now(),
-      });
+      if (!check.isProtectedOperation) {
+        this.sessionApprovals.add(approvalKey);
+        const cap = this.mapActionToCapability(request.category, request.action);
+        this.grantCapability({
+          id: `perm_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          capability: cap,
+          targetPattern: request.target,
+          scope: 'permanent',
+          grantedAt: Date.now(),
+        });
+      }
       return true;
     }
 
@@ -368,49 +394,35 @@ export class PermissionEngine {
   }
 
   public checkPolicy(request: PermissionRequest): PermissionCheckResult {
-    const capability = request.capability || this.mapActionToCapability(request.category, request.action);
+    let result: PermissionCheckResult;
 
-    // Check granular grants
-    if (this.hasGrant(capability, request.target)) {
-      return { allowed: true, requiresPrompt: false, risk: request.risk };
-    }
-
-    // 1. Filesystem check
     if (request.category === 'filesystem') {
-      return this.checkFilesystem(request);
+      result = this.checkFilesystem(request);
+    } else if (request.category === 'shell') {
+      result = this.checkShell(request);
+    } else if (request.category === 'git') {
+      result = this.checkGit(request);
+    } else if (request.category === 'diagnostics') {
+      result = this.checkDiagnostics(request);
+    } else if (request.category === 'network' || request.category === 'web') {
+      result = this.checkNetwork(request);
+    } else if (request.category === 'mcp') {
+      result = this.checkMcp(request);
+    } else {
+      result = {
+        allowed: false,
+        requiresPrompt: true,
+        risk: request.risk,
+        reason: 'Custom action requires confirmation',
+      };
     }
 
-    // 2. Shell check
-    if (request.category === 'shell') {
-      return this.checkShell(request);
+    const capability = request.capability || this.mapActionToCapability(request.category, request.action);
+    if (result.requiresPrompt && !result.isProtectedOperation && this.hasGrant(capability, request.target)) {
+      return { allowed: true, requiresPrompt: false, risk: result.risk };
     }
 
-    // 3. Git check
-    if (request.category === 'git') {
-      return this.checkGit(request);
-    }
-
-    // 4. Diagnostics check
-    if (request.category === 'diagnostics') {
-      return { allowed: true, requiresPrompt: false, risk: 'low' };
-    }
-
-    // 5. Network / Web check
-    if (request.category === 'network' || request.category === 'web') {
-      return this.checkNetwork(request);
-    }
-
-    // 6. MCP check
-    if (request.category === 'mcp') {
-      return this.checkMcp(request);
-    }
-
-    return {
-      allowed: false,
-      requiresPrompt: true,
-      risk: request.risk,
-      reason: 'Custom action requires confirmation',
-    };
+    return result;
   }
 
   private checkFilesystem(request: PermissionRequest): PermissionCheckResult {
@@ -418,6 +430,37 @@ export class PermissionEngine {
     const isInside = this.isWithinWorkspace(target);
     const sensitive = this.isSensitivePath(target);
     const act = request.action.toLowerCase();
+
+    const isMutationAction =
+      act.includes('write') ||
+      act.includes('edit') ||
+      act.includes('create') ||
+      act.includes('delete') ||
+      act.includes('unlink') ||
+      act.includes('remove');
+
+    if (isMutationAction) {
+      const protectedTarget = this.isProtectedMutationTarget(target);
+      if (protectedTarget.isProtected) {
+        this.eventBus?.emit({
+          id: crypto.randomUUID(),
+          type: 'security_warning',
+          sessionId: 'current',
+          timestamp: Date.now(),
+          category: 'filesystem',
+          target,
+          warning: `Blocked auto-approval for protected path: ${protectedTarget.reason}`,
+        });
+
+        return {
+          allowed: false,
+          requiresPrompt: true,
+          risk: 'critical',
+          isProtectedOperation: true,
+          reason: `Modifying ${protectedTarget.reason} requires explicit confirmation and cannot be remembered.`,
+        };
+      }
+    }
 
     // Sensitive files are NEVER auto-approved, regardless of mode
     if (sensitive.isSensitive) {
@@ -580,9 +623,10 @@ export class PermissionEngine {
     // In AUTO mode: safe read-only commands execute automatically; others prompt
     const firstWord = cmd.split(' ')[0];
     const isKnownSafe = this.safeShellCommands.has(firstWord) || this.safeShellCommands.has(cmd);
-    const hasChainOperators = cmd.includes('&&') || cmd.includes(';') || cmd.includes('|') || cmd.includes('`') || cmd.includes('$(');
+    const hasChainOperators = ['&&', ';', '|', '`', '$(', '>', '<'].some((operator) => cmd.includes(operator));
+    const hasMutatingFindAction = firstWord === 'find' && /(?:^|\s)-(?:delete|exec|execdir)(?:\s|$)/.test(cmd);
 
-    if (isKnownSafe && !hasChainOperators) {
+    if (isKnownSafe && !hasChainOperators && !hasMutatingFindAction) {
       return { allowed: true, requiresPrompt: false, risk: 'low' };
     }
 
@@ -603,7 +647,7 @@ export class PermissionEngine {
     }
 
     // Check for destructive git commands
-    const isDestructive = act.includes('reset_hard') || act.includes('clean') || act.includes('force_push') || act.includes('branch_delete');
+    const isDestructive = act.includes('reset_hard') || act.includes('clean') || act.includes('force_push') || act.includes('branch_delete') || act === 'checkpoint_restore' || act === 'checkpoint_undo';
     if (isDestructive) {
       return {
         allowed: false,
@@ -623,6 +667,32 @@ export class PermissionEngine {
     }
 
     return { allowed: true, requiresPrompt: false, risk: 'medium' };
+  }
+
+  private checkDiagnostics(request: PermissionRequest): PermissionCheckResult {
+    if (request.action === 'inspect_project' || this.permissionLevel === 'full') {
+      return { allowed: true, requiresPrompt: false, risk: 'low' };
+    }
+
+    if (this.permissionLevel === 'ask') {
+      return {
+        allowed: false,
+        requiresPrompt: true,
+        risk: request.risk,
+        reason: 'Diagnostic process execution requires confirmation in ASK mode',
+      };
+    }
+
+    if (request.action === 'build' || (request.action === 'lint' && request.metadata?.fix === true)) {
+      return {
+        allowed: false,
+        requiresPrompt: true,
+        risk: 'medium',
+        reason: 'Build or autofix execution requires confirmation in AUTO mode',
+      };
+    }
+
+    return { allowed: true, requiresPrompt: false, risk: 'low' };
   }
 
   private checkNetwork(request: PermissionRequest): PermissionCheckResult {

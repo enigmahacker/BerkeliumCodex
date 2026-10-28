@@ -5,6 +5,7 @@ import { UserIntent } from './intent.js';
 export interface VerificationCheckResult {
   check: string;
   passed: boolean;
+  status: 'passed' | 'failed' | 'skipped';
   message: string;
   durationMs: number;
 }
@@ -76,11 +77,12 @@ export class Verifier {
         sessionId,
       });
 
-      const diagStatus = (diagRes.data as any)?.status || (diagRes.success ? 'CLEAN' : 'ISSUES_FOUND');
-      const diagPassed = diagStatus === 'CLEAN';
+      const diagStatus = (diagRes.data as any)?.status;
+      const diagPassed = diagRes.success && diagStatus !== 'ISSUES_FOUND';
 
       results.push({
         check: 'Typecheck & Compilation',
+        status: diagPassed ? 'passed' : 'failed',
         passed: diagPassed,
         message: diagRes.output.slice(0, 300),
         durationMs: Math.round(performance.now() - diagStart),
@@ -97,15 +99,20 @@ export class Verifier {
         sessionId,
       });
 
-      const testPassed =
-        testRes.success ||
-        testRes.output.includes('(no test') ||
-        testRes.output.includes('No test files found');
+      const noTestsConfigured = /\(no test|no test files found/i.test(testRes.output);
+      const testStatus: VerificationCheckResult['status'] = !testRes.success
+        ? 'failed'
+        : noTestsConfigured
+          ? 'skipped'
+          : 'passed';
 
       results.push({
         check: 'Automated Tests',
-        passed: testPassed,
-        message: testRes.output.slice(0, 300),
+        status: testStatus,
+        passed: testStatus === 'passed',
+        message: noTestsConfigured
+          ? 'No test suite ran in this workspace; the test check was skipped.'
+          : testRes.output.slice(0, 300),
         durationMs: Math.round(performance.now() - testStart),
       });
     }
@@ -119,20 +126,38 @@ export class Verifier {
       sessionId,
     });
 
+    const diffStatus: VerificationCheckResult['status'] = diffRes.success ? 'passed' : 'skipped';
     results.push({
       check: 'Diff Review',
-      passed: true,
-      message: diffRes.output ? `${diffRes.output.split('\n').length} diff lines reviewed` : 'No modified files',
+      status: diffStatus,
+      passed: diffRes.success,
+      message: diffRes.success
+        ? diffRes.output
+          ? `${diffRes.output.split('\n').length} diff lines reviewed`
+          : 'No modified files'
+        : `Diff review unavailable: ${diffRes.error || diffRes.output.slice(0, 200)}`,
       durationMs: Math.round(performance.now() - diffStart),
     });
 
-    const allPassed = results.every((r) => r.passed);
-    const failedChecks = results.filter((r) => !r.passed);
-    const isRemediable = failedChecks.length > 0 && failedChecks.some((f) => f.check === 'Automated Tests' || f.check === 'Typecheck & Compilation');
+    const failedChecks = results.filter((r) => r.status === 'failed');
+    const skippedChecks = results.filter((r) => r.status === 'skipped');
+    const allPassed = failedChecks.length === 0;
+    const isRemediable =
+      failedChecks.length > 0 &&
+      failedChecks.some(
+        (f) => f.check === 'Automated Tests' || f.check === 'Typecheck & Compilation'
+      );
 
-    const summary = allPassed
-      ? '✓ All verification checks passed cleanly.'
-      : `✗ Verification encountered failures: ${failedChecks.map((r) => r.check).join(', ')}`;
+    let summary: string;
+    if (!allPassed) {
+      summary = `✗ Verification encountered failures: ${failedChecks.map((r) => r.check).join(', ')}`;
+    } else if (skippedChecks.length > 0) {
+      summary = `✓ Verification completed without failures. Skipped: ${skippedChecks
+        .map((r) => r.check)
+        .join(', ')}`;
+    } else {
+      summary = '✓ All verification checks passed cleanly.';
+    }
 
     this.eventBus?.emit({
       id: crypto.randomUUID(),
@@ -140,7 +165,12 @@ export class Verifier {
       sessionId,
       timestamp: Date.now(),
       passed: allPassed,
-      results: results.map((r) => ({ check: r.check, passed: r.passed, message: r.message })),
+      results: results.map((r) => ({
+        check: r.check,
+        passed: r.passed,
+        status: r.status,
+        message: r.message,
+      })),
     });
 
     return {

@@ -83,12 +83,16 @@ describe('Agent Modes & PLAN Mode Non-Destructive Invariant', () => {
     expect(capturedEvent.previousMode).toBe('build');
   });
 
-  it('should block mutating tools in PLAN mode and inform user', async () => {
+  it.each(['ask', 'plan', 'review'] as const)('should block every mutation-capable tool in %s mode before execution', async (mode) => {
     const logger = new Logger({ subsystem: 'test' });
     const eventBus = new EventBus();
     const configManager = new ConfigManager(tempDir);
+    const config = configManager.getConfig();
+    configManager.setSessionOverride({
+      agent: { ...config.agent, max_iterations: 1, verify_changes: false },
+    });
     const router = new ProviderRouter(configManager.getConfig(), logger);
-    const permissionEngine = new PermissionEngine(tempDir, configManager.getConfig().permissions, eventBus);
+    const permissionEngine = new PermissionEngine(tempDir, config.permissions, eventBus);
     const orchestrator = new ToolOrchestrator(
       new ToolRegistry(),
       permissionEngine,
@@ -97,23 +101,27 @@ describe('Agent Modes & PLAN Mode Non-Destructive Invariant', () => {
       tempDir,
       eventBus
     );
+    const executeSpy = vi.spyOn(orchestrator, 'execute');
     const contextEngine = new ContextEngine(tempDir, logger);
+    const blockedTools = ['write_file', 'run_shell', 'run_process', 'git_commit', 'lint', 'test'];
 
-    // Mock resolveTarget on router to stream a tool call delta to write_file
     vi.spyOn(router, 'resolveTarget').mockReturnValue({
       providerId: 'ollama',
       modelId: 'mock-model',
       provider: {
+        isAvailable: async () => true,
         stream: async function* () {
-          yield {
-            type: 'tool_call_delta',
-            toolCall: {
-              index: 0,
-              id: 'call_1',
-              name: 'write_file',
-              argumentsDelta: JSON.stringify({ path: 'test.txt', content: 'hello' }),
-            },
-          };
+          for (const [index, name] of blockedTools.entries()) {
+            yield {
+              type: 'tool_call_delta',
+              toolCall: {
+                index,
+                id: `call_${index}`,
+                name,
+                argumentsDelta: '{}',
+              },
+            };
+          }
           yield {
             type: 'finish',
             finishReason: 'tool_calls',
@@ -130,19 +138,66 @@ describe('Agent Modes & PLAN Mode Non-Destructive Invariant', () => {
       contextEngine,
       logger,
       eventBus,
-      maxIterations: 2,
     });
 
-    runtime.setMode('plan');
-
-    // Run a step in plan mode
+    runtime.setMode(mode);
     await runtime.executeTask('Create test.txt');
 
-    // Verify messages: write_file tool call was intercepted and blocked
     const messages = runtime.getSessionHistory();
-    const toolMsg = messages.find((m) => m.role === 'tool' && m.name === 'write_file');
-    expect(toolMsg).toBeDefined();
-    expect(toolMsg?.content).toContain('PLAN mode is strictly non-destructive');
-    expect(toolMsg?.content).toContain('Tool "write_file" is blocked');
+    for (const toolName of blockedTools) {
+      const toolMsg = messages.find((m) => m.role === 'tool' && m.name === toolName);
+      expect(toolMsg).toBeDefined();
+      expect(toolMsg?.content).toContain(`${mode.toUpperCase()} mode is strictly non-destructive`);
+      expect(toolMsg?.content).toContain(`Tool "${toolName}" is blocked`);
+    }
+    expect(executeSpy).not.toHaveBeenCalled();
+    expect(fs.existsSync(path.join(tempDir, 'test.txt'))).toBe(false);
+  });
+
+  it('should enforce non-destructive mode for direct orchestrator callers while allowing reads', async () => {
+    const logger = new Logger({ subsystem: 'test' });
+    const eventBus = new EventBus();
+    const configManager = new ConfigManager(tempDir);
+    const router = new ProviderRouter(configManager.getConfig(), logger);
+    const permissionEngine = new PermissionEngine(tempDir, configManager.getConfig().permissions, eventBus);
+    const orchestrator = new ToolOrchestrator(
+      new ToolRegistry(),
+      permissionEngine,
+      new SecretRedactor(),
+      logger,
+      tempDir,
+      eventBus
+    );
+    const contextEngine = new ContextEngine(tempDir, logger);
+    const runtime = new AgentRuntime({
+      workspaceRoot: tempDir,
+      configManager,
+      router,
+      orchestrator,
+      contextEngine,
+      logger,
+      eventBus,
+    });
+    fs.writeFileSync(path.join(tempDir, 'readable.txt'), 'safe content');
+    runtime.setMode('plan');
+
+    const writeResult = await orchestrator.execute({
+      callId: 'direct-write',
+      toolName: 'write_file',
+      args: { path: 'blocked.txt', content: 'must not be written' },
+      sessionId: 'direct-policy-test',
+    });
+    const readResult = await orchestrator.execute({
+      callId: 'direct-read',
+      toolName: 'read_file',
+      args: { path: 'readable.txt' },
+      sessionId: 'direct-policy-test',
+    });
+
+    expect(writeResult.success).toBe(false);
+    expect(writeResult.error).toBe('NON_DESTRUCTIVE_MODE');
+    expect(fs.existsSync(path.join(tempDir, 'blocked.txt'))).toBe(false);
+    expect(readResult.success).toBe(true);
+    expect(readResult.output).toContain('safe content');
   });
 });

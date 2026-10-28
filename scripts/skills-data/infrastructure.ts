@@ -90,7 +90,7 @@ export const infrastructureSkills: SkillDefinition[] = [
     verification: 'Check that YAML is syntactically valid and contains all declared jobs.',
     failure_handling: 'If syntax validation fails, check indentation and quotes on boolean values.',
     output_contract: 'WorkflowCreationResult with workflowPath, jobs: array, triggers: array.',
-    examples: 'Creating multi-OS CI workflow for Berkelium Codex on Node 20/22/24.',
+    examples: 'Creating multi-OS CI workflow for Berkelium Codex on Node 22/24/26.',
     related_skills: ['infrastructure-ci-cd', 'github-actions'],
   },
   {

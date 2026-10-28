@@ -22,7 +22,7 @@ export class MCPBridgeTool implements Tool<Record<string, unknown>> {
       risk: 'medium',
       requiresConfirmation: true,
     };
-    this.schema = z.record(z.unknown());
+    this.schema = z.record(z.string(), z.unknown());
   }
 
   public async execute(

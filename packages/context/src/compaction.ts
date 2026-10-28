@@ -205,7 +205,7 @@ export class ContextCompactor {
     thresholdRatio = 0.75
   ): CompactionResult {
     const totalTokens = messages.reduce(
-      (sum, m) => sum + Tokenizer.countTokens(m.content || '') + 10,
+      (sum, m) => sum + Tokenizer.countMessageTokens(m),
       0
     );
 
@@ -213,7 +213,7 @@ export class ContextCompactor {
     const micro = MicroOutputCompactor.compactToolOutputs(messages, { keepRecentTurns: 2 });
     let currentMessages = micro.messages;
     let tokensAfterMicro = currentMessages.reduce(
-      (sum, m) => sum + Tokenizer.countTokens(m.content || '') + 10,
+      (sum, m) => sum + Tokenizer.countMessageTokens(m),
       0
     );
 
@@ -246,8 +246,14 @@ export class ContextCompactor {
     }
 
     const firstUserMsg = nonSystem[0];
-    const recentMessages = nonSystem.slice(-4);
-    const middleMessages = nonSystem.slice(1, -4);
+    // Keep recent turns intact, but never start the retained window with a tool
+    // result whose assistant tool_calls would be summarized away.
+    let recentStart = Math.max(1, nonSystem.length - 4);
+    while (recentStart > 1 && nonSystem[recentStart].role === 'tool') {
+      recentStart--;
+    }
+    const recentMessages = nonSystem.slice(recentStart);
+    const middleMessages = nonSystem.slice(1, recentStart);
 
     // Build condensed summary of middle actions and tool calls
     const summaryLines: string[] = ['[Compacted Conversation History Summary]'];
@@ -284,7 +290,7 @@ export class ContextCompactor {
     ];
 
     const finalTokens = compactedMessages.reduce(
-      (sum, m) => sum + Tokenizer.countTokens(m.content || '') + 10,
+      (sum, m) => sum + Tokenizer.countMessageTokens(m),
       0
     );
 

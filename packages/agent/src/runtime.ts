@@ -1,9 +1,22 @@
-import { EventBus } from '@berkelium/events';
+import { EventBus, TaskOutcomeStatus } from '@berkelium/events';
 import { Logger } from '@berkelium/logging';
-import { ConfigManager, PromptEngine, PrivacyEngine, CostController, AgentEffort } from '@berkelium/config';
-import { ContextEngine } from '@berkelium/context';
-import { ToolOrchestrator } from '@berkelium/tools';
-import { ProviderRouter, Message, NormalizedResponse, ResponseNormalizer } from '@berkelium/providers';
+import {
+  ConfigManager,
+  PromptEngine,
+  PrivacyEngine,
+  CostController,
+  AgentEffort,
+  CloudEscalationHandler,
+} from '@berkelium/config';
+import { ContextEngine, REPO_MAP_TOKEN_BUDGET, Tokenizer, ContextBreakdown, CompactionResult } from '@berkelium/context';
+import { ToolOrchestrator, CheckpointManager } from '@berkelium/tools';
+import {
+  ProviderRouter,
+  Message,
+  NormalizedResponse,
+  ResponseNormalizer,
+  ResolvedModelTarget,
+} from '@berkelium/providers';
 import { TelemetryTracker } from '@berkelium/telemetry';
 import { HookManager } from '@berkelium/plugins';
 import { AgentStateMachine, AgentState } from './state-machine.js';
@@ -18,6 +31,12 @@ import { FailureLedger } from './failure-recovery.js';
 import { classifyIntent, isActionableIntent, UserIntent } from './intent.js';
 import { sanitizeAssistantResponse, StreamSanitizer } from './sanitizer.js';
 
+const MUTATING_TOOL_NAMES = new Set([
+  'write_file',
+  'edit_file',
+  'delete_file',
+]);
+
 export interface RuntimeInitOptions {
   workspaceRoot?: string;
   configManager: ConfigManager;
@@ -28,6 +47,7 @@ export interface RuntimeInitOptions {
   eventBus: EventBus;
   hookManager?: HookManager;
   sessionManager?: SessionManager;
+  cloudEscalationHandler?: CloudEscalationHandler;
 }
 
 export class AgentRuntime {
@@ -46,6 +66,8 @@ export class AgentRuntime {
   private verifier: Verifier;
   private subagents: SubagentManager;
   private privacyEngine: PrivacyEngine;
+  private cloudEscalationHandler?: CloudEscalationHandler;
+  private cloudEscalationApprovals = new Set<string>();
   private costController: CostController;
   private memory: ProjectMemory;
   private agentMode: AgentMode = 'build';
@@ -53,6 +75,7 @@ export class AgentRuntime {
   private failureLedger: FailureLedger;
 
   private conversationMessages: Message[] = [];
+  private relevantFilesContext = '';
   private activeModelTarget: string;
   private effort: AgentEffort = 'medium';
   private abortController: AbortController | null = null;
@@ -74,6 +97,7 @@ export class AgentRuntime {
     this.verifier = new Verifier(this.orchestrator, this.eventBus);
     this.subagents = new SubagentManager(this.orchestrator, this.router, this.logger, this.eventBus);
     this.privacyEngine = new PrivacyEngine(this.configManager.getConfig().privacy);
+    this.cloudEscalationHandler = options.cloudEscalationHandler;
     this.costController = new CostController(this.configManager.getConfig().cost);
     this.memory = new ProjectMemory(this.workspaceRoot);
     this.failureLedger = new FailureLedger();
@@ -113,6 +137,53 @@ export class AgentRuntime {
 
   public getPrivacyEngine(): PrivacyEngine {
     return this.privacyEngine;
+  }
+
+  private async authorizeModelRequest(target: ResolvedModelTarget): Promise<void> {
+    const fallbackLocalProviders = ['mlx', 'gguf', 'cpu', 'ollama', 'lmstudio'];
+    const isLocal =
+      target.provider.isLocal?.() ??
+      fallbackLocalProviders.includes(target.providerId.toLowerCase());
+    const lastUserMessage = this.conversationMessages
+      .slice()
+      .reverse()
+      .find((message) => message.role === 'user');
+    const privacyCheck = this.privacyEngine.evaluate(
+      target.providerId,
+      isLocal,
+      lastUserMessage?.content
+    );
+
+    if (!privacyCheck.allowed) {
+      throw new Error(`Privacy policy violation: ${privacyCheck.reason}`);
+    }
+    if (!privacyCheck.requiresConfirmation) {
+      return;
+    }
+
+    const approvalKey = `${target.providerId}:${target.modelId}`;
+    if (this.cloudEscalationApprovals.has(approvalKey)) {
+      return;
+    }
+
+    const reason = privacyCheck.reason || 'Cloud escalation requires confirmation.';
+    if (!this.cloudEscalationHandler) {
+      throw new Error(
+        `Privacy confirmation required but no confirmation handler is available. ${reason}`
+      );
+    }
+
+    const approved = await this.cloudEscalationHandler({
+      providerId: target.providerId,
+      modelId: target.modelId,
+      reason,
+      message: `Privacy policy requires approval before sending this request to "${target.providerId}" (${target.modelId}). Approve cloud escalation for this session?`,
+    });
+
+    if (!approved) {
+      throw new Error(`Privacy confirmation denied: ${reason}`);
+    }
+    this.cloudEscalationApprovals.add(approvalKey);
   }
 
   public getCostController(): CostController {
@@ -177,14 +248,91 @@ export class AgentRuntime {
     }
     const prev = this.agentMode;
     this.agentMode = mode;
+    this.orchestrator.setNonDestructiveMode(!AGENT_MODES[mode].isDestructiveAllowed);
     this.eventBus.emit({
       id: crypto.randomUUID(),
-      type: 'mode_changed' as any,
+      type: 'mode_changed',
       sessionId: this.sessionId,
       timestamp: Date.now(),
       previousMode: prev,
       newMode: mode,
     });
+  }
+
+  private isToolAllowedInCurrentMode(toolName: string): boolean {
+    return AGENT_MODES[this.agentMode].isDestructiveAllowed ||
+      this.orchestrator.isToolAllowedInNonDestructiveMode(toolName);
+  }
+
+  private describeToolAction(toolName: string, args: any): string {
+    const target = args?.path ?? args?.command ?? args?.url ?? args?.message;
+    return target ? `${toolName}(${String(target).slice(0, 80)})` : toolName;
+  }
+
+  private emitTaskOutcome(params: {
+    status: TaskOutcomeStatus;
+    applied: string[];
+    failed: string[];
+    denied: string[];
+    verified: boolean | null;
+    skippedVerification?: boolean;
+    checkpointId?: string;
+  }): string {
+    const {
+      status,
+      applied,
+      failed,
+      denied,
+      verified,
+      skippedVerification = false,
+      checkpointId,
+    } = params;
+    const unresolved = [
+      failed.length > 0 ? `${failed.length} failed` : '',
+      denied.length > 0 ? `${denied.length} denied` : '',
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    let summary: string;
+    switch (status) {
+      case 'completed':
+        summary =
+          applied.length > 0
+            ? `✓ Task completed: ${applied.length} action(s) applied${
+                verified
+                  ? skippedVerification
+                    ? '; verification passed with skipped checks'
+                    : '; verification passed'
+                  : ''
+              }.`
+            : '✓ Task completed without tool actions.';
+        break;
+      case 'partial':
+        summary = `⚠ Task partially completed: ${applied.length} action(s) applied; unresolved: ${unresolved}.`;
+        break;
+      case 'blocked':
+        summary = `✗ Task blocked without applying changes: ${unresolved}.`;
+        break;
+      case 'failed':
+        summary = '✗ Task failed.';
+        break;
+    }
+
+    this.eventBus.emit({
+      id: crypto.randomUUID(),
+      type: 'task_outcome',
+      sessionId: this.sessionId,
+      timestamp: Date.now(),
+      status,
+      applied,
+      failed,
+      denied,
+      verified,
+      checkpointId,
+      summary,
+    });
+    return summary;
   }
 
   public async executeMission(goal: string, options?: MissionOptions): Promise<MissionReport> {
@@ -210,13 +358,28 @@ export class AgentRuntime {
     }
   }
 
+  public resetConversation(): void {
+    this.cancel();
+    this.conversationMessages = [];
+    this.relevantFilesContext = '';
+    this.failureLedger.clear();
+    this.eventBus.emit({
+      id: crypto.randomUUID(),
+      type: 'status_updated',
+      sessionId: this.sessionId,
+      timestamp: Date.now(),
+      status: 'Conversation context reset',
+    });
+  }
+
   /**
    * Compacts context under token pressure, saving interrupted active state and restoring it cleanly.
+   * Pass `force` to compact on demand (e.g. the /compact command) regardless of the current threshold.
    */
-  public async compactContext(): Promise<void> {
+  public async compactContext(force = false): Promise<CompactionResult> {
     const interruptedState = this.stateMachine.getState();
     this.stateMachine.transition('COMPACTING_CONTEXT', 'Context compaction triggered by token pressure');
-    const compaction = this.contextEngine.compactIfNeeded(this.conversationMessages);
+    const compaction = this.contextEngine.compactIfNeeded(this.conversationMessages, force ? 0 : 0.75);
     if (compaction.compacted) {
       this.conversationMessages = compaction.messages;
       const tokensSaved = compaction.tokensSaved ?? (compaction.tokensBefore - compaction.tokensAfter);
@@ -235,6 +398,37 @@ export class AgentRuntime {
       });
     }
     this.restoreState(interruptedState);
+    return compaction;
+  }
+
+  /**
+   * Assembles the same layered system prompt used for model calls, for accurate
+   * context accounting in /context and /tokens.
+   */
+  public async getContextBreakdown(): Promise<ContextBreakdown> {
+    const systemPrompt = await this.buildSystemPrompt();
+    const toolsText = JSON.stringify(this.orchestrator.getRegistry().getDefinitions());
+    return this.contextEngine.getBreakdown(systemPrompt, this.conversationMessages, toolsText);
+  }
+
+  private async buildSystemPrompt(): Promise<string> {
+    const promptLayers = PromptEngine.loadCustomPrompts(this.workspaceRoot);
+    const repoMap = await this.contextEngine.getRepoMap(REPO_MAP_TOKEN_BUDGET);
+    const memPrompt = this.memory.getContextPrompt(400);
+    const failurePrompt = this.failureLedger.formatAvoidanceContext();
+    const modePrompt = AGENT_MODES[this.agentMode]?.promptInstructions || '';
+
+    const workspaceSections = [
+      `Active Workspace: ${this.workspaceRoot}`,
+      modePrompt,
+      repoMap,
+      this.relevantFilesContext,
+      memPrompt,
+      failurePrompt,
+    ].filter((section) => section.length > 0);
+
+    promptLayers.workspace = workspaceSections.join('\n\n');
+    return PromptEngine.compose(promptLayers, this.workspaceRoot);
   }
 
   public async executeTask(prompt: string): Promise<void> {
@@ -275,6 +469,8 @@ export class AgentRuntime {
 
       // 3. Actionable Intent Workflow (CODE_TASK, COMMAND, DEBUG, REVIEW, RESEARCH)
       const config = this.configManager.getConfig();
+      const taskTimeoutSeconds = config.agent.timeout_seconds || 300;
+      const taskDeadline = Date.now() + taskTimeoutSeconds * 1000;
       let maxIterations = config.agent.max_iterations || 40;
       let maxRemediations = 3;
       let compactionThreshold = 0.85;
@@ -306,11 +502,19 @@ export class AgentRuntime {
       let remediationCount = 0;
       const filesModified = new Set<string>();
       const toolsExecuted: string[] = [];
+      const appliedActions: string[] = [];
+      const failedActions: string[] = [];
+      const deniedActions: string[] = [];
+      let recoveryCheckpointId: string | undefined;
+      let checkpointAttempted = false;
 
       // Enter planning if actionable code task or debug or review
       if (['CODE_TASK', 'DEBUG', 'REVIEW'].includes(intent)) {
         this.stateMachine.transition('PLANNING', `Planning ${intent} execution`);
       }
+
+      // Rank workspace files once per task; injected into every turn's workspace layer.
+      this.relevantFilesContext = await this.contextEngine.getRelevantFilesContext(prompt);
 
       while (iterations < maxIterations) {
         iterations++;
@@ -322,24 +526,33 @@ export class AgentRuntime {
           break;
         }
 
-        // Context Pressure Management:
-        // ACTIVE_STATE -> COMPACTING_CONTEXT -> PREVIOUS_ACTIVE_STATE
-        if (this.contextEngine.needsCompaction(this.conversationMessages, compactionThreshold)) {
-          await this.compactContext();
+        if (Date.now() > taskDeadline) {
+          throw new Error(
+            `Task exceeded agent.timeout_seconds (${taskTimeoutSeconds}s) after ${iterations} iteration(s).`
+          );
         }
 
-        // Build Layered System Prompt with Workspace Context & Project Memory
-        const promptLayers = PromptEngine.loadCustomPrompts(this.workspaceRoot);
-        const repoMap = await this.contextEngine.getRepoMap(800);
-        const memPrompt = this.memory.getContextPrompt(400);
-        const failurePrompt = this.failureLedger.formatAvoidanceContext();
-        const modePrompt = AGENT_MODES[this.agentMode]?.promptInstructions || '';
-        promptLayers.workspace = `Active Workspace: ${this.workspaceRoot}\n\n${modePrompt}\n\n${repoMap}${memPrompt ? '\n\n' + memPrompt : ''}${failurePrompt ? '\n\n' + failurePrompt : ''}`;
-        const systemPrompt = PromptEngine.compose(promptLayers, this.workspaceRoot);
-
-        // Resolve Active Model Target
+        // Resolve Active Model Target before budgeting so compaction respects
+        // the active model's context window, not the default 128k.
         const mode = (config as any).runtime?.mode || 'local';
         let target = this.router.resolveTarget(this.activeModelTarget);
+        if (target.config?.context_length) {
+          this.contextEngine.setMaxContextLimit(target.config.context_length);
+        }
+
+        // Build the exact prompt that will be sent so token pressure includes
+        // system prompt and tool schemas, not just conversation messages.
+        const systemPrompt = await this.buildSystemPrompt();
+        const toolDefinitions = this.orchestrator.getRegistry().getDefinitions();
+        const promptOverheadTokens =
+          Tokenizer.countTokens(systemPrompt) +
+          Tokenizer.countTokens(JSON.stringify(toolDefinitions));
+
+        // Context Pressure Management:
+        // ACTIVE_STATE -> COMPACTING_CONTEXT -> PREVIOUS_ACTIVE_STATE
+        if (this.contextEngine.needsCompaction(this.conversationMessages, compactionThreshold, promptOverheadTokens)) {
+          await this.compactContext();
+        }
 
         if (mode === 'hybrid') {
           this.logger.debug(
@@ -348,16 +561,6 @@ export class AgentRuntime {
               '/' +
               target.modelId
           );
-        }
-
-        const toolDefinitions = this.orchestrator.getRegistry().getDefinitions();
-
-        // Enforce Privacy & Cost Policies
-        const isLocal = ['mlx', 'gguf', 'cpu', 'ollama', 'lmstudio'].includes(target.providerId.toLowerCase());
-        const lastUserMessage = this.conversationMessages.slice().reverse().find((m) => m.role === 'user');
-        const privacyCheck = this.privacyEngine.evaluate(target.providerId, isLocal, lastUserMessage?.content);
-        if (!privacyCheck.allowed) {
-          throw new Error(`Privacy policy violation: ${privacyCheck.reason}`);
         }
 
         const budgetCheck = this.costController.checkBudget();
@@ -380,7 +583,8 @@ export class AgentRuntime {
           role: 'assistant',
         });
 
-        const acc = ResponseNormalizer.createAccumulator(target.modelId, target.providerId);
+        let selectedTarget = target;
+        let acc = ResponseNormalizer.createAccumulator(target.modelId, target.providerId);
         let firstTokenReceived = false;
         const streamStart = performance.now();
 
@@ -413,12 +617,24 @@ export class AgentRuntime {
         });
 
         try {
-          const stream = target.provider.stream(this.conversationMessages, {
-            model: target.modelId,
-            systemPrompt,
-            tools: toolDefinitions,
-            signal: this.abortController.signal,
-          });
+          const stream = this.router.streamWithFallback(
+            this.conversationMessages,
+            {
+              model: target.modelId,
+              systemPrompt,
+              tools: toolDefinitions,
+              signal: this.abortController.signal,
+            },
+            this.activeModelTarget,
+            (candidate) => this.authorizeModelRequest(candidate),
+            (candidate) => {
+              selectedTarget = candidate;
+              acc = ResponseNormalizer.createAccumulator(candidate.modelId, candidate.providerId);
+              if (candidate.config?.context_length) {
+                this.contextEngine.setMaxContextLimit(candidate.config.context_length);
+              }
+            }
+          );
 
           for await (const chunk of stream) {
             if (!firstTokenReceived && (chunk.text || chunk.reasoning)) {
@@ -456,8 +672,8 @@ export class AgentRuntime {
 
         this.telemetry.recordTokenUsage(normalizedResponse.usage);
         this.costController.recordUsage(
-          target.providerId,
-          target.modelId,
+          selectedTarget.providerId,
+          selectedTarget.modelId,
           normalizedResponse.usage.promptTokens,
           normalizedResponse.usage.completionTokens
         );
@@ -477,9 +693,12 @@ export class AgentRuntime {
           const hasMutations = filesModified.size > 0;
           const shouldVerify =
             config.agent.verify_changes &&
+            AGENT_MODES[this.agentMode].isDestructiveAllowed &&
             isActionable &&
             (hasMutations || intent === 'DEBUG' || intent === 'REVIEW');
 
+          let verified: boolean | null = null;
+          let skippedVerification = false;
           if (shouldVerify) {
             this.stateMachine.transition('VERIFYING', 'Executing automated verification pipeline');
             const verifyReport = await this.verifier.runVerificationPipeline(this.sessionId, {
@@ -487,6 +706,8 @@ export class AgentRuntime {
               filesModified: Array.from(filesModified),
               toolsExecuted,
             });
+            verified = verifyReport.passed;
+            skippedVerification = verifyReport.results.some((result) => result.status === 'skipped');
 
             if (!verifyReport.passed) {
               const canRemediate = verifyReport.isRemediable !== false && remediationCount < maxRemediations;
@@ -504,6 +725,14 @@ export class AgentRuntime {
                 });
                 continue;
               } else {
+                this.emitTaskOutcome({
+                  status: 'failed',
+                  applied: appliedActions,
+                  failed: failedActions,
+                  denied: deniedActions,
+                  verified: false,
+                  checkpointId: recoveryCheckpointId,
+                });
                 this.stateMachine.transition(
                   'FAILED',
                   `Verification failed and cannot be remediated (max remediation attempts reached): ${verifyReport.summary}`
@@ -513,7 +742,22 @@ export class AgentRuntime {
             }
           }
 
-          this.stateMachine.transition('COMPLETED', 'Task completed successfully');
+          const hasUnresolved = failedActions.length > 0 || deniedActions.length > 0;
+          const outcomeStatus: TaskOutcomeStatus = hasUnresolved
+            ? appliedActions.length > 0
+              ? 'partial'
+              : 'blocked'
+            : 'completed';
+          const summary = this.emitTaskOutcome({
+            status: outcomeStatus,
+            applied: appliedActions,
+            failed: failedActions,
+            denied: deniedActions,
+            verified,
+            skippedVerification,
+            checkpointId: recoveryCheckpointId,
+          });
+          this.stateMachine.transition('COMPLETED', summary);
           break;
         }
 
@@ -522,28 +766,51 @@ export class AgentRuntime {
         for (const toolCall of normalizedResponse.toolCalls) {
           if (this.abortController?.signal.aborted) break;
 
-          // Non-destructive PLAN mode enforcement
-          if (this.agentMode === 'plan') {
-            const mutatingTools = ['write_file', 'edit_file', 'patch_file', 'delete_file'];
-            if (mutatingTools.includes(toolCall.name)) {
-              const blockedMsg = `PLAN mode is strictly non-destructive. Tool "${toolCall.name}" is blocked. Present the architectural plan to the user and switch to /mode build to execute changes.`;
-              this.conversationMessages.push({
-                role: 'tool',
-                content: blockedMsg,
-                tool_call_id: toolCall.id,
-                name: toolCall.name,
-              });
-              continue;
-            }
+          if (!this.isToolAllowedInCurrentMode(toolCall.name)) {
+            const blockedMsg = `${this.agentMode.toUpperCase()} mode is strictly non-destructive. Tool "${toolCall.name}" is blocked. Present the analysis to the user and switch to /mode build to execute changes.`;
+            deniedActions.push(this.describeToolAction(toolCall.name, toolCall.arguments));
+            this.conversationMessages.push({
+              role: 'tool',
+              content: blockedMsg,
+              tool_call_id: toolCall.id,
+              name: toolCall.name,
+            });
+            continue;
           }
 
           await this.hookManager.trigger('before_tool', { toolCall });
           const toolStart = performance.now();
 
+          if (
+            !checkpointAttempted &&
+            config.agent.auto_checkpoint &&
+            MUTATING_TOOL_NAMES.has(toolCall.name)
+          ) {
+            checkpointAttempted = true;
+            try {
+              const checkpointManager = new CheckpointManager(this.workspaceRoot);
+              if (checkpointManager.isGitRepository()) {
+                const checkpoint = checkpointManager.createCheckpoint('auto_before_task');
+                if (checkpoint.restorable) {
+                  recoveryCheckpointId = checkpoint.id;
+                  this.logger.debug(
+                    `Created recovery checkpoint ${checkpoint.id} before "${toolCall.name}".`
+                  );
+                }
+              }
+            } catch (checkpointErr: any) {
+              this.logger.debug(`Automatic recovery checkpoint failed: ${checkpointErr.message}`);
+            }
+          }
+
+          const parsedToolArgs =
+            typeof toolCall.arguments === 'string' ? JSON.parse(toolCall.arguments) : toolCall.arguments;
+          const actionLabel = this.describeToolAction(toolCall.name, parsedToolArgs);
+
           const toolRes = await this.orchestrator.execute({
             callId: toolCall.id,
             toolName: toolCall.name,
-            args: typeof toolCall.arguments === 'string' ? JSON.parse(toolCall.arguments) : toolCall.arguments,
+            args: parsedToolArgs,
             sessionId: this.sessionId,
             signal: this.abortController?.signal,
           });
@@ -552,7 +819,15 @@ export class AgentRuntime {
           this.telemetry.recordToolCall(toolCall.name, toolDuration, toolRes.success);
           toolsExecuted.push(toolCall.name);
 
-          if (!toolRes.success) {
+          if (toolRes.success) {
+            appliedActions.push(actionLabel);
+          } else {
+            const deniedCodes = ['PERMISSION_DENIED', 'NON_DESTRUCTIVE_MODE', 'NETWORK_BLOCKED'];
+            if (deniedCodes.includes(toolRes.error || '')) {
+              deniedActions.push(actionLabel);
+            } else {
+              failedActions.push(actionLabel);
+            }
             this.failureLedger.recordFailure(toolCall.name, toolRes.error || toolRes.output, {
               toolName: toolCall.name,
               args: toolCall.arguments,
@@ -560,11 +835,14 @@ export class AgentRuntime {
           }
           await this.hookManager.trigger('after_tool', { toolCall, result: toolRes });
 
-          // Track modified files
-          if (typeof toolCall.arguments === 'object' && toolCall.arguments && (toolCall.arguments as any).path) {
-            const targetPath = (toolCall.arguments as any).path;
+          // Track modified files only when the mutation actually succeeded
+          if (typeof parsedToolArgs === 'object' && parsedToolArgs && (parsedToolArgs as any).path) {
+            const targetPath = (parsedToolArgs as any).path;
             this.contextEngine.markFileActive(targetPath);
-            if (['write_file', 'edit_file', 'patch_file', 'delete_file'].includes(toolCall.name)) {
+            if (
+              toolRes.success &&
+              ['write_file', 'edit_file', 'delete_file'].includes(toolCall.name)
+            ) {
               filesModified.add(targetPath);
             }
           }
@@ -609,7 +887,7 @@ export class AgentRuntime {
   }
 
   private async handleConversationalTurn(): Promise<void> {
-    let target = this.router.resolveTarget(this.activeModelTarget);
+    const target = this.router.resolveTarget(this.activeModelTarget);
     const systemPrompt = `You are Berkelium Codex, a helpful, precise, and friendly AI coding assistant. Answer the user's conversational greeting or question concisely and clearly.`;
 
     this.eventBus.emit({
@@ -620,13 +898,24 @@ export class AgentRuntime {
       role: 'assistant',
     });
 
-    const acc = ResponseNormalizer.createAccumulator(target.modelId, target.providerId);
-    const stream = target.provider.stream(this.conversationMessages, {
-      model: target.modelId,
-      systemPrompt,
-      tools: [], // No tools exposed for pure conversational turns
-      signal: this.abortController?.signal,
-    });
+    let acc = ResponseNormalizer.createAccumulator(target.modelId, target.providerId);
+    const stream = this.router.streamWithFallback(
+      this.conversationMessages,
+      {
+        model: target.modelId,
+        systemPrompt,
+        tools: [], // No tools exposed for pure conversational turns
+        signal: this.abortController?.signal,
+      },
+      this.activeModelTarget,
+      (candidate) => this.authorizeModelRequest(candidate),
+      (candidate) => {
+        acc = ResponseNormalizer.createAccumulator(candidate.modelId, candidate.providerId);
+        if (candidate.config?.context_length) {
+          this.contextEngine.setMaxContextLimit(candidate.config.context_length);
+        }
+      }
+    );
 
     const sanitizer = new StreamSanitizer({
       onToken: (token) => {

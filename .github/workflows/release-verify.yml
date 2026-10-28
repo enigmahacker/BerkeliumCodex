@@ -1,0 +1,69 @@
+name: Release Verification
+
+# Manual-only. This workflow never publishes or creates tags.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to verify (commit SHA, branch, or tag)
+        required: true
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-verify-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Release gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Release Gate
+        run: pnpm run release:check
+
+      - name: Verify Packed Artifact Contents
+        run: |
+          mkdir -p /tmp/release-pack
+          pnpm --filter @berkelium/cli pack --pack-destination /tmp/release-pack
+          TARBALL=$(ls /tmp/release-pack/*.tgz)
+          echo "Inspecting $TARBALL"
+          tar -tzf "$TARBALL"
+          if tar -tzf "$TARBALL" | grep -E '(^|/)(src|tests)/|tsconfig(\..*)?\.json|\.tsbuildinfo$'; then
+            echo "::error::Packed artifact contains source, tests, or build metadata."
+            exit 1
+          fi
+          if ! tar -tzf "$TARBALL" | grep -q 'package/LICENSE'; then
+            echo "::error::Packed artifact is missing the license file."
+            exit 1
+          fi
+          tar -xOf "$TARBALL" package/package.json > /tmp/release-pack/packed-package.json
+          if grep -q 'workspace:' /tmp/release-pack/packed-package.json; then
+            echo "::error::Unresolved workspace protocol in packed manifest."
+            exit 1
+          fi
+
+      - name: Smoke-Test Built CLI
+        run: |
+          node apps/cli/dist/bin/berkelium.js --version
+          node apps/cli/dist/bin/berkelium.js --help

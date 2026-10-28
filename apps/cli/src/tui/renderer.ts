@@ -17,6 +17,7 @@ export class TUIRenderer {
   private currentStreamLine = '';
   private isInReasoning = false;
   private hasActiveStream = false;
+  private lastOutcomeStatus: 'completed' | 'partial' | 'blocked' | 'failed' | null = null;
 
   constructor(themeManager: ThemeManager) {
     this.themeManager = themeManager;
@@ -66,6 +67,7 @@ export class TUIRenderer {
           console.log(fmt.assistant(fmt.bold('Berkelium:')));
           this.currentStreamLine = '';
         } else if (event.role === 'user' && event.content) {
+          this.lastOutcomeStatus = null;
           console.log();
           console.log(fmt.user(fmt.bold('You:')));
           console.log(event.content);
@@ -116,7 +118,7 @@ export class TUIRenderer {
         if (toolName === 'read_file' || toolName === 'filesystem.read') {
           actionLabel = 'Reading';
           targetDetail = args.path || args.file || '';
-        } else if (toolName === 'write_file' || toolName === 'edit_file' || toolName === 'patch_file') {
+        } else if (toolName === 'write_file' || toolName === 'edit_file' || toolName === 'delete_file') {
           actionLabel = 'Editing';
           targetDetail = args.path || args.file || '';
         } else if (toolName === 'run_shell' || toolName === 'execute_command') {
@@ -143,16 +145,26 @@ export class TUIRenderer {
         break;
       }
 
+      case 'tool_output':
+        if (event.output) {
+          process.stdout.write(fmt.dimmed(event.output));
+        }
+        break;
+
       case 'tool_completed': {
         this.flushStream();
         let summary = `Completed in ${event.durationMs}ms`;
-        const output = (event as any).output || '';
+        const output = this.formatToolResult(event.result);
         if (event.toolName === 'read_file' || event.toolName === 'filesystem.read') {
           const lines = output ? output.split('\n').length : 0;
           if (lines > 0) summary = `Read ${lines} lines`;
-        } else if (event.toolName === 'write_file' || event.toolName === 'edit_file') {
+        } else if (
+          event.toolName === 'write_file' ||
+          event.toolName === 'edit_file' ||
+          event.toolName === 'delete_file'
+        ) {
           summary = 'Applied edits';
-        } else if (event.toolName === 'run_shell' && output.toLowerCase().includes('pass')) {
+        } else if (event.toolName === 'run_shell' && /\b(pass(ed)?|passing)\b/i.test(output)) {
           summary = 'Tests passed';
         }
         console.log(fmt.success('✓ ') + fmt.dimmed(summary));
@@ -180,7 +192,9 @@ export class TUIRenderer {
             console.log(fmt.accent('● Planning'));
             console.log(`  ${fmt.dimmed(event.description.replace(/^Planning\s+/i, ''))}`);
           } else if (event.newState === 'COMPLETED') {
-            console.log(fmt.success('✓ Task completed'));
+            if (this.lastOutcomeStatus === null || this.lastOutcomeStatus === 'completed') {
+              console.log(fmt.success('✓ Task completed'));
+            }
           } else if (event.newState !== 'VERIFYING' && event.newState !== 'EXECUTING') {
             console.log(fmt.dimmed(`● ${event.description}`));
           }
@@ -193,6 +207,93 @@ export class TUIRenderer {
         console.log(fmt.warning('  ⚠ Permission Required: ') + fmt.bold(event.action));
         console.log(fmt.dimmed(`    Target: ${event.target} (Risk: ${event.risk.toUpperCase()})`));
         break;
+
+      case 'permission_granted':
+        console.log(
+          fmt.success('✓ ') +
+            fmt.dimmed(`Permission granted${event.remember ? ' for session' : ' once'}`)
+        );
+        break;
+
+      case 'permission_denied':
+        console.log(
+          fmt.error('✗ ') + fmt.dimmed(`Permission denied${event.reason ? `: ${event.reason}` : ''}`)
+        );
+        break;
+
+      case 'model_changed':
+        if (!this.hasActiveStream) {
+          console.log(fmt.dimmed(`● Model: ${event.newModel} (${event.provider})`));
+        }
+        break;
+
+      case 'mode_changed':
+        if (!this.hasActiveStream) {
+          console.log(fmt.dimmed(`● Mode: ${event.newMode}`));
+        }
+        break;
+
+      case 'provider_changed':
+        if (!this.hasActiveStream) {
+          console.log(fmt.dimmed(`● Provider: ${event.newProvider}`));
+        }
+        break;
+
+      case 'context_compacted':
+        if (!this.hasActiveStream) {
+          console.log(
+            fmt.dimmed(
+              `● Context compacted: ${event.tokensBefore} → ${event.tokensAfter} tokens (-${event.reductionPercentage}%)`
+            )
+          );
+        }
+        break;
+
+      case 'security_warning':
+      case 'security_blocked':
+      case 'path_escape_blocked':
+      case 'network_request_blocked':
+      case 'unsafe_command_blocked':
+      case 'secret_detected': {
+        this.flushStream();
+        const message =
+          event.type === 'security_warning'
+            ? event.warning
+            : event.type === 'secret_detected'
+              ? `Detected secret material (${event.secretTypes.join(', ')}) in ${event.source}`
+              : event.reason;
+        console.log(fmt.warning(`⚠ ${message}`));
+        break;
+      }
+
+      case 'subagent_started':
+        if (!this.hasActiveStream) {
+          console.log(fmt.dimmed(`● Subagent ${event.role} started: ${event.task}`));
+        }
+        break;
+
+      case 'subagent_completed':
+        if (!this.hasActiveStream) {
+          console.log(fmt.dimmed(`● Subagent ${event.role} completed in ${event.durationMs}ms`));
+        }
+        break;
+
+      case 'mission_started':
+        this.flushStream();
+        console.log();
+        console.log(fmt.accent(`● Mission: ${event.goal}`));
+        console.log(fmt.dimmed(`  ${event.taskCount} task(s)`));
+        break;
+
+      case 'mission_task_started':
+        console.log(fmt.dimmed(`  ▸ ${event.objective}`));
+        break;
+
+      case 'mission_task_completed': {
+        const icon = event.status === 'completed' ? fmt.success('✓') : fmt.error('✗');
+        console.log(`  ${icon} ${fmt.dimmed(`${event.taskId}: ${event.status}`)}`);
+        break;
+      }
 
       case 'verification_started':
         this.flushStream();
@@ -207,13 +308,52 @@ export class TUIRenderer {
         } else {
           console.log(fmt.warning('⚠ Verification issues detected. Initiating remediation...'));
         }
+        for (const result of event.results) {
+          if (result.status === 'skipped') {
+            console.log(`  ${fmt.dimmed(`- ${result.check}: skipped`)}`);
+          }
+        }
         break;
+
+      case 'task_outcome': {
+        this.flushStream();
+        this.lastOutcomeStatus = event.status;
+        const color =
+          event.status === 'completed'
+            ? fmt.success
+            : event.status === 'partial'
+              ? fmt.warning
+              : fmt.error;
+        console.log(color(event.summary));
+        if (event.denied.length > 0) {
+          console.log(fmt.dimmed(`  Denied: ${event.denied.join(', ')}`));
+        }
+        if (event.failed.length > 0) {
+          console.log(fmt.dimmed(`  Failed: ${event.failed.join(', ')}`));
+        }
+        if (event.checkpointId) {
+          console.log(
+            fmt.dimmed(`  Recovery checkpoint: ${event.checkpointId} (use /undo to restore)`)
+          );
+        }
+        break;
+      }
 
       case 'error':
         this.flushStream();
         console.log();
         console.log(fmt.error(`[Error] ${event.message}`));
         break;
+    }
+  }
+
+  private formatToolResult(result: unknown): string {
+    if (result === null || result === undefined) return '';
+    if (typeof result === 'string') return result;
+    try {
+      return JSON.stringify(result);
+    } catch {
+      return String(result);
     }
   }
 

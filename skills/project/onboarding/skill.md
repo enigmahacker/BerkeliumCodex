@@ -60,7 +60,7 @@ If required tool is missing, provide exact OS-specific installation instructions
 OnboardingStatusReport with toolchainChecks, envPrerequisites, and readinessScore.
 
 ## Examples
-Verifying Node 20+, pnpm 9+, and Turbo are installed before compiling Berkelium monorepo.
+Verifying Node 22.13+, pnpm 11.7+, and Git are installed before building the Berkelium monorepo.
 
 ## Related Skills
 - `project-discovery`

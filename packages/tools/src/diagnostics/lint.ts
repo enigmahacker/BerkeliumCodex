@@ -1,6 +1,6 @@
-import { exec } from 'node:child_process';
 import { z } from 'zod';
 import { Tool, ToolContext, ToolExecutionResult } from '../types.js';
+import { RunProcessTool } from '../shell/run-process.js';
 
 export const LintInputSchema = z.object({
   fix: z.boolean().default(false).describe('Automatically apply safe lint fixes'),
@@ -19,24 +19,21 @@ export class LintTool implements Tool<LintInput> {
   public readonly schema = LintInputSchema;
 
   public async execute(args: LintInput, context: ToolContext): Promise<ToolExecutionResult> {
-    const cmd = args.fix ? 'npm run lint -- --fix' : 'npm run lint';
+    const processArgs = ['run', 'lint'];
+    if (args.fix) processArgs.push('--', '--fix');
 
-    return new Promise((resolve) => {
-      exec(cmd, { cwd: context.workspaceRoot, timeout: 30000 }, (error, stdout, stderr) => {
-        const output = (stdout + (stderr ? '\n' + stderr : '')).trim();
-        if (error) {
-          resolve({
-            success: false,
-            output: output || error.message,
-            error: 'LINT_ISSUES_FOUND',
-          });
-        } else {
-          resolve({
-            success: true,
-            output: output || '✓ Lint check clean.',
-          });
-        }
-      });
-    });
+    const result = await new RunProcessTool().execute(
+      { executable: 'npm', args: processArgs, timeout_ms: 30000 },
+      context
+    );
+
+    if (!result.success) {
+      return { ...result, error: 'LINT_ISSUES_FOUND' };
+    }
+
+    return {
+      ...result,
+      output: result.output || '✓ Lint check clean.',
+    };
   }
 }

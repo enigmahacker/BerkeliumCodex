@@ -9,16 +9,35 @@ import {
   ProviderRequestOptions,
 } from '../types.js';
 import { ResponseNormalizer } from '../normalizer.js';
+import { EndpointTrustHandler, EndpointTrustPolicy } from '../endpoint-trust.js';
+import { fetchWithTimeout } from '../http.js';
+
+const DEFAULT_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 
 export class NVIDIAProvider implements Provider {
   public readonly id = 'nvidia';
   public readonly name = 'NVIDIA NIM';
   private baseUrl: string;
   private authStore: AuthStore;
+  private endpointTrust: EndpointTrustPolicy;
+  private timeoutMs: number;
 
-  constructor(authStore: AuthStore, baseUrl = 'https://integrate.api.nvidia.com/v1') {
+  constructor(
+    authStore: AuthStore,
+    baseUrl = DEFAULT_BASE_URL,
+    trustHandler?: EndpointTrustHandler,
+    timeoutMs = 60000
+  ) {
     this.authStore = authStore;
-    this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.timeoutMs = timeoutMs;
+    this.endpointTrust = new EndpointTrustPolicy(
+      this.id,
+      this.name,
+      baseUrl,
+      DEFAULT_BASE_URL,
+      trustHandler
+    );
+    this.baseUrl = this.endpointTrust.getEndpoint();
   }
 
   public capabilities(): ProviderCapabilities {
@@ -38,14 +57,21 @@ export class NVIDIAProvider implements Provider {
     return Boolean(key);
   }
 
+  public isLocal(): boolean {
+    return this.endpointTrust.isLocal();
+  }
+
   public async listModels(): Promise<ModelInfo[]> {
+    await this.endpointTrust.assertTrusted();
     try {
       const apiKey = await this.authStore.getApiKey('nvidia');
       if (!apiKey) return this.getDefaultModels();
 
-      const res = await fetch(`${this.baseUrl}/models`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
+      const res = await fetchWithTimeout(
+        `${this.baseUrl}/models`,
+        { headers: { Authorization: `Bearer ${apiKey}` } },
+        this.timeoutMs
+      );
       if (!res.ok) return this.getDefaultModels();
       const data = (await res.json()) as any;
       if (!data.data || !Array.isArray(data.data)) return this.getDefaultModels();
@@ -288,6 +314,7 @@ export class NVIDIAProvider implements Provider {
     messages: Message[],
     options: ProviderRequestOptions
   ): AsyncIterable<NormalizedChunk> {
+    await this.endpointTrust.assertTrusted();
     const apiKey = await this.authStore.getApiKey('nvidia');
     if (!apiKey) {
       throw new Error(
@@ -315,15 +342,19 @@ export class NVIDIAProvider implements Provider {
       payload.tool_choice = options.toolChoice || 'auto';
     }
 
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/chat/completions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(payload),
+        signal: options.signal,
       },
-      body: JSON.stringify(payload),
-      signal: options.signal,
-    });
+      options.timeoutMs ?? this.timeoutMs
+    );
 
     if (!res.ok) {
       const errText = await res.text();

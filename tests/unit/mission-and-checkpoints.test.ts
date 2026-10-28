@@ -6,7 +6,7 @@ import { MissionRunner } from '../../packages/agent/src/mission.js';
 import { CheckpointManager } from '../../packages/agent/src/checkpoint-manager.js';
 import { BackgroundTaskManager } from '../../packages/agent/src/background-task-manager.js';
 import { NetworkController } from '../../packages/tools/src/network-controller.js';
-import { ToolOrchestrator, ToolRegistry, FetchUrlTool } from '@berkelium/tools';
+import { ToolOrchestrator, ToolRegistry, FetchUrlTool, RunShellTool, CheckpointRestoreTool } from '@berkelium/tools';
 import { PermissionEngine, SecretRedactor } from '@berkelium/permissions';
 import { EventBus } from '../../packages/events/src/event-bus.js';
 import { Logger } from '../../packages/logging/src/logger.js';
@@ -111,24 +111,82 @@ describe('Mission Runner, Checkpoints, Background Tasks, and Network Controls', 
       expect(result.success).toBe(false);
       expect(result.message).toContain('Checkpoint not found');
     });
+
+    it('should deny checkpoint restoration before execution when confirmation is unavailable', async () => {
+      const manager = new CheckpointManager(tempDir);
+      const checkpoint = manager.createCheckpoint('protected_restore');
+      const logger = new Logger({ subsystem: 'test' });
+      const eventBus = new EventBus();
+      const configManager = new ConfigManager(tempDir);
+      const registry = new ToolRegistry();
+      registry.register(new CheckpointRestoreTool());
+      const permissionEngine = new PermissionEngine(tempDir, configManager.getConfig().permissions, eventBus);
+      const orchestrator = new ToolOrchestrator(
+        registry,
+        permissionEngine,
+        new SecretRedactor(),
+        logger,
+        tempDir,
+        eventBus
+      );
+
+      const result = await orchestrator.execute({
+        callId: 'restore-denied',
+        toolName: 'checkpoint_restore',
+        args: { id: checkpoint.id },
+        sessionId: 'checkpoint-policy-test',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('PERMISSION_DENIED');
+      expect(manager.listCheckpoints()).toHaveLength(1);
+    });
   });
 
   describe('BackgroundTaskManager', () => {
-    it('should start, list, buffer output, and stop tasks', async () => {
+    it('should start through the orchestrator, list, and stop tasks', async () => {
+      const logger = new Logger({ subsystem: 'test' });
+      const eventBus = new EventBus();
+      const configManager = new ConfigManager(tempDir);
+      const registry = new ToolRegistry();
+      registry.register(new RunShellTool());
+      const permissionEngine = new PermissionEngine(tempDir, configManager.getConfig().permissions, eventBus);
+      const orchestrator = new ToolOrchestrator(
+        registry,
+        permissionEngine,
+        new SecretRedactor(),
+        logger,
+        tempDir,
+        eventBus
+      );
       const bg = BackgroundTaskManager.getInstance();
-      const task = bg.startTask('sleep 10', tempDir);
+      const initialTaskCount = bg.listTasks().length;
 
+      const denied = await orchestrator.execute({
+        callId: 'background-denied',
+        toolName: 'run_shell',
+        args: { command: 'sleep 10', background: true },
+        sessionId: 'background-test',
+      });
+      expect(denied.success).toBe(false);
+      expect(denied.error).toBe('PERMISSION_DENIED');
+      expect(bg.listTasks()).toHaveLength(initialTaskCount);
+
+      permissionEngine.setPermissionLevel('full');
+      const result = await orchestrator.execute({
+        callId: 'background-1',
+        toolName: 'run_shell',
+        args: { command: 'sleep 10', background: true },
+        sessionId: 'background-test',
+      });
+
+      expect(result.success).toBe(true);
+      const task = result.data as any;
       expect(task.id).toBeDefined();
       expect(task.status).toBe('RUNNING');
       expect(task.command).toBe('sleep 10');
-
-      const found = bg.getTask(task.id);
-      expect(found).toBeDefined();
-      expect(found?.id).toBe(task.id);
-
-      const stopped = bg.stopTask(task.id);
-      expect(stopped).toBe(true);
-
+      expect(bg.getTask(task.id)?.id).toBe(task.id);
+      expect(bg.stopTask(task.id)).toBe(true);
       bg.stopAll();
     });
   });

@@ -22,6 +22,7 @@ import { AgentRuntime, SessionManager, isValidAgentMode, AgentMode } from '@berk
 import { LaunchAnimation } from './tui/animation.js';
 import { TUIRenderer } from './tui/renderer.js';
 import { InteractiveSession } from './tui/interactive-session.js';
+import { ConfirmationManager } from './tui/confirmation.js';
 import { BkMatrix } from './tui/bk-matrix.js';
 import { DoctorCommand } from './commands/doctor.js';
 import { InitCommand } from './commands/init.js';
@@ -174,18 +175,21 @@ Primary Commands:
   const eventBus = new EventBus();
   const configManager = new ConfigManager(resolvedWorkspaceRoot);
   const authStore = new AuthStore();
+  const confirmation = new ConfirmationManager();
   const themeManager = new ThemeManager(customTheme || configManager.getConfig().theme.name);
   const renderer = new TUIRenderer(themeManager);
 
   // Initialize Provider Router & all standard adapters
-  const router = new ProviderRouter(configManager.getConfig(), logger);
-  router.registerProvider(new OpenRouterProvider(authStore, configManager.getConfig().providers.openrouter.base_url));
-  router.registerProvider(new NVIDIAProvider(authStore, configManager.getConfig().providers.nvidia.base_url));
-  router.registerProvider(new GeminiProvider(authStore, configManager.getConfig().providers.gemini?.base_url));
-  router.registerProvider(new HuggingFaceProvider(authStore, configManager.getConfig().providers.huggingface?.base_url));
-  router.registerProvider(new GroqProvider(authStore, configManager.getConfig().providers.groq?.base_url));
-  router.registerProvider(new OllamaProvider(configManager.getConfig().providers.ollama.base_url));
-  router.registerProvider(new LMStudioProvider(configManager.getConfig().providers.lmstudio.base_url));
+  const endpointTrustHandler = confirmation.confirm.bind(confirmation);
+  const config = configManager.getConfig();
+  const router = new ProviderRouter(config, logger);
+  router.registerProvider(new OpenRouterProvider(authStore, config.providers.openrouter.base_url, endpointTrustHandler, config.providers.openrouter.timeout_ms));
+  router.registerProvider(new NVIDIAProvider(authStore, config.providers.nvidia.base_url, endpointTrustHandler, config.providers.nvidia.timeout_ms));
+  router.registerProvider(new GeminiProvider(authStore, config.providers.gemini.base_url, endpointTrustHandler, config.providers.gemini.timeout_ms));
+  router.registerProvider(new HuggingFaceProvider(authStore, config.providers.huggingface.base_url, endpointTrustHandler, config.providers.huggingface.timeout_ms));
+  router.registerProvider(new GroqProvider(authStore, config.providers.groq.base_url, endpointTrustHandler, config.providers.groq.timeout_ms));
+  router.registerProvider(new OllamaProvider(config.providers.ollama.base_url, endpointTrustHandler, config.providers.ollama.timeout_ms));
+  router.registerProvider(new LMStudioProvider(config.providers.lmstudio.base_url, endpointTrustHandler, config.providers.lmstudio.timeout_ms));
 
   // Initialize Permission Engine & Redactor
   const permissionEngine = new PermissionEngine(
@@ -438,6 +442,7 @@ Primary Commands:
     eventBus,
     hookManager: pluginManager.getHookManager(),
     sessionManager,
+    cloudEscalationHandler: confirmation.confirm.bind(confirmation),
   });
 
   if (customModel) {
@@ -532,8 +537,10 @@ Primary Commands:
     orchestrator,
     contextEngine,
     authStore,
+    sessionManager,
     hackathonMode: hackathonMode || configManager.getConfig().ui.hackathon_mode,
   });
+  confirmation.setInteractiveHandler((request) => session.requestConfirmation(request));
 
   await session.start();
 }

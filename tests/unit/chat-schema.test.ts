@@ -240,7 +240,7 @@ describe('Berkelium Codex Chat Protocol & JSON Schema', () => {
         type: 'tool_completed',
         callId: 'call_99',
         toolName: 'shell_execute',
-        output: 'On branch main',
+        result: 'On branch main',
         durationMs: 12,
         timestamp: Date.now(),
         sessionId: 'session_conv_1',
@@ -248,8 +248,9 @@ describe('Berkelium Codex Chat Protocol & JSON Schema', () => {
       {
         id: 'ae_5',
         type: 'state_changed',
-        from: 'IDLE',
-        to: 'ANALYZING',
+        previousState: 'IDLE',
+        newState: 'THINKING',
+        description: 'Analyzing request',
         timestamp: Date.now(),
         sessionId: 'session_conv_1',
       },
@@ -258,6 +259,7 @@ describe('Berkelium Codex Chat Protocol & JSON Schema', () => {
         type: 'error',
         code: 'NETWORK_TIMEOUT',
         message: 'Endpoint timed out',
+        recoverable: false,
         timestamp: Date.now(),
         sessionId: 'session_conv_1',
       },
@@ -275,5 +277,30 @@ describe('Berkelium Codex Chat Protocol & JSON Schema', () => {
       expect(validation.errors).toHaveLength(0);
       expect(chatEvent.conversation_id).toBe('session_conv_1');
     }
+
+    const completed = agentEventToChatEvent(testEvents[3], {
+      conversationId: 'session_conv_1',
+      model: 'berkelium-coder:3b',
+      provider: 'mlx',
+    });
+    expect((completed.tool as any).stdout).toBe('On branch main');
+    expect((completed.tool as any).duration_ms).toBe(12);
+
+    const stateChange = agentEventToChatEvent(testEvents[4], {
+      conversationId: 'session_conv_1',
+      model: 'berkelium-coder:3b',
+      provider: 'mlx',
+    });
+    expect(stateChange.agent?.state).toBe('THINKING');
+    expect(stateChange.agent?.previous_state).toBe('IDLE');
+    expect(stateChange.content).toBe('Analyzing request');
+
+    const failure = agentEventToChatEvent(testEvents[5], {
+      conversationId: 'session_conv_1',
+      model: 'berkelium-coder:3b',
+      provider: 'mlx',
+    });
+    expect(failure.error?.code).toBe('NETWORK_TIMEOUT');
+    expect(failure.error?.recoverable).toBe(false);
   });
 });

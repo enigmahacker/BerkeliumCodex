@@ -49,14 +49,23 @@ export class EditFileTool implements Tool<EditFileInput> {
 
       const updated = content.replace(args.target, args.replacement);
 
+      // Preserve permissions (e.g. executable bits) on atomic replace.
+      const existingMode = (await fs.stat(fullPath)).mode & 0o777;
+
       // Atomic write
       const parentDir = path.dirname(fullPath);
       const tempPath = path.join(
         parentDir,
         `.bk_tmp_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`
       );
-      await fs.writeFile(tempPath, updated, 'utf-8');
-      await fs.rename(tempPath, fullPath);
+      try {
+        await fs.writeFile(tempPath, updated, 'utf-8');
+        await fs.chmod(tempPath, existingMode);
+        await fs.rename(tempPath, fullPath);
+      } catch (writeErr) {
+        await fs.unlink(tempPath).catch(() => {});
+        throw writeErr;
+      }
 
       return {
         success: true,
